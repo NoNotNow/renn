@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -15,6 +16,11 @@ import {
   type MazeTrainingMeta,
   type MazeTrainingWorldSpec,
 } from '@/policyEvolution/mazeTraining'
+import {
+  fetchMazeCandidates,
+  type MazeCandidate,
+  type MazeCandidatesFile,
+} from '@/policyEvolution/mazeCandidates'
 import {
   getTransformerWatchEntriesForEntity,
   subscribeTransformerWatch,
@@ -31,8 +37,12 @@ export interface MazeTrainingLiveRun {
 export interface MazeTrainingDialogProps {
   isOpen: boolean
   onClose: () => void
-  /** Loads the example world into the builder focused on the selected route (Builder implements this; the dialog stays open). */
-  onPlayExampleWorld: (worldId: string, routeIndex: number) => void
+  /**
+   * Loads the example world into the builder focused on the selected route (Builder implements this; the dialog
+   * stays open). `candidate` is the model selected via the header chips — the Builder swaps the drive-stage
+   * weights of the loaded world to it (null = the deployed candidate baked into the export).
+   */
+  onPlayExampleWorld: (worldId: string, routeIndex: number, candidate: MazeCandidate | null) => void
   /** Training-maze world+route currently loaded and driving in the Builder (drives the live active-vector overlay and live score). */
   liveRun?: MazeTrainingLiveRun | null
 }
@@ -53,6 +63,7 @@ const HEADER_BG_TRANSLUCENT = theme.bg.modalGlassHeader
 const POS_STORAGE_KEY = 'mazeTrainingPanelPos'
 const SIZE_STORAGE_KEY = 'mazeTrainingPanelSize'
 const COLLAPSED_STORAGE_KEY = 'mazeTrainingPanelCollapsed'
+const CANDIDATE_STORAGE_KEY = 'mazeTrainingPanelCandidate'
 
 const STRIP_HEIGHT = 38
 const DEFAULT_WIDTH = 540
@@ -291,6 +302,9 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
   /** Route tile per world that started the run (the accent border marks the started way; default route 0). */
   const [selectedRoutes, setSelectedRoutes] = useState<Record<string, number>>({})
   const [collapsed, setCollapsed] = useState<boolean>(() => readStoredCollapsed())
+  /** Candidate model selected via the header chips (null = the deployed candidate baked into the export); persisted. */
+  const [candidateId, setCandidateId] = useState<string | null>(() => readStoredJson(CANDIDATE_STORAGE_KEY) as string | null)
+  const [candidatesFile, setCandidatesFile] = useState<MazeCandidatesFile | null>(null)
   const [size, setSize] = useState<PanelSize>(() => readStoredSize() ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
   const [pos, setPos] = useState<PanelPos>(() => {
     const stored = readStoredPos()
@@ -350,6 +364,29 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
       cancelled = true
     }
   }, [isOpen])
+
+  // Candidate models (island centers / best / shipped) exported next to the worlds; chips render only when the
+  // file exists. A persisted selection that the file no longer lists is dropped (stale id after a re-export).
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    fetchMazeCandidates(BASE_URL).then((file) => {
+      if (!cancelled) {
+        setCandidatesFile(file)
+        if (file) {
+          setCandidateId((prev) => (prev && file.candidates.some((c) => c.id === prev) ? prev : null))
+        }
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
+
+  const selectedCandidate = useMemo(
+    () => candidatesFile?.candidates.find((c) => c.id === candidateId) ?? null,
+    [candidatesFile, candidateId],
+  )
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
@@ -455,9 +492,25 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
     (worldId: string, routeIndex: number) => {
       setSelectedId(worldId)
       setSelectedRoutes((prev) => ({ ...prev, [worldId]: routeIndex }))
-      onPlayExampleWorld(worldId, routeIndex)
+      onPlayExampleWorld(worldId, routeIndex, selectedCandidate)
     },
-    [onPlayExampleWorld],
+    [onPlayExampleWorld, selectedCandidate],
+  )
+
+  /**
+   * Chip click selects the candidate model (clicking the active chip again returns to the deployed candidate).
+   * While a run is live, the chip re-loads that world+route with the new model right away; otherwise the
+   * selection applies to the next tile click.
+   */
+  const handleCandidateChipClick = useCallback(
+    (id: string) => {
+      const next = selectedCandidate?.id === id ? null : id
+      setCandidateId(next)
+      persistJson(CANDIDATE_STORAGE_KEY, next)
+      const candidate = next ? candidatesFile?.candidates.find((c) => c.id === next) ?? null : null
+      if (liveRun) onPlayExampleWorld(liveRun.worldId, liveRun.routeIndex, candidate)
+    },
+    [selectedCandidate, candidatesFile, liveRun, onPlayExampleWorld],
   )
 
   const handleThumbError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -556,6 +609,44 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
             style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}
           >
             {totalsLine}
+          </span>
+        ) : null}
+        {candidatesFile && candidatesFile.candidates.length > 0 ? (
+          <span
+            data-testid="maze-training-candidates"
+            title="Candidate models: a chip swaps the driving net of the loaded world (the exported file keeps the deployed best). The scores in this dialog describe the DEPLOYED candidate — the deployed model is what the auto-trial baked into the export."
+            style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+          >
+            {candidatesFile.candidates.map((candidate) => {
+              const active = selectedCandidate?.id === candidate.id
+              return (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  data-testid={`maze-training-candidate-chip-${candidate.id}`}
+                  aria-pressed={active}
+                  aria-label={`Candidate ${candidate.label}`}
+                  title={`${candidate.detail}${candidate.gen != null ? ` · gen ${candidate.gen}` : ''}${active ? ' — click again for the deployed candidate' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleCandidateChipClick(candidate.id)
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  style={{
+                    background: 'transparent',
+                    border: `1px solid ${active ? theme.accent : theme.border.default}`,
+                    color: active ? theme.accent : theme.text.muted,
+                    fontSize: 10,
+                    lineHeight: 1,
+                    padding: '3px 6px',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {candidate.label}
+                </button>
+              )
+            })}
           </span>
         ) : null}
         <div style={{ flex: 1 }} />

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import MazeTrainingDialog from './MazeTrainingDialog'
 import { theme } from '@/config/theme'
 import { MAZE_TRAINING_WORLDS, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
+import type { MazeCandidate } from '@/policyEvolution/mazeCandidates'
 import {
   clearTransformerWatchEntries,
   publishTransformerWatchEntry,
@@ -67,11 +68,28 @@ function makeMeta(
   } as MazeTrainingMeta
 }
 
-function stubFetchWithMeta(make: (spec: (typeof MAZE_TRAINING_WORLDS)[number]) => MazeTrainingMeta) {
+function stubFetchWithMeta(
+  make: (spec: (typeof MAZE_TRAINING_WORLDS)[number]) => MazeTrainingMeta,
+  candidates?: MazeCandidate[],
+) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: unknown) => {
       const url = String(input)
+      if (url.includes('policy-evolution/candidates.json')) {
+        if (!candidates) throw new Error('offline')
+        return {
+          ok: true,
+          json: async () => ({
+            schema: 'renn.policy-evolution.candidates/1',
+            source: 'training-data/policy-evolution/v3mg7.json',
+            policy: 'v3',
+            gen: 42,
+            updatedAt: '2026-10-11T00:00:00.000Z',
+            candidates,
+          }),
+        }
+      }
       const match = url.match(/exampleWorlds\/([^/]+)\/meta\.json$/)
       const id = decodeURIComponent(match?.[1] ?? '')
       const spec = MAZE_TRAINING_WORLDS.find((s) => s.id === id)
@@ -79,6 +97,11 @@ function stubFetchWithMeta(make: (spec: (typeof MAZE_TRAINING_WORLDS)[number]) =
       return { ok: true, json: async () => make(spec) }
     }),
   )
+}
+
+/** Candidate fixture: minimal valid candidate (the dialog only reads id/label/gen/genome/detail). */
+function makeCandidate(id: string, label: string): MazeCandidate {
+  return { id, label, gen: 42, genome: [1, 2, 3], detail: `${label} detail` }
 }
 
 describe('MazeTrainingDialog', () => {
@@ -191,16 +214,16 @@ describe('MazeTrainingDialog', () => {
     // There is no default-route-0 start: a run can only be started through a tile.
     await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-3'))
-    expect(onPlay).toHaveBeenCalledWith('maze_train_3', 3)
+    expect(onPlay).toHaveBeenCalledWith('maze_train_3', 3, null)
     // starting another way of the same run reports that route instead
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-1'))
-    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 1)
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 1, null)
     expect(onPlay).toHaveBeenCalledTimes(2)
     // keyboard Enter on a tile starts that way too
     const tile2 = screen.getByTestId('maze-training-route-tile-maze_train_3-2')
     tile2.focus()
     await user.keyboard('{Enter}')
-    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 2)
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 2, null)
     expect(onPlay).toHaveBeenCalledTimes(3)
   })
 
@@ -216,10 +239,91 @@ describe('MazeTrainingDialog', () => {
     await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-0'))
     expect(onPlay).toHaveBeenCalledTimes(1)
-    expect(onPlay).toHaveBeenCalledWith('maze_train_3', 0)
+    expect(onPlay).toHaveBeenCalledWith('maze_train_3', 0, null)
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.getByTestId('maze-training-panel-header')).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByTestId('maze-training-row-maze_train_3')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('renders candidate chips from candidates.json; a chip click selects the candidate and the next tile start carries it', async () => {
+    const user = userEvent.setup()
+    const candidates = [makeCandidate('island-0', 'I1'), makeCandidate('island-1', 'I2'), makeCandidate('island-2', 'I3'), makeCandidate('best', 'Best'), makeCandidate('shipped', 'Shipped')]
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
+    const onPlay = vi.fn()
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    await screen.findAllByTestId('maze-training-candidates')
+    for (const c of candidates) {
+      expect(screen.getByTestId(`maze-training-candidate-chip-${c.id}`)).toHaveTextContent(c.label)
+    }
+    // nothing selected: all chips unpressed, no accent border
+    expect(screen.getByTestId('maze-training-candidate-chip-island-0')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('maze-training-candidate-chip-island-0')).not.toHaveStyle({ borderColor: theme.accent })
+    // selecting a candidate marks the chip and persists the choice
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-0'))
+    expect(screen.getByTestId('maze-training-candidate-chip-island-0')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('maze-training-candidate-chip-island-0')).toHaveStyle({ borderColor: theme.accent })
+    expect(window.localStorage.getItem('mazeTrainingPanelCandidate')).toBe(JSON.stringify('island-0'))
+    // the next tile start carries the selected candidate
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
+    await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-1'))
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 1, expect.objectContaining({ id: 'island-0' }))
+    // clicking the active chip again returns to the deployed candidate (null) and persists that too
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-0'))
+    expect(screen.getByTestId('maze-training-candidate-chip-island-0')).toHaveAttribute('aria-pressed', 'false')
+    expect(window.localStorage.getItem('mazeTrainingPanelCandidate')).toBe(JSON.stringify(null))
+    await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-2'))
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 2, null)
+  })
+
+  it('a chip click re-loads the live run with the new candidate when a run is driving', async () => {
+    const user = userEvent.setup()
+    const candidates = [makeCandidate('island-1', 'I2'), makeCandidate('best', 'Best')]
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
+    const onPlay = vi.fn()
+    render(
+      <MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} liveRun={{ worldId: 'maze_train_2', routeIndex: 1 }} />,
+    )
+    await screen.findAllByTestId('maze-training-candidates')
+    await user.click(screen.getByTestId('maze-training-candidate-chip-best'))
+    expect(onPlay).toHaveBeenCalledTimes(1)
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_2', 1, expect.objectContaining({ id: 'best' }))
+    // switching to the other candidate re-loads the same live run with it
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-1'))
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_2', 1, expect.objectContaining({ id: 'island-1' }))
+    // deselect re-loads with the deployed candidate
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-1'))
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_2', 1, null)
+  })
+
+  it('restores a persisted candidate selection; an id the file no longer lists is dropped', async () => {
+    const user = userEvent.setup()
+    const storage = stubLocalStorage()
+    storage.set('mazeTrainingPanelCandidate', JSON.stringify('island-2'))
+    const candidates = [makeCandidate('island-2', 'I3'), makeCandidate('best', 'Best')]
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
+    const onPlay = vi.fn()
+    const { unmount } = render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    await screen.findAllByTestId('maze-training-candidates')
+    expect(screen.getByTestId('maze-training-candidate-chip-island-2')).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
+    await user.click(screen.getByTestId('maze-training-route-tile-maze_train_1-0'))
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_1', 0, expect.objectContaining({ id: 'island-2' }))
+    // a stale persisted id (candidates.json re-exported, candidate gone) falls back to the deployed candidate
+    storage.set('mazeTrainingPanelCandidate', JSON.stringify('island-9'))
+    unmount()
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), [makeCandidate('best', 'Best')])
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    await screen.findByTestId('maze-training-candidate-chip-best')
+    expect(screen.getByTestId('maze-training-candidate-chip-best')).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('renders no candidate chips when candidates.json is missing (older deploy)', async () => {
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }))
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await screen.findByTestId('maze-training-header-totals')
+    expect(screen.queryByTestId('maze-training-candidates')).not.toBeInTheDocument()
   })
 
   it('shows "not exported yet" and renders no route tiles (no way to start the run) when meta fetch fails', async () => {

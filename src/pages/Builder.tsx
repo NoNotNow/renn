@@ -13,6 +13,7 @@ import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import MazeTrainingDialog, { type MazeTrainingLiveRun } from '@/components/MazeTrainingDialog'
+import { applyMazeCandidate, type MazeCandidate } from '@/policyEvolution/mazeCandidates'
 import { focusMazeRoute } from '@/policyEvolution/mazeTraining'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
@@ -447,14 +448,22 @@ export default function Builder() {
   // mode. The tile clicked in the dialog focuses the run on that route (target vector): camera,
   // visualizeLine display entity and HUD score move to the selected route's car (focusMazeRoute).
   // The dialog stays open; the game HUD is force-enabled so the score watch is visible.
+  // A selected candidate model (header chips) swaps the drive-stage weights of the LOADED world
+  // (applyMazeCandidate) — the export on disk keeps the deployed best (on-disk gate untouched).
   const handlePlayExampleWorld = useCallback(
-    async (worldId: string, routeIndex: number) => {
+    async (worldId: string, routeIndex: number, candidate: MazeCandidate | null) => {
       try {
         const { world, assets } = await loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', worldId)
-        handleOpenExampleWorld(focusMazeRoute(world, routeIndex), worldId, assets)
+        let next = focusMazeRoute(world, routeIndex)
+        if (candidate) next = applyMazeCandidate(next, candidate)
+        handleOpenExampleWorld(next, worldId, assets)
         setMazeTrainingLive({ worldId, routeIndex })
         setShowGameHud(true)
-        uiLogger.select('Builder', 'Load training maze into builder', { worldName: worldId, routeIndex })
+        uiLogger.select('Builder', 'Load training maze into builder', {
+          worldName: worldId,
+          routeIndex,
+          candidate: candidate?.id ?? 'deployed',
+        })
       } catch (err) {
         console.error('Failed to load example world:', err)
         alert('Failed to load example world')
