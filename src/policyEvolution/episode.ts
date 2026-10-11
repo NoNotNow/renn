@@ -77,6 +77,10 @@ export interface PolicyEpisodeMetrics {
   reverseShare?: number
   /** v3 episodes: longest distance (m) driven backwards in one go */
   maxReverseM?: number
+  /** v3 episodes: largest distance (m) from the current leg's chain during the episode (deviation from the path vector) */
+  maxDevM?: number
+  /** v3 episodes: the episode's offcourse boundary (m) — maxDevM / offLimitM is the deviation fraction */
+  offLimitM?: number
 }
 
 /** Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world). */
@@ -253,6 +257,7 @@ export async function runPolicyEpisode(
     let reverseFrames = 0
     let reverseRun = 0
     let maxReverse = 0
+    let maxDev = 0
     for (let frame = 0; frame < frames; frame++) {
       sim.runFrames(1)
       det.advance(DEFAULT_DT)
@@ -267,6 +272,7 @@ export async function runPolicyEpisode(
       }
       const progress = route.update(cp[0], cp[2])
       if (v3) {
+        if (route.lastDist > maxDev) maxDev = route.lastDist
         const v = sim.getVelocity(POLICY_CAR_ID)
         const fvx = -(2 * (q.x * q.z + q.w * q.y))
         const fvz = -(1 - 2 * (q.x * q.x + q.y * q.y))
@@ -329,7 +335,7 @@ export async function runPolicyEpisode(
       norm: score / (routeLength * NORM_SPEED),
       wallMs: performance.now() - t0,
       length: routeLength,
-      ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse } : {}),
+      ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevM: maxDev, offLimitM: offCourseM } : {}),
     }
   } finally {
     sim?.dispose()

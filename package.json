@@ -32,6 +32,7 @@
     "train:start": "node tools/policy-evolution/train-ctl.mjs start",
     "train:restart": "node tools/policy-evolution/train-ctl.mjs restart",
     "train:ship": "node tools/policy-evolution/train-ctl.mjs ship",
+    "train:trial": "node tools/policy-evolution/train-ctl.mjs trial",
     "av:quick": "npm run sync:global-pipeline && vitest run src/test/scenarios/av-evasion-scenarios.test.ts src/test/scenarios/av-maze-scenarios.test.ts",
     "av:evolve": "tsx tools/av-evolution/run.ts",
     "policy:evolve": "tsx tools/policy-evolution/run.ts",

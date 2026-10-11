@@ -7,8 +7,10 @@
  *   node tools/policy-evolution/train-ctl.mjs start         # start / resume the training (the documented resume command)
  *   node tools/policy-evolution/train-ctl.mjs restart       # stop + start
  *   node tools/policy-evolution/train-ctl.mjs ship          # stop -> ship.ts (HOLDOUT finish-count gate) -> start, verdict printed
+ *   node tools/policy-evolution/train-ctl.mjs trial [FILE]  # deploy the best candidate (default latest-best.json) into the
+ *                                                           # maze training worlds (--score export) + on-disk gate, verdict printed
  *
- * Known jobs: the v3mg2 policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
+ * Known jobs: the v3mg3 policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
  * and the vite dev server. Detection is by command line + repo path, never a blanket pkill pattern.
  */
 import { spawnSync } from 'node:child_process'
@@ -18,13 +20,13 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TRAIN = {
-  state: resolve(root, 'training-data/policy-evolution/v3mg2.json'),
-  log: resolve(root, 'training-data/policy-evolution/v3mg2.log'),
-  nohupLog: resolve(root, 'training-data/policy-evolution/v3mg2.nohup.log'),
+  state: resolve(root, 'training-data/policy-evolution/v3mg3.json'),
+  log: resolve(root, 'training-data/policy-evolution/v3mg3.log'),
+  nohupLog: resolve(root, 'training-data/policy-evolution/v3mg3.nohup.log'),
   targetGen: 3000,
-  why: 'policy evolution: v3mg2 maze+grid FRESH run (no warm start) - the pipe now reacts to collisions programmatically (policy_escape touch-escape stage), so training restarts from scratch; previous best archived as forward-only.json',
+  why: 'policy evolution: v3mg3 maze+grid FRESH run (no warm start) with the deviation penalty (devFactor: straying toward the offcourse boundary scales the norm down to V3_FAIL_FACTOR); previous bests archived as forward-only.json (v3mg gen 2400) and v3mg2-best.json (gen 200)',
   // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself)
-  start: 'V3_OUT=training-data/policy-evolution/v3mg2.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg2.nohup.log 2>&1 &',
+  start: 'V3_OUT=training-data/policy-evolution/v3mg3.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg3.nohup.log 2>&1 &',
 }
 const VITE_WHY = 'vite dev server (localhost preview) - the test / play workflow'
 
@@ -33,7 +35,7 @@ const ps = () => spawnSync('ps', ['-Ao', 'pid,ppid,pcpu,etime,command'], { encod
 /** All processes belonging to a job; absolute repo path OR the repo-relative launcher paths (bash run-v3.sh / tee are started relative). */
 function findProcs(pattern) {
   const me = String(process.pid)
-  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|training-data\/policy-evolution\/v3mg2\.log/
+  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|training-data\/policy-evolution\/v3mg3\.log/
   return ps()
     .map((l) => {
       const m = l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\S+)\s+(.*)$/)
@@ -45,7 +47,7 @@ function findProcs(pattern) {
     .filter(Boolean)
 }
 
-const trainProcs = () => findProcs(/run-islands|run-v3\.sh|v3mg2\.log/)
+const trainProcs = () => findProcs(/run-islands|run-v3\.sh|v3mg3\.log/)
 const viteProcs = () => findProcs(/node_modules\/\.bin\/vite|vite\.js/).filter((p) => /vite/.test(p.cmd) && p.cmd.includes(root))
 
 function trainGen() {
@@ -179,12 +181,12 @@ function start() {
     spawnSync('sleep', ['0.5'])
     up = trainProcs().length > 0
   }
-  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3mg2.nohup.log')
+  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3mg3.nohup.log')
 }
 
 function ship() {
   if (trainProcs().length) stop()
-  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3mg2.json', '--v3', '--workers', '9'], {
+  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3mg3.json', '--v3', '--workers', '9'], {
     cwd: root,
     encoding: 'utf8',
   })
@@ -194,13 +196,53 @@ function ship() {
   start()
 }
 
+/**
+ * Deploy the best candidate into the maze training worlds WITHOUT touching the shipped policy:
+ * re-export maze_train_1..5 with --score via RENN_V3_GENOME_FILE (meta.json names the trial candidate),
+ * then run the on-disk consistency gate against the same file. Default: training-data/policy-evolution/latest-best.json.
+ */
+function trial(file = 'training-data/policy-evolution/latest-best.json') {
+  const path = resolve(root, file)
+  if (!existsSync(path)) {
+    console.log(`trial FAILED: ${file} does not exist`)
+    process.exitCode = 1
+    return
+  }
+  const parsed = JSON.parse(readFileSync(path, 'utf8'))
+  const genome = parsed.genome ?? parsed.best?.genome
+  if (!genome || genome.length === 0) {
+    console.log(`trial FAILED: ${file} has no genome`)
+    process.exitCode = 1
+    return
+  }
+  const gen = parsed.best?.gen ?? parsed.gen ?? '?'
+  const src = parsed.source ?? file
+  console.log(`trial: deploying ${src} (gen ${gen}) into the maze training worlds (export --score, then the on-disk gate)`)
+  const env = { ...process.env, RENN_V3_GENOME_FILE: path }
+  const exp = spawnSync('npx', ['tsx', 'tools/renn-mcp/export-maze-training-worlds.ts', '--score'], { cwd: root, env, stdio: 'inherit' })
+  if (exp.status !== 0) {
+    console.log('trial FAILED: the world export failed')
+    process.exitCode = 1
+    return
+  }
+  const gate = spawnSync('npx', ['vitest', 'run', 'src/test/scenarios/maze-training-worlds.test.ts'], { cwd: root, env, encoding: 'utf8' })
+  const out = (gate.stdout || '') + (gate.stderr || '')
+  const line = out.split('\n').find((l) => /\d+ (?:passed|failed)/.test(l))
+  console.log(`trial gate (maze-training-worlds, candidate-aware): ${line ?? 'no summary line'}`)
+  if (gate.status !== 0) {
+    console.log('trial FAILED: the on-disk gate is red — re-run this command after the next latest-best update, or export from the matching run file')
+    process.exitCode = 1
+  }
+}
+
 const cmd = process.argv[2] ?? 'status'
 if (cmd === 'status') status()
 else if (cmd === 'stop') stop()
 else if (cmd === 'start') start()
 else if (cmd === 'restart') { stop(); start() }
 else if (cmd === 'ship') ship()
+else if (cmd === 'trial') trial(process.argv[3])
 else {
-  console.log('usage: train-ctl.mjs [status|stop|start|restart|ship]')
+  console.log('usage: train-ctl.mjs [status|stop|start|restart|ship|trial [file]]')
   process.exit(1)
 }

@@ -1,24 +1,24 @@
 {
  "schema": "renn.policy-evolution.latest-stats/1",
- "source": "training-data/policy-evolution/v3mg.json",
+ "source": "training-data/policy-evolution/v3mg2.json",
  "policy": "v3",
  "kinds": [
   "maze",
   "grid"
  ],
- "gen": 3000,
- "updatedAt": "2026-10-11T09:32:00.758Z",
- "elapsedSec": null,
+ "gen": 200,
+ "updatedAt": "2026-10-11T10:11:14.253Z",
+ "elapsedSec": 817,
  "islands": {
   "centers": [
-   1.833,
-   1.662,
-   1.751
+   1.327,
+   0.7,
+   1.448
   ],
   "ages": [
-   75,
-   400,
-   525
+   125,
+   0,
+   200
   ]
  },
  "stage": {
@@ -26,44 +26,48 @@
   "ema": 0
  },
  "epoch": {
-  "gen": 3000,
+  "gen": 200,
   "scores": [
-   1.517767273622093,
-   1.7312957105681113,
-   2.785886875432442
+   1.8343477166473419,
+   0.7535274632983695,
+   1.6920718081168051
   ],
-  "bestIsland": 2,
+  "bestIsland": 0,
+  "replaced": 1,
+  "by": "immigrant",
   "train": {
-   "fitness": 1.941321948449784,
-   "finished": 39,
+   "fitness": 1.3363855015842128,
+   "finished": 34,
    "total": 43
   },
   "holdout": {
-   "fitness": 1.612785548891008,
-   "finished": 18,
+   "fitness": 1.5983807418088736,
+   "finished": 19,
    "total": 23
   },
   "perKind": [
    {
     "kind": "maze",
-    "finished": 8,
     "chains": 13,
-    "finishRate": 0.6153846153846154,
+    "finished": 9,
+    "finishRate": 0.6923076923076923,
     "setups": 5,
-    "setupsAllFinished": 1,
-    "offcourse": 1,
-    "crashes": 4,
+    "setupsAllFinished": 2,
+    "allFinishedShare": 0.4,
+    "offcourse": 4,
+    "crashes": 0,
     "reverseShare": 0,
     "maxReverseM": 0,
     "reversedEpisodes": 0
    },
    {
     "kind": "grid",
-    "finished": 10,
     "chains": 10,
+    "finished": 10,
     "finishRate": 1,
     "setups": 5,
     "setupsAllFinished": 5,
+    "allFinishedShare": 1,
     "offcourse": 0,
     "crashes": 0,
     "reverseShare": 0,
@@ -73,9 +77,9 @@
   ]
  },
  "best": {
-  "gen": 2400,
-  "train": 2.4166903362044323,
-  "holdout": 2.2668405297430256
+  "gen": 200,
+  "train": 1.3363855015842128,
+  "holdout": 1.5983807418088736
  },
- "why": "backfill: run finished at gen 3000/3000"
+ "why": "every 20 gens"
 }
