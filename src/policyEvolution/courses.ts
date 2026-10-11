@@ -25,6 +25,32 @@ export const V3_NEW_KINDS: readonly CourseKind[] = ['free', ...REVERSAL_KINDS]
 export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'grid']
 export const isV3NewKind = (k: CourseKind) => V3_NEW_KINDS.includes(k)
 
+/**
+ * v3 adversarial curriculum (failure-mined, T4): TRAIN-only maze / grid setups that exercise exactly the geometries the shipped policy
+ * fails on. The band is the SEED: every maze / grid seed >= ADV_SEED builds adversarial geometry, so the per-generation start-variant
+ * rotation of run-islands (`withVariant(key, g + 1)`, which rewrites the variant) keeps the adversarial task. The ENUMERATED keys
+ * (adversarialSetupKeys, chains.ts) additionally carry variant ADV_VARIANT: the standard train band is variant 0 and the holdout band
+ * variant 1, so an enumerated adversarial key can never appear in either band for ANY perKind or seed (the variant suffix alone
+ * distinguishes the strings). ADV_SEED also sits far above the seed range the standard bands can ever scan: acceptedSetupKeys counts
+ * seeds up from firstSeed (1 / 1001) inside a hard guard of firstSeed + 20 * perKind + 50 (<= 251 / 1251 for the perKind <= 10 every
+ * caller uses), and the dialog worlds use seeds 2001-2005 - so no standard course ever builds with an adversarial seed either.
+ * Collision-free: variant 2 vs variant 0 / 1 (enumerated keys), seed >= 4001 vs scanned seed ranges (course geometry).
+ */
+export const ADV_SEED = 4001
+/** variant of the enumerated adversarial keys: 2 = canonical start (no jitterStart), see adversarialStyle */
+export const ADV_VARIANT = 2
+/** the adversarial kinds: only maze and grid have failure-mined setups today */
+export const ADVERSARIAL_KINDS: readonly CourseKind[] = ['maze', 'grid']
+/**
+ * Failure class of an adversarial setup, fixed by the seed parity (both styles scan their own seeds, so a rejected seed never
+ * changes which class the setup exercises):  0 = maze M1 corner-exit chain end / grid G1 tight mid-hairpin,
+ * 1 = maze M2 lateral start leg / grid G2 chain end past the last hairpin. undefined = standard course.
+ */
+export function adversarialStyle(kind: CourseKind, seed: number): 0 | 1 | undefined {
+  if (!ADVERSARIAL_KINDS.includes(kind) || seed < ADV_SEED) return undefined
+  return ((seed - ADV_SEED) % 2) as 0 | 1
+}
+
 export interface CourseBox {
   at: V2
   /** extent across (x) and along (z) the box before yaw */
@@ -310,19 +336,26 @@ export const GRID_SEAL = 6
  * every lane is the only lane sequence to the far lanes. The seeded mid-gaps in some dividers are narrow detours; the hairpins stay the
  * dominant task. Chains (chains.ts) end at the lane mouths: 1-4 U-turns per chain.
  * layout: laneW, len (open tip to open tip), zFar / zNear (the far / near lane mouth lines), lanes.
+ *
+ * adversarial G1 (adversarialStyle 0, failure class "mid-hairpin entry"): laneW pinned to 24 (the minimum of the standard range, so every
+ * U-turn is two 90 degree corners exactly 24 m apart) and the open turning strips tightened to 15-16 m instead of 20 (the target range is
+ * 12-16, but below 15 no fillet of CORNER_RADII fits: two 90 degree arcs of the 10 m radius plus the 2.5 m exact chain clearance need
+ * >= 15 m of strip - and the car's tightest turn is ~10 m radius anyway). The near end wall keeps its standard 8 m distance behind the
+ * start (zBack), only the divider tips move. layout additionally carries `strip`.
  */
-function gridCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
-  const laneW = range(rng, GRID_LANE_W_RANGE[0], GRID_LANE_W_RANGE[1])
+function gridCourse(rng: Rng, advStyle: 0 | 1 | undefined): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const laneW = advStyle === 0 ? 24 : range(rng, GRID_LANE_W_RANGE[0], GRID_LANE_W_RANGE[1])
   const len = range(rng, GRID_LEN_RANGE[0], GRID_LEN_RANGE[1])
+  const strip = advStyle === 0 ? 15 + rng.next() : GRID_STRIP
   const lanes = GRID_LANES
   const width = lanes * laneW
   const t = 2
-  // end wall inner faces: GRID_STRIP - 12 behind the start / at -(len - GRID_STRIP + 12) (interior depth len); the divider tips sit
-  // GRID_STRIP (open) or GRID_SEAL (sealed) from them
+  // end wall inner faces: 8 m behind the start / at -(len - 8) (interior depth len); the divider tips sit `strip` (open) or GRID_SEAL
+  // (sealed) from them
   const zBack = GRID_STRIP - 12
-  const zEnd = -(len - GRID_STRIP + 12)
-  const zFar = zEnd + GRID_STRIP / 2
-  const zNear = zBack - GRID_STRIP / 2
+  const zEnd = -(len - strip + 12)
+  const zFar = zEnd + strip / 2
+  const zNear = zBack - strip / 2
   const boxes: CourseBox[] = []
   boxes.push({ at: [width / 2, zBack + t / 2], size: [width + 2 * t, t], yawDeg: 0 })
   boxes.push({ at: [width / 2, zEnd - t / 2], size: [width + 2 * t, t], yawDeg: 0 })
@@ -331,7 +364,7 @@ function gridCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
   boxes.push({ at: [-laneW / 2 - t / 2, (wallTop + wallBot) / 2], size: [t, wallTop - wallBot], yawDeg: 0 })
   boxes.push({ at: [width - laneW / 2 + t / 2, (wallTop + wallBot) / 2], size: [t, wallTop - wallBot], yawDeg: 0 })
   // dividers: divider i (between lane i and i+1) opens at the far end for even i, at the near end for odd i (the serpentine alternates)
-  const divSpan = (i: number): [number, number] => (i % 2 === 0 ? [zBack - GRID_SEAL, zEnd + GRID_STRIP] : [zBack - GRID_STRIP, zEnd + GRID_SEAL])
+  const divSpan = (i: number): [number, number] => (i % 2 === 0 ? [zBack - GRID_SEAL, zEnd + strip] : [zBack - strip, zEnd + GRID_SEAL])
   // 1-2 seeded mid-gaps in distinct dividers of the FAR half (dividers 2..): an early gap would sit on the prefix of every chain and
   // short-circuit the first hairpins; a late one is a narrow detour that leaves the U-turns dominant
   const dividers = Array.from({ length: lanes - 1 }, (_, i) => i).filter((i) => i >= 2)
@@ -339,7 +372,9 @@ function gridCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
     const j = Math.floor(rng.next() * (i + 1))
     ;[dividers[i], dividers[j]] = [dividers[j]!, dividers[i]!]
   }
-  const nGaps = 1 + (rng.next() < 0.5 ? 1 : 0)
+  // adversarial G2 builds a PURE serpentine: a seeded mid-gap near the next-lane interior ends would short-circuit the last hairpin
+  // (the gap detour is a different, much easier task than the endgame this setup mines)
+  const nGaps = advStyle === 1 ? 0 : 1 + (rng.next() < 0.5 ? 1 : 0)
   const gaps = new Map<number, { z: number; w: number }>()
   for (let i = 0; i < nGaps; i++) gaps.set(dividers[i % dividers.length]!, { z: 0, w: range(rng, GRID_GAP_RANGE[0], GRID_GAP_RANGE[1]) })
   for (let i = 0; i < lanes - 1; i++) {
@@ -361,13 +396,21 @@ function gridCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
     waypoints.push([i * laneW, z])
     if (i + 1 < lanes) waypoints.push([(i + 1) * laneW, z])
   }
-  return { boxes, waypoints, layout: { laneW, len, zFar, zNear, lanes } }
+  return { boxes, waypoints, layout: { laneW, len, zFar, zNear, lanes, ...(advStyle === 0 ? { strip } : {}) } }
 }
 
 const MAZE_CELLS = 6
 const MAZE_PITCH = 16
 
-function mazeCourse(seed: number, rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'startYawDeg'> {
+/**
+ * adversarial M2 (adversarialStyle 1, failure class "lateral start leg"): the start heading is turned ~90 degrees off the canonical
+ * heading (which points at the first route cell), so the chain's first leg is ~90 degrees off the direction the car faces at t=0 - it must
+ * swing the ~10 m turning circle through the open side cell to get onto it. 180 degree starts are not discriminative; only ~90 is.
+ * The heading faces the OPEN perpendicular side of the start cell (see the body); the M2 chains carry a wider offcourse tolerance
+ * (offM 16, chains.ts) because the start swing leaves the chain by up to ~12 m - with the default 6 m even the pure-pursuit baseline
+ * goes offcourse at 2 m progress.
+ */
+function mazeCourse(seed: number, rng: Rng, advStyle: 0 | 1 | undefined): Pick<Course, 'boxes' | 'waypoints' | 'startYawDeg'> {
   const maze = generateMaze({ seed, cols: MAZE_CELLS, rows: MAZE_CELLS, cell: MAZE_PITCH, loopFraction: 0.1, goalDist: 0 })
   const startCol = Math.floor(rng.next() * MAZE_CELLS)
   const startRow = MAZE_CELLS - 1
@@ -400,7 +443,31 @@ function mazeCourse(seed: number, rng: Rng): Pick<Course, 'boxes' | 'waypoints' 
   const first = waypoints[0]!
   const yawDeg = (Math.atan2(-first[0], -first[1]) * 180) / Math.PI
   const boxes: CourseBox[] = maze.walls.map((w) => ({ at: shift(w.at), size: w.size, yawDeg: 0 }))
-  return { boxes, waypoints, startYawDeg: Math.round(yawDeg) }
+  let startYaw = Math.round(yawDeg)
+  if (advStyle === 1) {
+    // face the OPEN perpendicular side of the start cell; the 90 deg start swing (turning circle ~10 m radius) crosses into the
+    // faced neighbour cell and on toward the chain's direction, so that cell must be open both ways - otherwise the task is not
+    // drivable at any speed. A start cell without such a side keeps the canonical heading, so every chain of the setup fails the
+    // lateralFirstLeg acceptance filter and the adversarial seed scan skips it.
+    const r0 = MAZE_CELLS - 1
+    // the canonical route's first step (east / west / north; the start row has no south exit)
+    const dx = first[0]! > 8 ? 1 : first[0]! < -8 ? -1 : 0
+    const dz = first[1]! < -8 ? -1 : 0
+    const openToward = (cc: number, cr: number): boolean =>
+      dz < 0 ? !maze.hWall[cr]![cc] : dx > 0 ? !maze.vWall[cr]![cc + 1] : dx < 0 ? !maze.vWall[cr]![cc] : false
+    const facesOpenSide = (yaw: number): boolean => {
+      const d: V2 = [-Math.sin((yaw * Math.PI) / 180), -Math.cos((yaw * Math.PI) / 180)]
+      if (d[0] < -0.5) return !maze.vWall[r0]![startCol] && openToward(startCol - 1, r0) // west
+      if (d[0] > 0.5) return !maze.vWall[r0]![startCol + 1] && openToward(startCol + 1, r0) // east
+      if (d[1] < -0.5) return !maze.hWall[r0]![startCol] && openToward(startCol, r0 - 1) // north
+      return false // south: the perimeter wall of the south start row
+    }
+    const plus = startYaw + 90
+    const minus = startYaw - 90
+    if (facesOpenSide(plus)) startYaw = plus
+    else if (facesOpenSide(minus)) startYaw = minus
+  }
+  return { boxes, waypoints, startYawDeg: startYaw }
 }
 
 /** Start jitter per kind: lateral (x) and longitudinal (z) offset in m, heading in degrees. Maze corridors are narrow (15 m), so small. */
@@ -432,6 +499,7 @@ function jitterStart(course: Course): Course {
 
 export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficulty = 1, chainSetup = false): Course {
   const rng = createRng((seed * 2654435761 + KIND_SALT[kind]) >>> 0)
+  const adv = adversarialStyle(kind, seed)
   const body: Pick<Course, 'boxes' | 'waypoints'> & Partial<Pick<Course, 'layout' | 'startYawDeg'>> =
     kind === 'field'
       ? fieldCourse(rng, difficulty)
@@ -448,8 +516,8 @@ export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficu
               : kind === 'corridor'
                 ? corridorCourse(rng)
                 : kind === 'grid'
-                  ? gridCourse(rng)
-                  : mazeCourse(seed, rng)
+                  ? gridCourse(rng, adv)
+                  : mazeCourse(seed, rng, adv)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {
@@ -457,7 +525,10 @@ export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficu
     prev = w
   }
   const course: Course = { key: courseKey(kind, seed, variant, difficulty), kind, seed, length, variant, difficulty, ...body }
-  return variant > 0 ? jitterStart(course) : course
+  // the enumerated adversarial keys (variant ADV_VARIANT) keep the canonical start pose so their pinned geometry (M2 start heading,
+  // G1 strip) is exact; every other variant >= 1 - including the per-generation rotation of run-islands and standard keys - jitters
+  // exactly as before
+  return variant > 0 && !(adv !== undefined && variant === ADV_VARIANT) ? jitterStart(course) : course
 }
 
 /** Geometry of a v2 chain setup by setup key (`slalom` uses the island geometry, the other kinds equal `buildCourse`). */

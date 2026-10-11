@@ -1,6 +1,6 @@
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { createRng, type Rng } from '@/avEvolution/core/rng'
-import { buildSetupCourse, CHAIN_KINDS, COURSE_LENGTH, COURSE_START, courseKey, isV3NewKind, parseCourseKey, V3_KINDS, type Course, type CourseKind } from './courses'
+import { adversarialStyle, ADV_SEED, ADV_VARIANT, ADVERSARIAL_KINDS, buildSetupCourse, CHAIN_KINDS, COURSE_LENGTH, COURSE_START, courseKey, isV3NewKind, parseCourseKey, V3_KINDS, type Course, type CourseKind } from './courses'
 import { generateV3Chains } from './v3Chains'
 
 /**
@@ -545,6 +545,20 @@ function chooseEnds(kind: CourseKind, course: Course, g: Grid, reach: Int32Array
       const zFar = course.layout?.zFar ?? FAR_Z
       const zNear = course.layout?.zNear ?? 0
       const lanes = course.layout?.lanes ?? 5
+      if (adversarialStyle('grid', course.seed) === 1) {
+        // adversarial G2 (failure class "chain-end mouth whip-past"): every chain ends 15-25 m PAST the last hairpin, in the interior of
+        // the NEXT lane (one lane past the standard mouth, along the new lane's driving direction). The endgame can not be whipped past
+        // any more: finishing requires slowing into the U-turn and driving on into the next lane. Anti-gaming: the end lies deep inside
+        // the next lane, off every mouth line - no leg of the chain is credited without driving the hairpin, and the finish point
+        // itself is unreachable at speed (it sits behind the divider tip, 15-25 m into the lane).
+        for (let i = lanes - 2; i >= 1; i--) {
+          const past = 15 + 10 * rng.next()
+          const want: V2 = [(i + 1) * laneW, i % 2 === 0 ? zFar + past : zNear - past]
+          const c = nearestReachable(g, reach, want)
+          if (c && Math.hypot(centre(g, c[0], c[1])[0] - want[0], centre(g, c[0], c[1])[1] - want[1]) <= FAR_TOLERANCE_M) add(c)
+        }
+        return ends
+      }
       for (let i = lanes - 1; i >= 1; i--) {
         const want: V2 = [i * laneW, i % 2 === 0 ? zFar : zNear]
         const c = nearestReachable(g, reach, want)
@@ -573,12 +587,84 @@ function chooseEnds(kind: CourseKind, course: Course, g: Grid, reach: Int32Array
       cands.push(c)
     }
   }
-  for (let i = cands.length - 1; i > 0; i--) {
-    const j = Math.floor(rng.next() * (i + 1))
-    ;[cands[i], cands[j]] = [cands[j]!, cands[i]!]
+  const adversarial = adversarialStyle(kind, course.seed)
+  let pool = cands
+  if (adversarial !== undefined) {
+    // greedy straight-preferring descent of the reach field from an end candidate to the start cell: the lattice directions of its
+    // steps, in walking order (end -> start): steps[0] = into the end cell, steps[1] = into the cell before it, ..., the last step
+    // = into the start cell. Heuristic (A* may tie-break differently), used only to enrich the end candidates - the per-chain
+    // filters in tryAccept are the guarantee.
+    const DIRS: Array<[number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+    const latticeOf = (c: [number, number]): [number, number] => {
+      const p = centre(g, c[0], c[1])
+      return [Math.round(p[0] / 16), Math.round(p[1] / 16)]
+    }
+    const dirIndex = (from: [number, number], to: [number, number]): number =>
+      DIRS.findIndex(([dx, dz]) => to[0] - from[0] === dx && to[1] - from[1] === dz)
+    const descend = (c: [number, number]): number[] | null => {
+      let cur = c
+      let lat = latticeOf(c)
+      let last = -1
+      const steps: number[] = []
+      for (let guard = 0; guard < 600; guard++) {
+        const r = reach[cur[1] * g.nx + cur[0]]!
+        if (r <= 1) break
+        let best: [number, number] | null = null
+        let bestScore = -1
+        for (let d = 0; d < 4; d++) {
+          const ni = cur[0] + DIRS[d]![0]
+          const nj = cur[1] + DIRS[d]![1]
+          if (ni < 0 || nj < 0 || ni >= g.nx || nj >= g.nz) continue
+          if (reach[nj * g.nx + ni]! !== r - 1) continue
+          const score = d === last ? 1 : 0
+          if (score > bestScore) {
+            best = [ni, nj]
+            bestScore = score
+          }
+        }
+        if (!best) return null
+        const nl = latticeOf(best)
+        if (nl[0] !== lat[0] || nl[1] !== lat[1]) {
+          const d = dirIndex(lat, nl)
+          if (d < 0) return null
+          steps.push(d)
+          last = d
+          lat = nl
+        }
+        cur = best
+      }
+      return steps.length >= 2 ? steps : null
+    }
+    if (adversarial === 0) {
+      // M1: ends ONE CELL PAST A JUNCTION of a shortest route - the descent turns 77-138 deg into the last cell (the
+      // tryAccept filter enforces the exact shape on every accepted chain)
+      pool = cands.filter((c) => {
+        const st = descend(c)
+        if (!st) return false
+        const turn = (angleBetween(headingOf([0, 0], DIRS[st[0]!]!), headingOf([0, 0], DIRS[st[1]!]!)) * 180) / Math.PI
+        return turn >= 77 && turn <= 138
+      })
+    } else if (wp.length >= 1) {
+      // M2: ends whose descent leaves the start cell through the CANONICAL OPENING (the one the route to the exit uses), so the
+      // chain's first leg is ~90 deg off the overridden start heading
+      const first = wp[0]!
+      const canonical = Math.abs(first[0]) >= Math.abs(first[1]) ? (first[0] > 0 ? 0 : 1) : first[1] > 0 ? 2 : 3
+      const opposite = [1, 0, 3, 2]
+      pool = cands.filter((c) => {
+        const st = descend(c)
+        return !!st && st[st.length - 1] === opposite[canonical]
+      })
+    }
   }
-  for (const c of cands) {
-    if (ends.length >= CHAINS_PER_SETUP) break
+  // adversarial maze (M1 corner-exit ends / M2 lateral-start ends): the per-chain shape filters in tryAccept reject most ends'
+  // chains, so twice as many end candidates are enumerated (acceptance still caps at CHAINS_PER_SETUP chains)
+  const maxEnds = adversarial !== undefined ? 2 * CHAINS_PER_SETUP : CHAINS_PER_SETUP
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng.next() * (i + 1))
+    ;[pool[i], pool[j]] = [pool[j]!, pool[i]!]
+  }
+  for (const c of pool) {
+    if (ends.length >= maxEnds) break
     const p = centre(g, c[0], c[1])
     if (ends.every((e) => Math.hypot(centre(g, e[0], e[1])[0] - p[0], centre(g, e[0], e[1])[1] - p[1]) >= 24)) add(c)
   }
@@ -612,8 +698,57 @@ function seedOf(setupKey: string): number {
   return h
 }
 
+// --- adversarial chain properties (T4 failure-mined curriculum) -----------------------------------------------------------------------------------------------------
+
+/** heading (rad) of the direction a -> b in the course yaw convention (0 = -Z, positive = left) */
+const headingOf = (a: V2, b: V2): number => Math.atan2(-(b[0] - a[0]), -(b[1] - a[1]))
+const angleBetween = (a: number, b: number): number => {
+  let d = Math.abs(a - b) % (2 * Math.PI)
+  if (d > Math.PI) d = 2 * Math.PI - d
+  return d
+}
+
+/**
+ * adversarial M1 (failure class "corner-exit overshoot at chain end"): the chain must end ONE CELL PAST A JUNCTION - the last simplified
+ * segment is a single maze cell (10-22 m, pitch is 16) and the turn into it is 77-138 degrees (the measured failing geometry). The final
+ * corner completes a few metres before the end, so banking the chain credit requires braking INTO the corner and out of it.
+ * Anti-gaming: every accepted chain of an M1 setup has this shape - a chain that stalls before the final corner keeps the last leg
+ * unprogressed; there is no way to finish without executing the turn (the end cell lies around the corner, out of line of sight).
+ */
+function endsPastJunction(pulled: V2[]): boolean {
+  if (pulled.length < 3) return false
+  const a = pulled[pulled.length - 3]!
+  const v = pulled[pulled.length - 2]!
+  const b = pulled[pulled.length - 1]!
+  const lastSeg = Math.hypot(b[0] - v[0], b[1] - v[1])
+  if (lastSeg < 10 || lastSeg > 22) return false
+  const turn = (angleBetween(headingOf(a, v), headingOf(v, b)) * 180) / Math.PI
+  return turn >= 77 && turn <= 138
+}
+
+/**
+ * adversarial M2 (failure class "lateral start leg"): the chain's FIRST leg must be ~90 degrees off the start heading (70-110; the M2 course
+ * turns the start heading ~90 degrees off the first route cell, so the chains that leave the start the canonical way qualify).
+ * Anti-gaming: the first leg is credited only by moving ~90 degrees off the facing direction - driving straight ahead at t=0 leaves the
+ * chain sideways and banks nothing.
+ */
+function lateralFirstLeg(pulled: V2[], startYawDeg: number): boolean {
+  if (pulled.length < 2) return false
+  const turn = (angleBetween(headingOf(pulled[0]!, pulled[1]!), (startYawDeg * Math.PI) / 180) * 180) / Math.PI
+  return turn >= 70 && turn <= 110
+}
+
+/**
+ * Chains of one setup at a given inflation margin (the first accepted margin must yield the adversarial setups' chains - they are
+ * adversarial geometry, not tighter clearance). Exported for the gate tests; chainsForSetup caches and falls back to tighter margins.
+ */
+export function generateChains(setupKey: string, margin: number): Chain[] {
+  return generate(setupKey, margin)
+}
+
 function generate(setupKey: string, margin: number): Chain[] {
   const { kind, seed, difficulty } = parseCourseKey(setupKey)
+  const advStyle = adversarialStyle(kind, seed)
   const minClearance = CLEARANCE[kind].min
   const course = buildSetupCourse(setupKey)
   const start: V2 = course.startAt ?? COURSE_START
@@ -635,6 +770,9 @@ function generate(setupKey: string, margin: number): Chain[] {
   const tryAccept = (cells: V2[] | null, endIndex: number, endCell: [number, number], limit: number): boolean => {
     if (!cells || accepted.length >= CHAINS_PER_SETUP) return false
     const pulled = simplify(pullChain(grid, cells, start, centre(grid, endCell[0], endCell[1])), SIMPLIFY_M)
+    // adversarial M1 / M2: the setup is rejected (fewer than MIN_CHAINS) unless every accepted chain has the failure-class geometry
+    if (kind === 'maze' && advStyle === 0 && !endsPastJunction(pulled)) return false
+    if (kind === 'maze' && advStyle === 1 && !lateralFirstLeg(pulled, course.startYawDeg ?? 0)) return false
     let points: V2[] | null = null
     for (const r of CORNER_RADII) {
       const rounded = roundCorners(pulled, r)
@@ -650,7 +788,9 @@ function generate(setupKey: string, margin: number): Chain[] {
     if (length > limit) return false
     if (chainClearance(course.boxes, points) < minClearance) return false
     if (accepted.some((a) => hausdorff(a.points, points) < MIN_HAUSDORFF_M)) return false
-    accepted.push({ points, length, endIndex })
+    // adversarial M2: the ~90 deg start swing needs up to ~12 m of lateral room; the default 6 m offcourse tolerance ends the
+    // episode before even the pure-pursuit baseline completes the turn (measured: offcourse at 2.1 m progress)
+    accepted.push({ points, length, endIndex, ...(kind === 'maze' && advStyle === 1 ? { offM: 16 } : {}) })
     return true
   }
   // pass 1: the shortest route to every end
@@ -756,9 +896,39 @@ export const flattenChainKeys = (groups: SetupChains[]): string[] => groups.flat
 
 // --- v3 TRAIN / HOLDOUT ---------------------------------------------------------------------------------------------------------------
 
+/**
+ * Adversarial TRAIN setups (T4 failure-mined curriculum, maze / grid only): one setup PER FAILURE CLASS per adversarial kind, scanned
+ * deterministically from the adversarial seed band until the chains gates pass (>= MIN_CHAINS accepted chains). Style s scans the seeds
+ * ADV_SEED + s, ADV_SEED + s + 2, ... (own seeds per class, so a rejected seed never changes which class a setup exercises); the keys
+ * carry variant ADV_VARIANT (collision-free against both standard bands, see courses.ts). HOLDOUT never enumerates these.
+ * Anti-gaming (all classes): scoring is inherited - leg-wise chain progress + finish only, no new scoring. Each setup's comment (and the
+ * test suite) answers "can it be scored without doing the task?": no - every class pins a geometry the shipped policy fails, and its
+ * chains keep credit only by executing it (see endsPastJunction / lateralFirstLeg / the G2 end placement in chooseEnds).
+ */
+export function adversarialSetupKeys(kinds: readonly CourseKind[] = ADVERSARIAL_KINDS): string[] {
+  const out: string[] = []
+  for (const kind of kinds) {
+    if (!ADVERSARIAL_KINDS.includes(kind)) continue
+    for (const style of [0, 1] as const) {
+      let key: string | undefined
+      for (let k = 0; k < 30 && !key; k++) {
+        const cand = courseKey(kind, ADV_SEED + style + 2 * k, ADV_VARIANT)
+        if (chainsForSetup(cand).length >= MIN_CHAINS) key = cand
+      }
+      if (!key) throw new Error(`no adversarial ${kind} setup of failure class ${style} passes the chains gates (scanned 30 seeds)`)
+      out.push(key)
+    }
+  }
+  return out
+}
+
 /** v3 TRAIN setups (seeds 1..) of the given kinds (any v3 kind), episode keys with the `v3` flag, grouped by setup. */
 export function trainV3Episodes(perKind = 6, kinds: readonly CourseKind[] = V3_KINDS): SetupChains[] {
-  return groupBySetup(acceptedSetupKeys(perKind, kinds, 1), true)
+  const standard = groupBySetup(acceptedSetupKeys(perKind, kinds, 1), true)
+  // the failure-mined adversarial setups of the adversarial kinds in `kinds` are APPENDED to the standard band (train only; holdout stays
+  // untouched). Runtime consumers (run-islands / ship / diagnose) group by kind and rotate windows, so the appended setups flow into every
+  // generation's batch without any consumer change.
+  return [...standard, ...groupBySetup(adversarialSetupKeys(kinds), true)]
 }
 
 /** v3 HOLDOUT setups (seeds 1001.., random start variant) of the given kinds, grouped by setup. */
