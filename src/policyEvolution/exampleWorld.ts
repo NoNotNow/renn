@@ -4,7 +4,7 @@ import { POLICY_GROUND, policyCourseParts } from './episode'
 import { acceptedSetupKeys, chainsForSetup } from './chains'
 import { readFileSync } from 'node:fs'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
-import { genomeLengthV2 } from './policy'
+import { genomeLengthV3, hiddenOfLength, N_IN_V2, N_IN_V3, padV2Genome } from './policy'
 import { cmdConfigFor } from './episode'
 import shipped from './shippedPolicy.json'
 import shippedV2 from './shippedPolicyV2.json'
@@ -119,6 +119,17 @@ export const V3_PLACEHOLDER_HIDDEN = 24
 
 const SHIPPED_V3_URL = new URL('./shippedPolicyV3.json', import.meta.url)
 
+/**
+ * A v3 stage genome (26 inputs): v3 shapes pass through, LEGACY 24-input (v2-shaped, len = 27 H + 2) genomes are
+ * zero-padded onto the two touch inputs (bit-identical function, see padV2Genome) so the worlds keep driving while the
+ * fresh 26-input run (v3mg5) has not shipped yet. Anything else fails loudly.
+ */
+export function ensureV3Inputs(genome: number[]): number[] {
+  if (hiddenOfLength(genome.length, N_IN_V3)) return genome
+  if (hiddenOfLength(genome.length, N_IN_V2)) return padV2Genome(genome)
+  throw new Error(`v3 genome of ${genome.length} numbers fits neither the 26-input (29 H + 2) nor the legacy 24-input (27 H + 2) layout`)
+}
+
 /** Shipped v3 genome, or undefined before training produced `shippedPolicyV3.json` (read at call time so the exporter works before and after a ship). */
 export function shippedGenomeV3(): number[] | undefined {
   // RENN_V3_GENOME_FILE: trial a candidate (training-data/policy-evolution/latest-best.json or a run file) WITHOUT
@@ -129,13 +140,14 @@ export function shippedGenomeV3(): number[] | undefined {
     const parsed = JSON.parse(readFileSync(override, 'utf8')) as { genome?: number[]; best?: { genome?: number[] } }
     const genome = parsed.genome ?? parsed.best?.genome
     if (!genome || genome.length === 0) throw new Error(`RENN_V3_GENOME_FILE ${override} has no genome`)
-    return genome
+    return ensureV3Inputs(genome)
   }
   // vitest rewrites import.meta.url, so also try the repo path from the working directory (tests and tools run from the repo root)
   for (const file of [SHIPPED_V3_URL, 'src/policyEvolution/shippedPolicyV3.json']) {
     try {
-      return (JSON.parse(readFileSync(file, 'utf8')) as { genome: number[] }).genome
-    } catch {
+      return ensureV3Inputs((JSON.parse(readFileSync(file, 'utf8')) as { genome: number[] }).genome)
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('fits neither')) throw e
       // try the next location
     }
   }
@@ -145,7 +157,7 @@ export function shippedGenomeV3(): number[] | undefined {
 /** Deterministic fresh (untrained) v3-shaped genome: the hand-wired reverser cannot be a genome. */
 export function placeholderGenomeV3(): number[] {
   const rng = createRng(3003)
-  return Array.from({ length: genomeLengthV2(V3_PLACEHOLDER_HIDDEN) }, () => gaussian(rng) * 0.3)
+  return Array.from({ length: genomeLengthV3(V3_PLACEHOLDER_HIDDEN) }, () => gaussian(rng) * 0.3)
 }
 
 /** True while the v3 worlds still use the untrained placeholder. */
@@ -162,8 +174,8 @@ export function buildPolicyChainsExampleWorld(spec: PolicyChainsExampleWorld, ge
   let firstCar = ''
   chains.forEach((chain, i) => {
     const ox = i * spec.spacing
-    // the v3 worlds also carry the touch-escape stage (policyStages.ts): a lateral contact overrides the command for 0.3 s
-    const parts = policyCourseParts(course, genome, { origin: [ox, 0], suffix: `_${i}`, chain: chain.points, cmd: cmdConfigFor(`${spec.setupKey}#${i}${spec.v3 ? 'v3' : ''}`), ...(spec.v3 ? { v3: true, legEnds: chain.legEnds, offM: chain.offM, escape: true } : {}) })
+    // the v3 worlds use the split input + drive stages (policyStages.ts): 26-input drive stage with the touch inputs
+    const parts = policyCourseParts(course, genome, { origin: [ox, 0], suffix: `_${i}`, chain: chain.points, cmd: cmdConfigFor(`${spec.setupKey}#${i}${spec.v3 ? 'v3' : ''}`), ...(spec.v3 ? { v3: true, legEnds: chain.legEnds, offM: chain.offM } : {}) })
     entities.push(...parts.entities)
     Object.assign(transformers, parts.transformers)
     if (!firstCar) firstCar = parts.carId

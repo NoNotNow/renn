@@ -273,6 +273,11 @@ export class WorldSimulator {
     return { x: 0, y: 0, z: 0, w: 1 }
   }
 
+  /** Entity ids with a narrow-phase contact to this entity's collider (contact state from the last physics step). */
+  getTouchingEntityIds(entityId: string): string[] {
+    return this.physicsWorld.getTouchingEntityIds(entityId)
+  }
+
   /**
    * Capture the current state of all dynamic/kinematic entities.
    * Log the result (JSON.stringify) to build expected values for assertions.

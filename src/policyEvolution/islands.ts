@@ -1,5 +1,5 @@
 import { createRng, gaussian, type Rng } from '@/avEvolution/core/rng'
-import { genomeLength, genomeShape, inputsOfGenome, N_HIDDEN, N_IN, N_OUT, policyForward } from './policy'
+import { genomeLength, genomeShape, inputsOfGenome, N_HIDDEN, N_IN, N_IN_V3, N_OUT, policyForward } from './policy'
 import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsConfig, type EsState, type EvaluateGenome, type FitnessFn, type GenerationReport } from './es'
 
 /**
@@ -10,7 +10,7 @@ import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsC
  * otherwise the child would be a broken mixture of unrelated feature orders.
  */
 
-/** Genome layout of a net with `nIn` inputs (v1: N_IN = 16, v2: 24) and H hidden units; every helper below derives both from the genome length (any H). */
+/** Genome layout of a net with `nIn` inputs (v1: N_IN = 22, v2: 24, v3: 26) and H hidden units; every helper below derives both from the genome length (any H). */
 const layout = (nIn: number, H: number) => {
   const B1 = H * nIn
   const W2 = B1 + H
@@ -48,7 +48,12 @@ export function sampleInputs(n: number, rng: Rng, nIn = N_IN): number[][] {
     x.push(rng.next() * 1.3 - 0.3, gaussian(rng) * 0.3, gaussian(rng) * 0.3)
     const a = rng.next() * 2 * Math.PI
     x.push(Math.cos(a), Math.sin(a), rng.next())
-    if (nIn > N_IN) {
+    if (nIn >= N_IN_V3) {
+      // v3: next-segment direction (unit vector) and the two touch flags (mostly clear) before previous steer / gas
+      const b = rng.next() * 2 * Math.PI
+      x.push(Math.cos(b), Math.sin(b))
+      x.push(rng.next() < 0.08 ? 1 : 0, rng.next() < 0.04 ? 1 : 0)
+    } else if (nIn > N_IN) {
       // v2: next-segment direction (unit vector) before previous steer / gas
       const b = rng.next() * 2 * Math.PI
       x.push(Math.cos(b), Math.sin(b))

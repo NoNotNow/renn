@@ -3,8 +3,8 @@ import { chainReportByKind, parseKinds, v2GenomeFromFile } from './chainReport'
 import { CHAIN_KINDS } from './courses'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import { aggregateEvenness } from './es'
-import { genomeLengthV2, GENOME_LENGTH, GENOME_LENGTH_V2, hiddenOfV2, N_HIDDEN, N_IN, N_IN_V2, N_RAYS, padV1Genome, policyForward, policyForwardV2, widenHidden } from './policy'
-import { POLICY_V1_STAGE_CODE, POLICY_V2_STAGE_CODE } from './policyStages'
+import { genomeLengthV2, genomeLengthV3, genomeShape, GENOME_LENGTH, GENOME_LENGTH_V2, GENOME_LENGTH_V3, hiddenOfV2, N_HIDDEN, N_IN, N_IN_V2, N_IN_V3, N_RAYS, padV1Genome, padV2Genome, policyForward, policyForwardV2, policyForwardV3, widenHidden } from './policy'
+import { POLICY_DRIVE_STAGE_CODE, POLICY_V1_STAGE_CODE, POLICY_V2_STAGE_CODE } from './policyStages'
 import { freshGenome } from './islands'
 
 const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!
@@ -201,5 +201,61 @@ describe('v2 hidden size H (len = 27 H + 2)', () => {
 
   it('genome files of any H load as v2', () => {
     expect(v2GenomeFromFile({ genome: new Array<number>(genomeLengthV2(24)).fill(0) }).length).toBe(genomeLengthV2(24))
+  })
+})
+
+describe('policy v3 (two touch inputs, 26 inputs, len = 29 H + 2)', () => {
+  it('N_IN_V3 = 26, GENOME_LENGTH_V3 = 292 (H = 10), 698 for H = 24', () => {
+    expect(N_IN_V3).toBe(N_IN_V2 + 2)
+    expect(GENOME_LENGTH_V3).toBe(29 * 10 + 2)
+    expect(genomeLengthV3(24)).toBe(698)
+    expect(POLICY_DRIVE_STAGE_CODE).toContain(`N_IN = ${N_IN_V3},`)
+    expect(POLICY_DRIVE_STAGE_CODE).toContain('isTouchingObject')
+    expect(POLICY_DRIVE_STAGE_CODE).toContain('isTouchingSide')
+    // the v2 stage code is untouched (legacy worlds): 24 inputs, no touch flags
+    expect(POLICY_V2_STAGE_CODE).toContain(`N_IN = ${N_IN_V2},`)
+    expect(POLICY_V2_STAGE_CODE).not.toContain('isTouchingSide')
+  })
+
+  it('padV2Genome: ZERO weights on the touch inputs keep the function EXACTLY (any v2 hidden size)', () => {
+    const rng = createRng(41)
+    for (const H of [N_HIDDEN, 24]) {
+      const g = freshGenome(createRng(42 + H), 0.5, N_IN_V2, H)
+      const p = padV2Genome(g)
+      expect(p.length).toBe(29 * H + 2)
+      for (let s = 0; s < 20; s++) {
+        const x = Array.from({ length: N_IN_V2 }, () => rng.next() * 2 - 1)
+        const a = policyForwardV2(g, x)
+        const b = policyForwardV3(p, [...x, 0, 0])
+        expect(b[0]).toBeCloseTo(a[0], 12)
+        expect(b[1]).toBeCloseTo(a[1], 12)
+      }
+    }
+    expect(() => padV2Genome([1, 2, 3])).toThrow()
+  })
+
+  it('the v3 stage reads the touch flags into x[24] (isTouchingObject) and x[25] (isTouchingSide)', () => {
+    // steer = tanh(2 tanh(5 (x[24] + x[25]))): a net that ONLY reacts to the touch flags
+    const w = new Array<number>(GENOME_LENGTH_V3).fill(0)
+    w[0 * N_IN_V3 + 24] = 5
+    w[0 * N_IN_V3 + 25] = 5
+    const o2 = N_HIDDEN * N_IN_V3 + N_HIDDEN
+    w[o2 + 0 * N_HIDDEN + 0] = 2
+    const cmd = { aim: [-6, 20], next: [-6, 30] }
+    const run = (env?: Record<string, boolean>) => runStage(POLICY_DRIVE_STAGE_CODE, { w, gain: 1000 }, () => ({ av: { cmd }, ...(env ? { environment: env } : {}) })).inp.actions as { steering_angle: number }
+    const none = run()
+    expect(none.steering_angle).toBeCloseTo(1e-4, 9) // car2 treats exactly 0 as "no steering command"
+    expect(run({ isTouchingObject: true }).steering_angle).toBeCloseTo(Math.tanh(2 * Math.tanh(5)), 9)
+    expect(run({ isTouchingSide: true }).steering_angle).toBeCloseTo(Math.tanh(2 * Math.tanh(5)), 9)
+    expect(run({ isTouchingObject: true, isTouchingSide: true }).steering_angle).toBeCloseTo(Math.tanh(2 * Math.tanh(10)), 9)
+  })
+
+  it('genomeShape sniffs the 26-input layout first; the legacy 24- and 22-input lengths still resolve', () => {
+    expect(genomeShape(genomeLengthV3(24))).toEqual({ nIn: N_IN_V3, hidden: 24 })
+    expect(genomeShape(GENOME_LENGTH_V3)).toEqual({ nIn: N_IN_V3, hidden: N_HIDDEN })
+    expect(genomeShape(650)).toEqual({ nIn: N_IN_V2, hidden: 24 })
+    expect(genomeShape(GENOME_LENGTH_V2)).toEqual({ nIn: N_IN_V2, hidden: N_HIDDEN })
+    expect(genomeShape(GENOME_LENGTH)).toEqual({ nIn: N_IN, hidden: N_HIDDEN })
+    expect(() => genomeShape(651)).toThrow()
   })
 })

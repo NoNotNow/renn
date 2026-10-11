@@ -15,7 +15,6 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { buildCourse, KIND_SALT, type Course, type CourseBox } from './courses'
 import { POLICY_CAR_ID, POLICY_GROUND, policyCourseParts, type CmdConfig } from './episode'
-import { POLICY_ESCAPE_HOLD_S } from './policyStages'
 
 export interface MazeTrainingWorldSpec {
   /** example world id (= folder name under public/exampleWorlds/, also the File-menu/dialog key) */
@@ -92,12 +91,16 @@ export const MAZE_TRAIN_TAPER = {
   noiseEndM: 3.5,
 } as const
 
-/** Scoring: 1 point per metre of vector path travelled (monotone arc-length progress) plus a speed bonus. */
+/** Scoring: 1 point per metre of vector path travelled (monotone arc-length progress) plus a speed bonus, minus a per-second penalty while the hull touches. */
 export const MAZE_TRAIN_SCORE = {
   /** speed counted as "full" for the bonus (m/s) */
   vRef: 20,
   /** bonus points per second at full speed */
   bonusRate: 5,
+  /** penalty points per SECOND of wall contact (isTouchingSide): 1 s of scraping clearly hurts, a short brush does not zero a run */
+  wallPenaltyPerS: 12,
+  /** penalty points per SECOND of object contact (isTouchingObject without a lateral contact and without support below) — softer than the wall */
+  objectPenaltyPerS: 4,
 } as const
 
 /** Colors of the drawn guidance chain (api.visualizeLine): start green, deep orange. */
@@ -357,27 +360,31 @@ export const MAZE_GOAL_REACH_M = 8
 export const MAZE_GOAL_Y = 9
 /** Color of the guidance carrot line (car -> ~8 m ahead on its chain). */
 export const MAZE_CARROT_COLOR = '#aa44ff'
-/** Color of the touch-escape vector (car -> the escape aim while the escape stage overrides input.av.cmd). */
-export const MAZE_ESCAPE_COLOR = '#ff3344'
 
 /**
  * Custom-transformer code of the per-car score stage (same code string on every car, params differ: `chain` = the own
  * shifted chain, `chains` = ALL shifted chains, `chainColors` = per-chain [start, end] color pairs, `cars` = all car
  * entity ids, `idx` = the own copy index, `hud` = only car 0 writes the HUD score). Monotone arc-length progress along
- * the own tapered chain (1 pt / m, never backwards) plus a speed bonus (up to `bonusRate` pt/s at `vRef`).
+ * the own tapered chain (1 pt / m, never backwards) plus a speed bonus (up to `bonusRate` pt/s at `vRef`) minus a
+ * per-second TOUCH penalty (wall contact via `isTouchingSide` costs `wallPenaltyPerS`, object contact — any contact
+ * without a lateral one and without support below the hull, i.e. not merely standing on the ground — costs
+ * `objectPenaltyPerS`; walls cost more than objects).
  * DRAWING happens only from car 0's stage (api.visualizeLine renders for the entity named by
  * world.debugTargetLineEntityId): every chain in its color pair (forward green -> orange, reversed blue -> orange,
  * y = 0.35) plus one carrot per car (own from input.position at state.s + 8, the others via api.getWorldPosition,
- * nearest chain point + 8 m ahead). While the touch-escape stage OWNS the command (lateral touch, POLICY_ESCAPE_HOLD_S
- * hold — same window as policyStages.ts, tracked with the stage's own clock) the own carrot is REPLACED by the
- * overridden aim (input.av.cmd.aim, still set at this priority) drawn in MAZE_ESCAPE_COLOR.
+ * nearest chain point + 8 m ahead).
  */
 export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, state, api) {
   if (state.t === undefined) state.t = 0
   state.t += dt
-  if (input.environment && input.environment.isTouchingSide) state.escUntil = state.t + ${POLICY_ESCAPE_HOLD_S}
-  var escAim = null
-  if (state.escUntil !== undefined && state.t < state.escUntil && input.av && input.av.cmd && input.av.cmd.aim) escAim = input.av.cmd.aim
+  var env = input.environment
+  var wallT = !!(env && env.isTouchingSide)
+  var objT = !wallT && !!(env && env.isTouchingObject)
+  if (objT) {
+    // any contact without a lateral one and without support below the hull: object contact, not standing on the ground
+    var sup = api.raycast([input.position[0], input.position[1], input.position[2]], [0, -1, 0], 1.2, { visualize: false })
+    if (sup.hit) objT = false
+  }
   var ch = params.chain
   var n = ch.length
   if (!state.cum) {
@@ -385,6 +392,7 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
     for (var q = 1; q < n; q++) state.cum.push(state.cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))
     state.s = 0
     state.bonus = 0
+    state.penalty = 0
     state.seg = 0
   }
   var total = state.cum[n - 1]
@@ -407,7 +415,9 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
   var vRef = params.vRef || 20
   var v = Math.min(Math.hypot(input.velocity[0], input.velocity[2]), vRef)
   state.bonus += (v / vRef) * dt * (params.bonusRate || 5)
-  var score = Math.floor(state.s + state.bonus)
+  state.penalty += dt * (wallT ? (params.wallPenaltyPerS || 12) : objT ? (params.objectPenaltyPerS || 4) : 0)
+  var score = Math.floor(state.s + state.bonus - state.penalty)
+  if (score < 0) score = 0
   if (params.hud) api.setScore(score)
   api.watch('maze.score', score + ' pts')
   api.watch('maze.prog', state.s.toFixed(1) + ' / ' + total.toFixed(0) + ' m')
@@ -450,10 +460,6 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
     for (var k3 = 0; k3 < params.cars.length; k3++) {
       var fx = px, fz = pz, arc = 0
       if (k3 === params.idx) {
-        if (escAim) {
-          api.visualizeLine([fx, 0.35, fz], [escAim[0], 0.35, escAim[1]], '${MAZE_ESCAPE_COLOR}')
-          continue
-        }
         arc = Math.min(state.s + 8, total)
       } else {
         var w = api.getWorldPosition(params.cars[k3])
@@ -512,8 +518,6 @@ export function buildMazeTrainingWorld(spec: MazeTrainingWorldSpec, genome?: num
       legEnds: [chains[i]!.length - 1],
       offM: 8,
       v3: true,
-      // touch escape (policyStages.ts): a lateral contact overrides the command for 0.3 s with an aim away from the touch
-      escape: true,
     })
     const car = parts.entities[0] as { transformers: string[] }
     car.transformers = [...car.transformers, mazeScoreStageId(i)]
@@ -546,6 +550,8 @@ export function buildMazeTrainingWorld(spec: MazeTrainingWorldSpec, genome?: num
         hud: i === 0,
         vRef: MAZE_TRAIN_SCORE.vRef,
         bonusRate: MAZE_TRAIN_SCORE.bonusRate,
+        wallPenaltyPerS: MAZE_TRAIN_SCORE.wallPenaltyPerS,
+        objectPenaltyPerS: MAZE_TRAIN_SCORE.objectPenaltyPerS,
       },
     }
   })

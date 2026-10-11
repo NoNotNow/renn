@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Resumable v3 training (forward + reverse, free-track pretraining -> obstacle curriculum, kind-evenness fitness).
+# v3mg5 generation: the 26-input net (two touch inputs isTouchingObject / isTouchingSide); touches are SURVIVED and
+# punished per frame in the fitness (walls harder than objects) instead of ending the episode. NO migration of the old
+# 24-input v3mg4 genomes (stopped at gen 194): a fresh run starts from random nets with dim 29 H + 2 (698 for H = 24).
 # Works on Linux and macOS. State lives in the TRACKED file training-data/policy-evolution/v3.json (commit it to hand a run over).
 #
 #   tools/policy-evolution/run-v3.sh [TOTAL_GENERATIONS=3000] [WORKERS=cores-1]

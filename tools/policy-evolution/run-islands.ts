@@ -17,7 +17,7 @@
  * `--hidden N` (v2 only): hidden units (default 10). With --warm the warm genome is widened to N (new units: zero outgoing weights, small random incoming ones,
  * function unchanged); without --warm the networks start random with N. Fresh immigrants / crossover use the run's N.
  *
- * v3 (forward AND backward, free-track pretraining, see spec-command-chains.md section v3): `--v3` evolves the same 24-input net FROM SCRATCH (random nets, no warm start unless
+ * v3 (forward AND backward, free-track pretraining, see spec-command-chains.md section v3): `--v3` evolves the 26-input net (v2 inputs + the two touch flags, len = 29 H + 2) FROM SCRATCH (random nets, no warm start unless
  * --warm is given) on v3 chain episodes `<setupKey>#<i>v3` of the kinds free, bay, corridor, field, slalom, maze, crowd (`--kinds` restricts). Stage curriculum: the run starts on
  * the free track only; the obstacle kinds join (bay, corridor, slalom, crowd, field, maze) as the free-track chain finish-rate EMA reaches 0.7 (share 0 -> 0.7 in steps of 0.1;
  * `--no-stage` = all kinds from the start). Batches are STRATIFIED: `--batch N` = setups PER ACTIVE KIND per generation (default 1). Fitness = kind evenness
@@ -42,7 +42,7 @@ import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculu
 import { aggregateEvenness, aggregateFitness, DEFAULT_ES_CONFIG, type EsConfig, type FitnessFn } from '@/policyEvolution/es'
 import { DEFAULT_ISLANDS, initialIslands, IslandEs, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
 import { createRng } from '@/avEvolution/core/rng'
-import { GENOME_LENGTH, genomeLengthV2, hiddenOfLength, N_HIDDEN, N_IN_V2, widenHidden } from '@/policyEvolution/policy'
+import { GENOME_LENGTH, genomeLength, genomeShape, hiddenOfLength, N_HIDDEN, N_IN_V2, N_IN_V3, padV2Genome, widenHidden } from '@/policyEvolution/policy'
 import { PolicyPool } from './pool'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage, type StageState } from '@/policyEvolution/curriculum'
 import { holdoutV3Episodes, trainV3Episodes, v3EpisodeKeys } from '@/policyEvolution/chains'
@@ -110,11 +110,13 @@ async function main() {
   let warm = args.warm ? v2GenomeFromFile(JSON.parse(fs.readFileSync(String(args.warm), 'utf8'))) : undefined
   if (warm && !v2) throw new Error('--warm needs --v2')
   if (args.hidden !== undefined && !v2) throw new Error('--hidden needs --v2')
+  // v3 runs need the 26-input layout: a legacy 24-input (v2-shaped) warm genome is zero-padded onto the two touch inputs (identical function)
+  if (warm && v3 && hiddenOfLength(warm.length, N_IN_V2) && !hiddenOfLength(warm.length, N_IN_V3)) warm = padV2Genome(warm)
   const hiddenArg = args.hidden === undefined ? undefined : Number(args.hidden)
   if (hiddenArg !== undefined && (!Number.isInteger(hiddenArg) || hiddenArg < 1)) throw new Error(`--hidden must be a positive integer, got ${String(args.hidden)}`)
   // --hidden N with --warm: the warm genome (v1 padded) is widened to N, function preserved; N below the warm size is refused
   if (warm && hiddenArg !== undefined && !resumed) {
-    const h0 = hiddenOfLength(warm.length, N_IN_V2)
+    const h0 = genomeShape(warm.length).hidden
     if (hiddenArg < h0) throw new Error(`--hidden ${hiddenArg} is smaller than the warm genome's ${h0} hidden units`)
     if (hiddenArg > h0) warm = widenHidden(warm, hiddenArg, createRng(num(args.seed, 1) * 31 + 7))
     console.log(`warm start: hidden ${h0} -> ${hiddenArg}`)
@@ -143,7 +145,7 @@ async function main() {
   if (!resumed) {
     const config: EsConfig = {
       ...DEFAULT_ES_CONFIG,
-      dim: v2 ? genomeLengthV2(warm ? hiddenOfLength(warm.length, N_IN_V2) : (hiddenArg ?? N_HIDDEN)) : GENOME_LENGTH,
+      dim: v2 ? genomeLength(v3 ? N_IN_V3 : N_IN_V2, warm ? genomeShape(warm.length).hidden : (hiddenArg ?? N_HIDDEN)) : GENOME_LENGTH,
       pairs: num(args.pairs, 8),
       sigma: num(args.sigma, DEFAULT_ES_CONFIG.sigma),
       lr: num(args.lr, DEFAULT_ES_CONFIG.lr),

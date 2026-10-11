@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aggregateFitness, centredRanks, DEFAULT_ES_CONFIG, PolicyEs, type EvaluateGenome } from './es'
+import { aggregateFitness, aggregateKindEvenness, centredRanks, DEFAULT_ES_CONFIG, PolicyEs, touchPenaltyNorm, V3_OBJECT_TOUCH_PENALTY, V3_WALL_TOUCH_PENALTY, type EvaluateGenome } from './es'
 
 describe('centredRanks', () => {
   it('maps to [-0.5, 0.5], ties share a rank', () => {
@@ -27,5 +27,27 @@ describe('PolicyEs', () => {
     const a = await run()
     expect(a.last).toBeGreaterThan(-0.5)
     expect(await run()).toEqual(a)
+  })
+})
+
+describe('v3 touch penalties (episodes survive touches, the fitness pays per frame)', () => {
+  const base = { key: 'free:1#0v3', norm: 0.9, outcome: 'finish' as const }
+
+  it('wall contact costs more than object contact; both are per-frame subtractions from the norm', () => {
+    expect(touchPenaltyNorm(60, 0)).toBeCloseTo(60 * V3_WALL_TOUCH_PENALTY, 12)
+    expect(touchPenaltyNorm(0, 60)).toBeCloseTo(60 * V3_OBJECT_TOUCH_PENALTY, 12)
+    expect(touchPenaltyNorm(undefined, undefined)).toBe(0)
+    expect(aggregateKindEvenness([{ ...base, touchWallFrames: 60 }])).toBeCloseTo(aggregateKindEvenness([base]) - 60 * V3_WALL_TOUCH_PENALTY, 12)
+    expect(aggregateKindEvenness([{ ...base, touchObjectFrames: 60 }])).toBeCloseTo(aggregateKindEvenness([base]) - 60 * V3_OBJECT_TOUCH_PENALTY, 12)
+    // same contact time, wall vs object: the wall hurts more
+    expect(aggregateKindEvenness([{ ...base, touchWallFrames: 60 }])).toBeLessThan(aggregateKindEvenness([{ ...base, touchObjectFrames: 60 }]))
+  })
+
+  it('scaled so ~1 s of wall contact (60 frames) is clearly felt but a short brush is not', () => {
+    expect(V3_WALL_TOUCH_PENALTY).toBeGreaterThan(V3_OBJECT_TOUCH_PENALTY)
+    expect(V3_WALL_TOUCH_PENALTY * 60).toBeGreaterThan(0.1)
+    expect(V3_WALL_TOUCH_PENALTY * 6).toBeLessThan(0.05)
+    // a long grind cannot push the norm below zero
+    expect(aggregateKindEvenness([{ ...base, norm: 0.05, touchWallFrames: 900 }])).toBe(0)
   })
 })

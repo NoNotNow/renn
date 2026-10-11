@@ -18,9 +18,9 @@ import { v3ReportByKind } from './chainReport'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage } from './curriculum'
 import { aggregateEvenness, aggregateKindEvenness, capNorm, devPenaltyNorm, V3_FAIL_FACTOR } from './es'
 import { runPolicyEpisode, SAFETY_WINDOW_S, STILL_WINDOW_S, v3EpisodeSeconds } from './episode'
-import { pursuitV2, reverserV3 } from './handWired'
+import { pursuitV3, reverserV3 } from './handWired'
 import { LegProgress } from './legs'
-import { GENOME_LENGTH_V2 } from './policy'
+import { GENOME_LENGTH_V3 } from './policy'
 import { POLICY_DRIVE_STAGE_CODE } from './policyStages'
 import { RouteProgress } from './courses'
 import { freeChain, FREE_MARGIN } from './v3Chains'
@@ -124,7 +124,7 @@ describe('v3 stage', () => {
   it('puts the aim BEHIND the car on a reversal leg and follows the same legs as the episode tracker', () => {
     const pts: P[] = [[0, 0], [0, 40], [0, 25], [0, 70]]
     const ends = [1, 2, 3]
-    const w = new Array<number>(GENOME_LENGTH_V2).fill(0)
+    const w = new Array<number>(GENOME_LENGTH_V3).fill(0)
     const params = { w, gain: 1000, chain: pts, legEnds: ends, offM: 20, cmd: { lmin: 12, tau: 0, period: 0.1, noiseDeg: 0, seed: 1 } }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const state: any = {}
@@ -300,7 +300,7 @@ describe('v3 episodes', () => {
 
   it('hand-wired reverser finishes every dead-end bay and corridor chain, a forward-only follower finishes none (REVERSE USAGE is reported)', async () => {
     const rev = reverserV3()
-    const fwd = pursuitV2(0.35)
+    const fwd = pursuitV3(0.35)
     for (const kind of ['bay', 'corridor'] as const) {
       const keys = onlyKeys(kind, 3)
       const revM = []
@@ -335,7 +335,7 @@ describe('v3 episodes', () => {
     // 30 m forward, 16 m back, 30 m on, on the empty free arena
     const chain: Chain = { points: [[0, 0], [0, -30], [0, -14], [0, -44]], length: 76, endIndex: 0, legEnds: [1, 2, 3], offM: 20 }
     const rev = await runPolicyEpisode(reverserV3(), 'free:1#0v3', { chainOverride: chain })
-    const fwd = await runPolicyEpisode(pursuitV2(0.35), 'free:1#0v3', { chainOverride: chain })
+    const fwd = await runPolicyEpisode(pursuitV3(0.35), 'free:1#0v3', { chainOverride: chain })
     expect(rev.outcome).toBe('finish')
     expect(rev.maxReverseM!).toBeGreaterThan(2)
     expect(fwd.reverseShare).toBe(0)
@@ -343,7 +343,7 @@ describe('v3 episodes', () => {
   }, 60000)
 
   it('stand-still stall: a car that does not move is stalled after ~3 s; a reversing car is not stalled', async () => {
-    const idle = await runPolicyEpisode(new Array<number>(GENOME_LENGTH_V2).fill(0), 'free:1#0v3')
+    const idle = await runPolicyEpisode(new Array<number>(GENOME_LENGTH_V3).fill(0), 'free:1#0v3')
     expect(idle.outcome).toBe('stall')
     expect(idle.timeS).toBeGreaterThan(STILL_WINDOW_S - 0.1)
     expect(idle.timeS).toBeLessThan(STILL_WINDOW_S + 1.5)
@@ -361,15 +361,15 @@ describe('v3 episodes', () => {
   })
 
   it('exploit guard: driving straight ahead never finishes a free / bay / corridor chain', async () => {
-    const w = new Array<number>(GENOME_LENGTH_V2).fill(0)
-    w[GENOME_LENGTH_V2 - 1] = 0.5
+    const w = new Array<number>(GENOME_LENGTH_V3).fill(0)
+    w[GENOME_LENGTH_V3 - 1] = 0.5
     for (const k of ['free:1#1v3', 'free:2#0v3', 'bay:1#0v3', 'corridor:1#0v3']) expect((await runPolicyEpisode(w, k)).outcome, k).not.toBe('finish')
   }, 60000)
 
   it('v2 kinds run in v3 mode as one leg (reach rule) and are still driven by pure pursuit', async () => {
     const keys = ['slalom:1', 'slalom:2'].flatMap((s) => v3EpisodeKeys(s))
     let fin = 0
-    for (const k of keys) fin += (await runPolicyEpisode(pursuitV2(0.35), k)).outcome === 'finish' ? 1 : 0
+    for (const k of keys) fin += (await runPolicyEpisode(pursuitV3(0.35), k)).outcome === 'finish' ? 1 : 0
     expect(fin / keys.length).toBeGreaterThanOrEqual(0.5)
   }, 120000)
 })

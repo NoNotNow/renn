@@ -1,15 +1,15 @@
-import { GENOME_LENGTH_V2, N_HIDDEN, N_IN_V2, N_OUT, N_RAYS } from './policy'
+import { genomeLengthV2, genomeLengthV3, N_HIDDEN, N_IN_V2, N_IN_V3, N_OUT, N_RAYS, padV2Genome } from './policy'
 
 /**
  * Hand-wired v2 pure-pursuit genome for tests / sanity checks: steer = tanh(2 tanh(5 x aimLeft)), speed target = `speed` x 30 m/s.
  * Proves that the chains are drivable and the dynamic command works end to end.
  */
 export function pursuitV2(speed = 0.35, slow = 0): number[] {
-  const w = new Array<number>(GENOME_LENGTH_V2).fill(0)
+  const w = new Array<number>(genomeLengthV2(N_HIDDEN)).fill(0)
   const o2 = N_HIDDEN * N_IN_V2 + N_HIDDEN
   w[0 * N_IN_V2 + N_RAYS + 4] = 5
   w[o2 + 0 * N_HIDDEN + 0] = 2
-  w[GENOME_LENGTH_V2 - N_OUT + 1] = speed
+  w[genomeLengthV2(N_HIDDEN) - N_OUT + 1] = speed
   if (slow > 0) {
     // hidden 1 = tanh(3 (1 - aim cos)) ~ how far the aim point is off the heading; the speed target drops by `slow`
     w[1 * N_IN_V2 + N_RAYS + 3] = -3
@@ -20,19 +20,28 @@ export function pursuitV2(speed = 0.35, slow = 0): number[] {
 }
 
 /**
- * Hand-wired v3 reverser for tests / sanity checks: the steering of `pursuitV2` plus a direction switch on the aim: hidden 1 = tanh(30 (aimCos + 0.3)), the speed target is
+ * Hand-wired v3 pure-pursuit genome (26 inputs): `pursuitV2` zero-padded onto the two touch inputs (identical
+ * function) — the forward-only follower of the v3 tests.
+ */
+export function pursuitV3(speed = 0.35, slow = 0): number[] {
+  return padV2Genome(pursuitV2(speed, slow))
+}
+
+/**
+ * Hand-wired v3 reverser for tests / sanity checks (26 inputs, len = 29 H + 2): the steering of `pursuitV2` zero-padded onto the
+ * two touch inputs (identical function) plus a direction switch on the aim: hidden 1 = tanh(30 (aimCos + 0.3)), the speed target is
  * `fwd` x 30 m/s while the aim is ahead and `-rev` x 8 m/s while it is behind. Reversing needs no steering flip: the same sign (aim to the left -> steer left)
  * swings the rear towards the aim. A forward-only controller is `pursuitV2`.
  */
 export function reverserV3(fwd = 0.35, rev = 0.9): number[] {
-  const w = pursuitV2(0, 0)
-  const o2 = N_HIDDEN * N_IN_V2 + N_HIDDEN
+  const w = padV2Genome(pursuitV2(0, 0))
+  const o2 = N_HIDDEN * N_IN_V3 + N_HIDDEN
   const a = Math.atanh(fwd)
   const b = Math.atanh(-rev)
   // hidden 1 = tanh(30 (aimCos + 0.3)): forward for a lateral aim (the turning circle does it), backwards only when the aim is clearly behind
-  w[1 * N_IN_V2 + N_RAYS + 3] = 30
-  w[N_HIDDEN * N_IN_V2 + 1] = 9
+  w[1 * N_IN_V3 + N_RAYS + 3] = 30
+  w[N_HIDDEN * N_IN_V3 + 1] = 9
   w[o2 + 1 * N_HIDDEN + 1] = (a - b) / 2
-  w[GENOME_LENGTH_V2 - N_OUT + 1] = (a + b) / 2
+  w[genomeLengthV3(N_HIDDEN) - N_OUT + 1] = (a + b) / 2
   return w
 }

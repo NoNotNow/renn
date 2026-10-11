@@ -6,16 +6,19 @@ import { createRng } from '@/avEvolution/core/rng'
 import { buildCourse, buildSetupCourse, parseCourseKey, polylineNearestDist, RouteProgress, COURSE_START, type Course } from './courses'
 import { chainOfEpisode, isChainEpisodeKey, polylineLength, type Chain } from './chains'
 import { LegProgress } from './legs'
-import { hiddenOfLength, N_IN_V2, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
-import { policyDriveStage, policyEscapeStage, policyInputStage, policyV1Stage, policyV2Stage, POLICY_ESCAPE_STAGE_ID, POLICY_INPUT_STAGE_ID } from './policyStages'
+import { hiddenOfLength, N_IN_V2, N_IN_V3, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
+import { policyDriveStage, policyInputStage, policyV1Stage, policyV2Stage, POLICY_INPUT_STAGE_ID } from './policyStages'
 
 
 /**
  * One policy episode, pure and browser-safe: a FRESH world per call (defined start), seeded clock, one metrics record
  * out. Calls must not interleave in one thread (the determinism patch is global): run them one at a time per worker.
  *
- * Ends on contact with an obstacle ("crash"), when the route progress stalls, when the car flips, at the end of the
- * route ("finish") or at the time limit. Score = progress x mean speed = progress^2 / time.
+ * Touches are SURVIVED: a wall / object contact no longer ends the episode — the metrics count the touching frames
+ * (`touchWallFrames` / `touchObjectFrames`, the fitness subtracts a per-frame penalty; walls cost more than objects)
+ * and only a SUSTAINED wall contact (CRASH_TOUCH_S of continuous grinding) still ends it as "crash". Otherwise the
+ * episode ends when the route progress stalls, when the car flips, at the end of the route ("finish") or at the time
+ * limit. Score = progress x mean speed = progress^2 / time.
  */
 
 export const POLICY_CAR_ID = 'policy_car_body'
@@ -35,6 +38,8 @@ const FINISH_MARGIN = 5
 export const OFF_COURSE_M = 16
 /** v2 chain episodes: farther than this from the COMMANDED chain ends the episode (chains differ by >= 10 m, so the wrong route is caught) */
 export const OFF_CHAIN_M = 6
+/** outcome 'crash' fallback: CONTINUOUS wall contact for this many seconds still ends the episode (a brush is survived, grinding is not) */
+export const CRASH_TOUCH_S = 2
 /** v2 chains are up to 1.8 x longer than the track, so the time limit is longer too */
 export const CHAIN_EPISODE_SECONDS = 90
 /** v3 time limit from the chain length: manoeuvres are slow, 25 s + 3.5 s per 10 m (45..150 s) */
@@ -79,6 +84,10 @@ export interface PolicyEpisodeMetrics {
   maxReverseM?: number
   /** v3 episodes: largest distance (m) from the ORIGINAL chain polyline during the episode (deviation from the path vector) */
   maxDevOrigM?: number
+  /** frames whose hull-vs-wall gap was under CONTACT_GAP (the wall-touch path that used to end the episode as 'crash') */
+  touchWallFrames: number
+  /** frames with a contact to a non-wall object (touching entity that is neither the ground nor a course box; 0 in the plain course worlds) */
+  touchObjectFrames: number
 }
 
 /** Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world). */
@@ -115,13 +124,10 @@ export function cmdConfigFor(key: string): CmdConfig {
  * Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world).
  * With `opts.chain` (v2) the stage derives its command from that chain polyline and `opts.cmd`; without it the v1 goal stage is used.
  * A v3 chain (`opts.v3`) is built from the shared stage store (policyStages.ts): an INPUT stage (priority 4) writes `input.av.cmd`
- * from the chain, the DRIVE stage (priority 5, unchanged code) reads it — the same command math as the single stage before, so the
+ * from the chain, the DRIVE stage (priority 5, 26 inputs incl. the two touch flags) reads it — the same command math as the single stage before, so the
  * split is behavior-preserving (bit-identical actions, see policyStages.test.ts). v1 / v2 stay single stages (legacy strings).
- * `opts.escape` (OPT-IN, v3 only) inserts the touch-escape stage (priority 4.5, see policyStages.ts): a lateral contact overrides
- * the command for 0.3 s with an aim away from the touch point. It is set by the maze training and v3 example worlds, NEVER by
- * `runPolicyEpisode` — the fitness episodes must keep the exact training semantics.
  */
-export function policyCourseParts(course: Course, genome: ArrayLike<number>, opts: { origin?: V2; suffix?: string; noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig; legEnds?: number[]; offM?: number; v3?: boolean; escape?: boolean } = {}) {
+export function policyCourseParts(course: Course, genome: ArrayLike<number>, opts: { origin?: V2; suffix?: string; noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig; legEnds?: number[]; offM?: number; v3?: boolean } = {}) {
   const [ox, oz] = opts.origin ?? [0, 0]
   const sfx = opts.suffix ?? ''
   const carId = POLICY_CAR_ID + sfx
@@ -129,8 +135,6 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
   const actuatorId = POLICY_ACTUATOR_ID + sfx
   const splitV3 = !!(opts.chain && opts.v3)
   const inputId = POLICY_INPUT_STAGE_ID + sfx
-  const escapeId = POLICY_ESCAPE_STAGE_ID + sfx
-  const withEscape = splitV3 && opts.escape === true
   const rad = (d: number) => (d * Math.PI) / 180
   const entities: unknown[] = [
     {
@@ -141,7 +145,7 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
       position: [(course.startAt ?? COURSE_START)[0] + ox, CAR_START_Y, (course.startAt ?? COURSE_START)[1] + oz],
       rotation: [0, rad(course.startYawDeg ?? 0), 0],
       ...CAR_BODY,
-      transformers: [...(splitV3 ? [inputId, ...(withEscape ? [escapeId] : [])] : []), stageId, actuatorId],
+      transformers: [...(splitV3 ? [inputId] : []), stageId, actuatorId],
     },
   ]
   course.boxes.forEach((b, i) => {
@@ -163,9 +167,7 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
     : { goals: course.waypoints.map((g) => [g[0] + ox, g[1] + oz]), reachR: 8 }
   const transformers: Record<string, unknown> = splitV3
     ? {
-        // v3 split chain (shared store): the input stage owns the command (chain / legs / cmd config), the escape stage (opt-in)
-        // overrides it on a lateral touch, the drive stage runs the net
-        ...(withEscape ? { [escapeId]: policyEscapeStage() } : {}),
+        // v3 split chain (shared store): the input stage owns the command (chain / legs / cmd config), the drive stage runs the net
         [inputId]: policyInputStage({ chain: opts.chain!.map((p) => [p[0] + ox, p[1] + oz]), legEnds: opts.legEnds, offM: opts.offM, cmd: opts.cmd ?? cmdConfigFor('default') }),
         [stageId]: policyDriveStage({ w: Array.from(genome), gain, ...noiseParams }),
         [actuatorId]: { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS },
@@ -179,7 +181,7 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
 
 export const POLICY_GROUND = { id: 'ground', name: 'Ground', bodyType: 'static', shape: { type: 'plane' }, position: [0, 0, 0], rotation: [0, 0, 0], friction: 1 }
 
-export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts: { noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig; legEnds?: number[]; offM?: number; v3?: boolean; escape?: boolean } = {}): RennWorld {
+export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts: { noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig; legEnds?: number[]; offM?: number; v3?: boolean } = {}): RennWorld {
   const parts = policyCourseParts(course, genome, opts)
   return {
     version: '1.0',
@@ -213,8 +215,9 @@ export async function runPolicyEpisode(
   let v3 = false
   let offM = OFF_CHAIN_M
   if (isChain) {
-    if (!hiddenOfLength(genome.length, N_IN_V2)) throw new Error(`chain episode ${key} needs a v2 genome (27 H + 2 numbers), got ${genome.length}`)
     const c = chainOfEpisode(key)
+    const needN = c.v3 ? N_IN_V3 : N_IN_V2
+    if (!hiddenOfLength(genome.length, needN)) throw new Error(`chain episode ${key} needs a ${c.v3 ? 'v3 (29 H + 2, 26 inputs)' : 'v2 (27 H + 2, 24 inputs)'} genome, got ${genome.length}`)
     course = buildSetupCourse(c.setupKey)
     // `chainOverride` (tests): score and command this chain instead of the one of the key (the key still names the setup geometry)
     const chain = opts.chainOverride ?? c.chain
@@ -237,6 +240,7 @@ export async function runPolicyEpisode(
     const yaw = (b.yawDeg * Math.PI) / 180
     return { cx: b.at[0], cz: b.at[1], r: Math.hypot(b.size[0], b.size[1]) / 2, poly: rectPoly(b.at[0], b.at[1], yaw, b.size[0], b.size[1]) }
   })
+  const wallIds = new Set(course.boxes.map((_, i) => `box_${i}`))
   const hullR = Math.hypot(CAR_SIZE[0], CAR_SIZE[1]) / 2
   const route = v3 ? new LegProgress(chainPoints!, legEnds, offM) : new RouteProgress(chainPoints ?? course)
   const t0 = performance.now()
@@ -256,6 +260,9 @@ export async function runPolicyEpisode(
     let reverseRun = 0
     let maxReverse = 0
     let maxDevOrig = 0
+    let touchWallFrames = 0
+    let touchObjectFrames = 0
+    let wallTouchT = 0
     for (let frame = 0; frame < frames; frame++) {
       sim.runFrames(1)
       det.advance(DEFAULT_DT)
@@ -292,17 +299,26 @@ export async function runPolicyEpisode(
       const fx = -(2 * (q.x * q.z + q.w * q.y))
       const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
       const hull = rectPoly(cp[0], cp[2], Math.atan2(fx, fz), CAR_SIZE[0], CAR_SIZE[1])
-      let touch = false
+      let wallTouch = false
       for (const w of walls) {
         if (Math.hypot(w.cx - cp[0], w.cz - cp[2]) - w.r - hullR >= CONTACT_GAP) continue
         if (polyGap(hull, w.poly) < CONTACT_GAP) {
-          touch = true
+          wallTouch = true
           break
         }
       }
-      if (touch) {
-        outcome = 'crash'
-        break
+      if (wallTouch) {
+        // touches are SURVIVED: only a sustained continuous contact still ends the episode (the 'crash' fallback)
+        touchWallFrames++
+        wallTouchT += DEFAULT_DT
+        if (wallTouchT >= CRASH_TOUCH_S) {
+          outcome = 'crash'
+          break
+        }
+      } else {
+        wallTouchT = 0
+        // object contact: a touching entity that is neither the ground nor a course wall box (none exist in the plain course worlds)
+        if (sim.getTouchingEntityIds(POLICY_CAR_ID).some((id) => id !== 'ground' && !wallIds.has(id))) touchObjectFrames++
       }
       if (route.lastDist > offCourseM) {
         outcome = 'offcourse'
@@ -336,6 +352,8 @@ export async function runPolicyEpisode(
       norm: score / (routeLength * NORM_SPEED),
       wallMs: performance.now() - t0,
       length: routeLength,
+      touchWallFrames,
+      touchObjectFrames,
       ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevOrigM: maxDevOrig } : {}),
     }
   } finally {

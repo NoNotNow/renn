@@ -97,6 +97,20 @@ export function aggregateEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key
 export const V3_FAIL_FACTOR = 0.5
 
 /**
+ * v3 per-frame touch penalties (subtracted from the episode's norm; the episode SURVIVES touches and counts the
+ * frames, episode.ts): wall contact costs more than object contact. Scaled so ~1 s of contact (60 frames at the
+ * episode's 60 fps) is clearly felt — wall 0.3, object 0.12 norm — while a short brush (a few frames) does not zero
+ * a good run. Sustained wall grinding still ends 'crash' (CRASH_TOUCH_S) and pays V3_FAIL_FACTOR on top.
+ */
+export const V3_WALL_TOUCH_PENALTY = 0.005
+export const V3_OBJECT_TOUCH_PENALTY = 0.002
+
+/** per-episode touch penalty in norm currency (frames x the per-frame rates above) */
+export function touchPenaltyNorm(touchWallFrames: number | undefined, touchObjectFrames: number | undefined): number {
+  return (touchWallFrames ?? 0) * V3_WALL_TOUCH_PENALTY + (touchObjectFrames ?? 0) * V3_OBJECT_TOUCH_PENALTY
+}
+
+/**
  * v3 deviation penalty: the episode's points (norm) minus the largest distance from the ORIGINAL chain, converted to the
  * norm currency as a route fraction (maxDevOrigM / chain length) — one metre off the path vector costs one metre of
  * route points. Following the vector is the only free route: cutting corners or wandering (up to the offcourse
@@ -117,14 +131,14 @@ export function capNorm(norm: number, meanSpeed: number | undefined, speedCap?: 
 }
 
 export function aggregateKindEvenness(
-  metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number }>,
+  metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number }>,
   speedCap?: number,
 ): number {
   if (!metrics.length) return 0
   const byKind = new Map<string, Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>>()
   for (const raw of metrics) {
     const failed = raw.outcome !== undefined && raw.outcome !== 'finish' && raw.outcome !== 'timeout'
-    const norm = capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length)
+    const norm = Math.max(0, capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length) - touchPenaltyNorm(raw.touchWallFrames, raw.touchObjectFrames))
     const m = failed ? { key: raw.key, norm: norm * V3_FAIL_FACTOR } : norm === raw.norm ? raw : { key: raw.key, norm }
     const kind = parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind
     const list = byKind.get(kind)

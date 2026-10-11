@@ -157,6 +157,6 @@ describe('chain episodes', () => {
     const b = await runPolicyEpisode(pursuitV2(), key)
     expect({ ...a, wallMs: 0 }).toEqual({ ...b, wallMs: 0 })
     expect(a.length).toBeCloseTo(chainsForSetup(mazeKey)[0]!.length, 6)
-    await expect(runPolicyEpisode(new Array<number>(GENOME_LENGTH).fill(0), key)).rejects.toThrow(/v2 genome/)
+    await expect(runPolicyEpisode(new Array<number>(GENOME_LENGTH).fill(0), key)).rejects.toThrow(/v2 \(27 H \+ 2, 24 inputs\) genome/)
   }, 120_000)
 })

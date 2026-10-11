@@ -5,7 +5,7 @@ import { buildAvStackGlobalBehaviorLibrary } from '@/globalPipeline/buildAvStack
 import { readNeuralStageWeights, readNeuralStageWeightsV3, AV_STACK_STAGE_FILES } from '@/globalPipeline/avStackStagePaths'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import shippedV3 from '@/policyEvolution/shippedPolicyV3.json'
-import { GENOME_LENGTH, GENOME_LENGTH_V2, N_IN_V2, N_RAYS, padV1Genome, POLICY_STAGE_CODE_V2, POLICY_STAGE_CODE_V3, policyForwardV2, widenHidden } from '@/policyEvolution/policy'
+import { GENOME_LENGTH, GENOME_LENGTH_V3, N_IN_V3, N_RAYS, padV1Genome, padV2Genome, POLICY_STAGE_CODE_V2, POLICY_STAGE_CODE_V3, policyForwardV3, widenHidden } from '@/policyEvolution/policy'
 import { AV_NEURAL_STAGE_FILE, neuralStageFile } from '@/policyEvolution/policyStage'
 import { setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
 import { loadLabWorld, watchValues } from '@/test/avLab/lab'
@@ -79,8 +79,9 @@ describe('AV neural drive: library registration', () => {
     expect(defs.find((d) => d.key === 'neuralMode')!.default).toBe('off')
     expect(defs.find((d) => d.key === 'neuralVMax')!.default).toBe(30)
     const w = (st.global_av_neural!.params as { w: number[] }).w
-    expect(w.length).toBe(GENOME_LENGTH_V2)
-    expect(readNeuralStageWeights().length).toBe(GENOME_LENGTH_V2)
+    // legacy 24-input weight files are zero-padded onto the two touch inputs: 26-input layout, identical function
+    expect(w.length).toBe(GENOME_LENGTH_V3)
+    expect(readNeuralStageWeights().length).toBe(GENOME_LENGTH_V3)
   })
 
   it('without a promoted avNeuralWeights.json the weights are the padded v1 genome (identical function)', () => {
@@ -92,7 +93,7 @@ describe('AV neural drive: library registration', () => {
     } catch {
       hasV2 = false
     }
-    if (!hasV2) expect(readNeuralStageWeights()).toEqual(padV1Genome(v1))
+    if (!hasV2) expect(readNeuralStageWeights()).toEqual(padV2Genome(padV1Genome(v1)))
   })
 })
 
@@ -125,7 +126,7 @@ describe('AV neural drive with a wider net (H = 24)', () => {
   it('a widened genome (same function) drives bit-identically to the H = 10 weights', async () => {
     const base = readNeuralStageWeights()
     const wide = widenHidden(base, 24, createRng(5))
-    expect(wide.length).toBe(24 * 27 + 2)
+    expect(wide.length).toBe(24 * 29 + 2)
     const a = await poses(withNeuralMode(openRoad(), 'always', { neuralWeights: base }), 6)
     const b = await poses(withNeuralMode(openRoad(), 'always', { neuralWeights: wide }), 6)
     const off = await poses(withNeuralMode(openRoad(), 'off'), 6)
@@ -172,7 +173,7 @@ describe('AV neural drive (c) auto switches on in a crowd and off after it', () 
 
 describe('AV neural drive (d) watchdog', () => {
   it('zero weights: the stall watchdog hands back within ~3 s, cooldown / lockout engage, the classic car still arrives', async () => {
-    const zero = new Array(GENOME_LENGTH_V2).fill(0)
+    const zero = new Array(GENOME_LENGTH_V3).fill(0)
     const { m, probe } = await run(withNeuralMode(openRoad(-90), 'always', { neuralWeights: zero }), 90)
     const firstOn = probe.watch.findIndex((w) => w.startsWith('on'))
     const firstCool = probe.watch.findIndex((w) => w.startsWith('cooldown') || w.startsWith('off (maneuver)'))
@@ -211,7 +212,7 @@ describe('AV neural drive (e) the stage computes the policy', () => {
   }
   const compile = (code: string) => new Function(`"use strict";\n${code}\nreturn transform;`)() as (i: unknown, dt: number, p: unknown, s: unknown, a: unknown) => unknown
   const rng = createRng(11)
-  const w = Array.from({ length: GENOME_LENGTH_V2 }, () => gaussian(rng) * 0.5)
+  const w = Array.from({ length: GENOME_LENGTH_V3 }, () => gaussian(rng) * 0.5)
   const baseInput = () => ({
     position: [0, 0.5, 0],
     rotation: [0, 0, 0, 1],
@@ -220,7 +221,7 @@ describe('AV neural drive (e) the stage computes the policy', () => {
     actions: {} as Record<string, number>,
   })
 
-  it('actions = policyForwardV2 of the stashed inputs through the shared pedal law; aim / next follow the route rule', () => {
+  it('actions = policyForwardV3 of the stashed inputs through the shared pedal law; aim / next follow the route rule', () => {
     const transform = compile(diskStage())
     const state: Record<string, unknown> = {}
     const route = [[0, 0], [0, 40], [30, 70]]
@@ -228,7 +229,10 @@ describe('AV neural drive (e) the stage computes the policy', () => {
     transform(inp, dt, { neuralMode: 'always', w, neuralVMax: 1000 }, state, api)
     const p = state.p as { x: number[]; aim: number[]; nxt: number[] }
     expect(state.on).toBe(true)
-    expect(p.x.length).toBe(N_IN_V2)
+    expect(p.x.length).toBe(N_IN_V3)
+    // the touch inputs: no contacts in this scripted frame -> both 0
+    expect(p.x[N_IN_V3 - 2]).toBe(0)
+    expect(p.x[N_IN_V3 - 1]).toBe(0)
     // aim: L = clamp(8 + 0.6 * 5, 8, 40) = 11 m along the route (straight ahead), next = direction of the route 12 m beyond (still the first leg)
     expect(p.aim[0]).toBeCloseTo(0, 6)
     expect(p.aim[1]).toBeCloseTo(11, 6)
@@ -237,7 +241,7 @@ describe('AV neural drive (e) the stage computes the policy', () => {
     // the memory inputs start from the classic car (steer = kappa / 0.12, gas = v / 30)
     expect(p.x[N_RAYS + 8]).toBeCloseTo(0, 9)
     expect(p.x[N_RAYS + 9]).toBeCloseTo(5 / 30, 9)
-    const out = policyForwardV2(w, p.x)
+    const out = policyForwardV3(w, p.x)
     const a = inp.actions
     expect(a.steering_angle).toBeCloseTo(Math.abs(out[0]) < 1e-4 ? 1e-4 : out[0], 12)
     const vT = out[1] > 0 ? out[1] * 30 : out[1] * 8
@@ -246,23 +250,24 @@ describe('AV neural drive (e) the stage computes the policy', () => {
     expect(a.brake).toBeCloseTo(u < 0 ? -u : 0, 12)
   })
 
-  it('the training stage (POLICY_STAGE_CODE_V2, same chain / command config) writes the same actions', () => {
+  it('the training stage (POLICY_STAGE_CODE_V3, same 26 inputs, one-leg chain / same command config) writes the same actions', () => {
     const route = [[0, 0], [0, 40], [30, 70]]
     const av = { ego: { speed: 5, kappa: 0, speedF: 5 }, plan: {}, vehicle: { width: 4, length: 8, height: 1 }, routePath: route, goal: { dist: 99 }, mission: { isFinal: false } }
     const neural = { ...baseInput(), av }
-    compile(diskStage())(neural, dt, { neuralMode: 'always', w, neuralVMax: 1000 }, {}, api)
+    // neuralReverse keeps the v3 target speed negative (noRev would floor it at 0, unlike the training stage)
+    compile(diskStage())(neural, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: w, neuralVMax: 1000, neuralReverse: true }, {}, api)
     const train = baseInput()
     // (the AV stage starts the memory inputs from the classic car: steer = kappa / 0.12 = 0, gas = v / 30)
-    compile(POLICY_STAGE_CODE_V2)(train, dt, { w, chain: route, cmd: { lmin: 8, tau: 0.6, period: 0.5, noiseDeg: 0, seed: 1 }, gain: 1200 }, { steer: 0, gas: 5 / 30 }, api)
+    compile(POLICY_STAGE_CODE_V3)(train, dt, { w, chain: route, cmd: { lmin: 8, tau: 0.6, period: 0.5, noiseDeg: 0, seed: 1 }, gain: 1200 }, { steer: 0, gas: 5 / 30 }, api)
     expect(neural.actions).toEqual(train.actions)
   })
 
   it('the speed cap neuralVMax limits the target speed', () => {
     const route = [[0, 0], [0, 100]]
     const mk = () => ({ ...baseInput(), av: { ego: { speed: 5, kappa: 0, speedF: 5 }, plan: {}, vehicle: { width: 4, length: 8, height: 1 }, routePath: route, goal: { dist: 99 } } })
-    const hot = new Array(GENOME_LENGTH_V2).fill(0)
-    hot[N_IN_V2 * 10 + 10 + 10] = 0 // keep the net simple: only the output bias drives the target speed
-    hot[N_IN_V2 * 10 + 10 + 2 * 10 + 1] = 5 // gas bias -> tanh(5) ~ 1 -> vT ~ 30
+    const hot = new Array(GENOME_LENGTH_V3).fill(0)
+    hot[N_IN_V3 * 10 + 10 + 10] = 0 // keep the net simple: only the output bias drives the target speed
+    hot[N_IN_V3 * 10 + 10 + 2 * 10 + 1] = 5 // gas bias -> tanh(5) ~ 1 -> vT ~ 30
     const free = mk()
     compile(diskStage())(free, dt, { neuralMode: 'always', w: hot, neuralVMax: 1000 }, {}, api)
     const capped = mk()
@@ -291,11 +296,12 @@ describe('AV neural drive (f) generated file', () => {
   it('shares the sensing / command / forward code with the training stage (verbatim) and uses simulated time only', () => {
     const disk = diskStage()
     const train = POLICY_STAGE_CODE_V2
-    // head (angles, constants, rnd, deriveCmd) and the ray sensing block are the training strings
-    const head = train.slice(0, train.indexOf('function transform('))
-    expect(disk).toContain(head)
+    // the constants head bakes N_IN = 26 (the two touch inputs) and the ray sensing block is the shared training string
+    expect(disk).toContain('var N_IN = 26')
     const sense = train.slice(train.indexOf('  var w = params.w'), train.indexOf('  var cmd = input.av'))
     expect(disk).toContain(sense)
+    expect(disk).toContain('x[n + 10] = env && env.isTouchingObject ? 1 : 0')
+    expect(disk).toContain('x[n + 11] = env && env.isTouchingSide ? 1 : 0')
     expect(disk).not.toMatch(/Date\.now|performance\.now|setTimeout|Math\.random/)
   })
 })
@@ -366,7 +372,8 @@ describe('AV neural drive v3 policy (neuralPolicy v3, reversing)', () => {
   const openApi = mkApi((_o, d) => (d[0]! > 0.9 ? { hit: false, distance: 0 } : { hit: true, distance: 6 + 30 * Math.abs(d[0]!) + 4 * Math.abs(d[2]!) }))
   /** a wall 2 m in front of the nose; behind: free (or a wall at `rearHit` m) */
   const blockedApi = (rearHit = 0) => mkApi((_o, d) => (d[2]! > 0.8 ? { hit: true, distance: 2 } : rearHit > 0 && d[2]! < -0.3 ? { hit: true, distance: rearHit } : { hit: false, distance: 0 }))
-  const genome = shippedV3.genome as number[]
+  // the shipped file is the LEGACY 24-input genome (650): zero-padded onto the touch inputs wherever it feeds the 26-input stage
+  const genome = padV2Genome(shippedV3.genome as number[])
   const mkIn = (z: number, vz: number) => ({ position: [0, 0.5, z], rotation: [0, 0, 0, 1], velocity: [0, 0, vz], angularVelocity: [0, 0, 0], actions: {} as Record<string, number> })
   const mkAv = (z: number, speed: number) => ({
     ego: { speed, kappa: 0, speedF: speed, fwd: [0, 0, 1] },
@@ -378,31 +385,33 @@ describe('AV neural drive v3 policy (neuralPolicy v3, reversing)', () => {
   })
   /** H = 1 net: gas = tanh(3 * tanh(3 * aimCos)), steering 0: forward with the aim ahead, target speed < 0 (reverse) with the aim behind */
   const aimNet = (() => {
-    const w = new Array(29).fill(0)
+    // H = 1 net on the 26-input layout (len = 29 + 2): gas = tanh(3 * tanh(3 * aimCos)), steering 0
+    const w = new Array(29 + 2).fill(0)
     w[N_RAYS + 3] = 3
-    w[25 + 1] = 3
+    w[26 + 1 + 1] = 3
     return w
   })()
 
-  it('the default v3 weights are the 650-number shippedPolicyV3 genome (generated json == shipped json)', () => {
-    expect(genome.length).toBe(650)
+  it('the default v3 weights are the shippedPolicyV3 genome zero-padded onto the touch inputs (generated json == shipped json)', () => {
+    expect(shippedV3.genome.length).toBe(650)
+    expect(genome.length).toBe(698)
     expect(readNeuralStageWeightsV3()).toEqual(genome)
     const gen = readFileSync(join(process.cwd(), 'src/policyEvolution/avNeuralWeightsV3.json'), 'utf8')
     expect(gen).toBe(readFileSync(join(process.cwd(), 'src/policyEvolution/shippedPolicyV3.json'), 'utf8'))
   })
 
-  it('(b) stage net output == policyForward of the 650 genome through the shared pedal law', () => {
+  it('(b) stage net output == policyForward of the (padded) shipped genome through the shared pedal law', () => {
     const route = [[0, 0], [0, 40], [30, 70]]
     const inp = { ...mkIn(0, 5), av: { ...mkAv(0, 5), routePath: route } }
     const state: Record<string, unknown> = {}
     compile(diskStage())(inp, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: genome, neuralVMax: 1000 }, state, openApi)
     const p = state.p as { x: number[]; aim: number[] }
     expect(state.on).toBe(true)
-    expect(p.x.length).toBe(N_IN_V2)
+    expect(p.x.length).toBe(N_IN_V3)
     // leg-wise command: aim = clamp(8 + 0.6 * 5, 8, 40) = 11 m along the route (one leg)
     expect(p.aim[0]).toBeCloseTo(0, 6)
     expect(p.aim[1]).toBeCloseTo(11, 6)
-    const out = policyForwardV2(genome, p.x)
+    const out = policyForwardV3(genome, p.x)
     const a = inp.actions
     expect(a.steering_angle).toBeCloseTo(Math.abs(out[0]) < 1e-4 ? 1e-4 : out[0], 12)
     const vT = out[1] > 0 ? out[1] * 30 : out[1] * 8
@@ -418,7 +427,8 @@ describe('AV neural drive v3 policy (neuralPolicy v3, reversing)', () => {
     compile(diskStage())(b, dt, { neuralMode: 'always', neuralPolicy: 'v3', neuralWeights: aimNet, neuralVMax: 1000 }, {}, openApi)
     expect(a.actions).toEqual(b.actions)
     const c = { ...mkIn(0, 5), av: mkAv(0, 5) }
-    compile(diskStage())(c, dt, { neuralMode: 'always', neuralPolicy: 'v3', w: genome.slice(0, 272) }, {}, openApi)
+    // a legacy 24-input genome (27 H + 2) fits no hidden size on the 26-input stage: the stage does nothing
+    compile(diskStage())(c, dt, { neuralMode: 'always', neuralPolicy: 'v3', w: (shippedV3.genome as number[]).slice(0, 272) }, {}, openApi)
     expect(c.actions).toEqual({})
   })
 

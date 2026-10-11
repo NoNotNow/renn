@@ -31,17 +31,27 @@ export const GENOME_LENGTH = genomeLength(N_IN)
 export const N_IN_V2 = N_RAYS + 3 + 3 + 2 + 2
 export const GENOME_LENGTH_V2 = genomeLength(N_IN_V2)
 /**
- * Shape of a genome from its length alone: v2 (24 inputs, len = 27 H + 2) is tried first, then v1 (16 inputs, len = 19 H + 2); the two only collide
- * at H multiples of 19 / 27 (len - 2 divisible by 513), far beyond any hidden size used here. Throws for a length that fits neither.
+ * v3 (touch inputs): the v2 net with TWO MORE inputs appended at the END — x[24] = isTouchingObject (1/0), x[25] =
+ * isTouchingSide (1/0). All v2 indices are unchanged, so `padV2Genome` (zero weights on the new inputs) is exactly
+ * behavior-preserving. len = 29 H + 2 (698 for H = 24).
+ */
+export const N_IN_V3 = N_IN_V2 + 2
+export const GENOME_LENGTH_V3 = genomeLength(N_IN_V3)
+/** length of a v3 genome with `hidden` hidden units */
+export const genomeLengthV3 = (hidden: number) => genomeLength(N_IN_V3, hidden)
+/**
+ * Shape of a genome from its length alone: v3 (26 inputs, len = 29 H + 2) is tried first, then v2 (24 inputs, len = 27 H + 2), then
+ * v1 (22 inputs, len = 25 H + 2); v3 / v2 only collide at H multiples of 29 / 27 (len - 2 divisible by 783), far beyond any hidden
+ * size used here. Throws for a length that fits neither.
  */
 export function genomeShape(len: number): { nIn: number; hidden: number } {
-  for (const nIn of [N_IN_V2, N_IN]) {
+  for (const nIn of [N_IN_V3, N_IN_V2, N_IN]) {
     const hidden = hiddenOfLength(len, nIn)
     if (hidden) return { nIn, hidden }
   }
-  throw new Error(`genome of ${len} numbers fits no hidden size (v2: 27 H + 2, v1: 19 H + 2)`)
+  throw new Error(`genome of ${len} numbers fits no hidden size (v3: 29 H + 2, v2: 27 H + 2, v1: 25 H + 2)`)
 }
-/** number of network inputs of a genome of this length (v1 or v2 layout, any hidden size) */
+/** number of network inputs of a genome of this length (v1, v2 or v3 layout, any hidden size) */
 export const inputsOfGenome = (len: number) => genomeShape(len).nIn
 /** hidden size of a v2 genome (len = 27 H + 2); throws when the length is not of that form */
 export function hiddenOfV2(len: number): number {
@@ -57,8 +67,7 @@ export const genomeLengthV2 = (hidden: number) => genomeLength(N_IN_V2, hidden)
  * random incoming weights (std 0.1, to break the symmetry so evolution can use them later), zero bias. The old units are copied exactly.
  */
 export function widenHidden(genome: ArrayLike<number>, newH: number, rng: Rng): number[] {
-  const nIn = N_IN_V2
-  const oldH = hiddenOfV2(genome.length)
+  const { nIn, hidden: oldH } = genomeShape(genome.length)
   if (!Number.isInteger(newH) || newH < oldH) throw new Error(`widenHidden: new hidden size ${newH} must be an integer >= ${oldH}`)
   const out = new Array<number>(genomeLength(nIn, newH)).fill(0)
   for (let j = 0; j < newH; j++) {
@@ -85,6 +94,31 @@ export function padV1Genome(g: ArrayLike<number>): number[] {
   }
   const tail = N_HIDDEN * N_IN
   for (let i = 0; i < N_HIDDEN + N_OUT * N_HIDDEN + N_OUT; i++) out[N_HIDDEN * N_IN_V2 + i] = g[tail + i]!
+  return out
+}
+
+/**
+ * v2 genome -> v3 genome with identical outputs: the two touch inputs (x[24] isTouchingObject, x[25] isTouchingSide)
+ * get ZERO weights, everything else (all v2 input weights, biases, output layer) is copied exactly — the net behaves
+ * bit-identically, it just runs on the 26-input stage. Any v2 hidden size (len = 27 H + 2) works.
+ */
+export function padV2Genome(g: ArrayLike<number>): number[] {
+  const oldH = hiddenOfV2(g.length)
+  const nInOld = N_IN_V2
+  const nInNew = N_IN_V3
+  const out = new Array<number>(genomeLength(nInNew, oldH)).fill(0)
+  for (let j = 0; j < oldH; j++) {
+    for (let i = 0; i < nInOld; i++) out[j * nInNew + i] = g[j * nInOld + i]!
+    out[j * nInNew + nInOld] = 0
+    out[j * nInNew + nInOld + 1] = 0
+  }
+  const b1Old = oldH * nInOld
+  const b1New = oldH * nInNew
+  for (let j = 0; j < oldH; j++) out[b1New + j] = g[b1Old + j]!
+  const o2Old = b1Old + oldH
+  const o2New = b1New + oldH
+  for (let k = 0; k < N_OUT; k++) for (let j = 0; j < oldH; j++) out[o2New + k * oldH + j] = g[o2Old + k * oldH + j]!
+  for (let k = 0; k < N_OUT; k++) out[o2New + N_OUT * oldH + k] = g[o2Old + N_OUT * oldH + k]!
   return out
 }
 
@@ -127,6 +161,11 @@ export function policyForward(w: ArrayLike<number>, x: ArrayLike<number>): [numb
 /** Reference forward pass of the v2 net (24 inputs). */
 export function policyForwardV2(w: ArrayLike<number>, x: ArrayLike<number>): [number, number] {
   return forwardN(w, x, N_IN_V2)
+}
+
+/** Reference forward pass of the v3 net (26 inputs, x[24] / x[25] = the touch flags). */
+export function policyForwardV3(w: ArrayLike<number>, x: ArrayLike<number>): [number, number] {
+  return forwardN(w, x, N_IN_V3)
 }
 
 /**
@@ -347,6 +386,16 @@ export const STAGE_GOAL_V2 = `  var cmd = input.av && input.av.cmd
   x[n + 9] = state.gas || 0
 `
 
+/**
+ * v3 touch inputs (appended AFTER x[23], all v2 indices unchanged — only in the v3 stage whose N_IN is 26): x[24] =
+ * 1 when the hull has any contact (isTouchingObject, includes the ground), x[25] = 1 when a contact is lateral
+ * (isTouchingSide: a wall, a body, a bar — the signal the escape heuristic used to react to).
+ */
+export const STAGE_TOUCH = `  var env = input.environment
+  x[n + 10] = env && env.isTouchingObject ? 1 : 0
+  x[n + 11] = env && env.isTouchingSide ? 1 : 0
+`
+
 /** forward pass + target-speed law + actuator inputs (shared by v1 and v2) */
 export const STAGE_NET = `  var H = hiddenOf(w)
   if (!H) return {}
@@ -379,5 +428,5 @@ export const STAGE_NET = `  var H = hiddenOf(w)
 export const POLICY_STAGE_CODE = stageHead(N_IN, false) + STAGE_SENSE + STAGE_GOAL_V1 + STAGE_NET
 export const POLICY_STAGE_CODE_V2 = stageHead(N_IN_V2, true) + STAGE_SENSE + STAGE_GOAL_V2 + STAGE_NET
 
-/** v3 training stage: the v2 net on leg-wise chains (params: chain, legEnds, offM, cmd); everything but the command helpers is the v2 code. */
-export const POLICY_STAGE_CODE_V3 = stageHead(N_IN_V2, true, true) + STAGE_SENSE + STAGE_GOAL_V2 + STAGE_NET
+/** v3 training stage: the v2 command / sensing code plus the two touch inputs (26-input net, len = 29 H + 2) on leg-wise chains (params: chain, legEnds, offM, cmd). */
+export const POLICY_STAGE_CODE_V3 = stageHead(N_IN_V3, true, true) + STAGE_SENSE + STAGE_GOAL_V2 + STAGE_TOUCH + STAGE_NET

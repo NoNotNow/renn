@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { polyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { buildCourse, COURSE_KINDS, courseKey, parseCourseKey, polylineNearestDist, withVariant, COURSE_LENGTH, FIELD_HALF_WIDTH, holdoutCourseKeys, RouteProgress, trainCourseKeys } from './courses'
-import { runPolicyEpisode } from './episode'
+import { CRASH_TOUCH_S, runPolicyEpisode } from './episode'
+import { pursuitV3 } from './handWired'
 import { GENOME_LENGTH, N_HIDDEN, N_IN, N_OUT, N_RAYS } from './policy'
 
 /** zero weights except the gas bias: drives straight ahead at full throttle */
@@ -160,6 +161,26 @@ describe('policy episode', () => {
     console.log(JSON.stringify(m))
     expect(m.progress).toBeGreaterThan(5)
     expect(['crash', 'stall', 'finish', 'timeout']).toContain(m.outcome)
+    expect(m.touchWallFrames).toBeGreaterThanOrEqual(0)
+  }, 60_000)
+
+  it('touches are SURVIVED: only sustained wall grinding still ends the episode as crash', async () => {
+    // the forward-only follower drives into the dead-end bay and grinds its end wall
+    const m = await runPolicyEpisode(pursuitV3(0.35), 'bay:1#0v3')
+    expect(m.outcome).toBe('crash')
+    // the crash needs CRASH_TOUCH_S of CONTINUOUS contact (the first touch no longer ends anything)
+    expect(m.touchWallFrames).toBeGreaterThanOrEqual(Math.round(CRASH_TOUCH_S / (1 / 60)) - 2)
+    // it drove deep into the bay first: progress survives way past the first contact
+    expect(m.progress).toBeGreaterThan(80)
+    expect(m.touchObjectFrames).toBe(0) // the course worlds hold no non-wall objects
+  }, 60_000)
+
+  it('a BRIEF touch does not end the episode (it is counted and the run goes on)', async () => {
+    // corridor chain 1 starts with a reverse leg: the forward-only follower brushes a wall, then goes offcourse on its own
+    const m = await runPolicyEpisode(pursuitV3(0.35), 'corridor:1#1v3')
+    expect(m.touchWallFrames).toBeGreaterThan(0)
+    expect(m.touchWallFrames).toBeLessThan(Math.round(CRASH_TOUCH_S / (1 / 60)))
+    expect(m.outcome).not.toBe('crash')
   }, 60_000)
 
   it('a hand-wired goal follower steers toward the goals', async () => {
