@@ -25,8 +25,11 @@ const TRAIN = {
   nohupLog: resolve(root, 'training-data/policy-evolution/v3mg7.nohup.log'),
   targetGen: 3000,
   why: 'policy evolution: v3mg7 maze+grid FRESH run (random nets) with speedCap 10 FROM GEN 0 - no speed entrenchment can form: every finish scores 1.0 regardless of speed, any fail stays below frac^2 x cap/20, so braking into corners finally pays from the first generation. v3mg6 (archived at gen 2220) proved the point: 1220 gens of quadratic speed reward anchored full-throttle weights so deeply that even 1000 capped gens could not grow corner-braking (best frozen since 1425, 4x sigma boost destroyed the centers). Adversarial TRAIN setups from the T4 diagnosis included',
-  // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself)
-  start: 'V3_OUT=training-data/policy-evolution/v3mg7.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6 --speed-cap 10" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg7.nohup.log 2>&1 &',
+  // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself).
+  // caffeinate -is: the run holds its own PreventIdleSleep assertion - the Mac does not idle-sleep while training
+  // (the sleep timer is 1 minute; without this the run pauses whenever display/audio/Chrome-wake-lock release).
+  // caffeinate exits when its child (run-v3.sh) exits, so a clean stop releases the assertion automatically.
+  start: 'V3_OUT=training-data/policy-evolution/v3mg7.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6 --speed-cap 10" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg7.nohup.log 2>&1 &',
 }
 const WATCH = {
   why: 'auto-trial watcher: deploys the newest candidate into the maze training worlds every 2 min (skips cycles without a new best)',
@@ -39,7 +42,7 @@ const ps = () => spawnSync('ps', ['-Ao', 'pid,ppid,pcpu,etime,command'], { encod
 /** All processes belonging to a job; absolute repo path OR the repo-relative launcher paths (bash run-v3.sh / tee are started relative). */
 function findProcs(pattern) {
   const me = String(process.pid)
-  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|tools\/policy-evolution\/auto-trial\.mjs|training-data\/policy-evolution\/v3mg7\.log/
+  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|tools\/policy-evolution\/auto-trial\.mjs|caffeinate -is bash tools\/policy-evolution\/run-v3|training-data\/policy-evolution\/v3mg7\.log/
   return ps()
     .map((l) => {
       const m = l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\S+)\s+(.*)$/)
@@ -51,7 +54,7 @@ function findProcs(pattern) {
     .filter(Boolean)
 }
 
-const trainProcs = () => findProcs(/run-islands|run-v3\.sh|v3mg7\.log/)
+const trainProcs = () => findProcs(/run-islands|run-v3\.sh|caffeinate|v3mg7\.log/)
 const watchProcs = () => findProcs(/auto-trial\.mjs/)
 const viteProcs = () => findProcs(/node_modules\/\.bin\/vite|vite\.js/).filter((p) => /vite/.test(p.cmd) && p.cmd.includes(root))
 
