@@ -11,7 +11,7 @@
  * pixel space + per-route scores) for the dialog's per-route tiles.
  * Source of truth: src/policyEvolution/mazeTraining.ts. Update the policy: tools/policy-evolution/ship.ts, then re-run.
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { invalidateAgentDevExampleWorldIdCache } from '../../src/agent/agentDevExampleWorlds'
@@ -29,7 +29,9 @@ import {
   mazeScoreStageId,
   mazeTrainingMeta,
   mazeTrainingRoutes,
+  trialMazeTrainingCandidate,
 } from '../../src/policyEvolution/mazeTraining'
+import type { MazeTrainingCandidate } from '../../src/policyEvolution/mazeTraining'
 import type { CourseBox } from '../../src/policyEvolution/courses'
 import type { V2 } from '../../src/avEvolution/eval/geometry'
 import { DEFAULT_DT, WorldSimulator } from '../../src/test/helpers/worldSimulator'
@@ -174,6 +176,12 @@ const t0 = Date.now()
 async function main(): Promise<void> {
   const genome = shippedGenomeV3()
   if (!genome) throw new Error('shippedPolicyV3.json not shipped yet (tools/policy-evolution/ship.ts)')
+  // when trialing via RENN_V3_GENOME_FILE (shippedGenomeV3 reads the same file), name the candidate in meta.json
+  // (the dialog shows candidate.label) instead of silently labelling a trial as the shipped policy
+  const overridePath = process.env.RENN_V3_GENOME_FILE
+  const trialCandidate: MazeTrainingCandidate | undefined = overridePath
+    ? trialMazeTrainingCandidate(JSON.parse(readFileSync(overridePath, 'utf8')) as { best?: { gen?: number }; source?: string }, overridePath)
+    : undefined
   const rows: string[] = [`${'world'.padEnd(13)} ${'route'.padStart(5)}  dir  reached  seconds  score`]
   for (const spec of MAZE_TRAINING_WORLDS) {
     const { course, routes, chains } = mazeTrainingRoutes(spec)
@@ -213,7 +221,7 @@ async function main(): Promise<void> {
       tileRoutes.push({ pts: tile.frames[0]!.pts, score: routeScores[i] })
     })
     const tileSvg = { w: tileW, h: tileH, routes: tileRoutes }
-    writeFileSync(resolve(outDir, 'meta.json'), JSON.stringify({ ...mazeTrainingMeta(spec, routes, bestScore), tileSvg }, null, 2) + '\n')
+    writeFileSync(resolve(outDir, 'meta.json'), JSON.stringify({ ...mazeTrainingMeta(spec, routes, bestScore, trialCandidate), tileSvg }, null, 2) + '\n')
     writeFileSync(
       resolve(outDir, 'thumb.svg'),
       thumbSvg(

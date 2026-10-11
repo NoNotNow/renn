@@ -22,6 +22,8 @@ import {
   mazeScoreStageId,
   mazeTrainingMeta,
   mazeTrainingRoutes,
+  trialMazeTrainingCandidate,
+  SHIPPED_MAZE_TRAINING_CANDIDATE,
   type MazeRoute,
   type MazeTrainingMeta,
 } from '@/policyEvolution/mazeTraining'
@@ -38,6 +40,16 @@ import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
  */
 
 const genome = () => shippedGenomeV3()
+
+/** The candidate meta.json must name: the shipped policy, or the RENN_V3_GENOME_FILE trial when one is exported. */
+const expectedCandidate = () => {
+  const override = process.env.RENN_V3_GENOME_FILE
+  if (!override) return SHIPPED_MAZE_TRAINING_CANDIDATE
+  return trialMazeTrainingCandidate(
+    JSON.parse(readFileSync(override, 'utf8')) as { best?: { gen?: number }; source?: string },
+    override,
+  )
+}
 
 describe('maze training worlds', () => {
   it('shipped v3 genome is available (the worlds are built from it)', () => {
@@ -95,7 +107,7 @@ describe('maze training worlds', () => {
       expect(meta.id).toBe(spec.id)
       expect(meta.seed).toBe(spec.seed)
       expect(meta.name).toBe(spec.name)
-      expect(meta.candidate).toEqual({ policy: 'v3', label: 'v3 shipped (gen 1000)', gen: 1000, source: 'shippedPolicyV3.json' })
+      expect(meta.candidate).toEqual(expectedCandidate())
       expect(meta.bestScore === null || typeof meta.bestScore === 'number').toBe(true)
       expect(meta.chain.points).toBe(chains[0]!.length)
       expect(meta.chain.lengthM).toBeCloseTo(mazeTrainingMeta(spec, routes, null).chain.lengthM, 5)

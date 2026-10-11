@@ -567,8 +567,35 @@ export function buildMazeTrainingWorld(spec: MazeTrainingWorldSpec, genome?: num
   } as unknown as RennWorld
 }
 
+/** Candidate identity of the shipped policy (the default of mazeTrainingMeta). */
+export const SHIPPED_MAZE_TRAINING_CANDIDATE: MazeTrainingCandidate = {
+  policy: 'v3',
+  label: 'v3 shipped (gen 1000)',
+  gen: 1000,
+  source: 'shippedPolicyV3.json',
+}
+
+/**
+ * Candidate identity for a RENN_V3_GENOME_FILE trial: the parsed latest-best/run file (the caller reads it from disk)
+ * plus the override path. The exporter writes this into meta.json so the dialog labels a trial honestly instead of
+ * showing it as the shipped policy.
+ */
+export function trialMazeTrainingCandidate(
+  parsed: { best?: { gen?: number }; source?: string },
+  overridePath: string,
+): MazeTrainingCandidate {
+  const gen = parsed.best?.gen ?? 0
+  const name = String(parsed.source ?? overridePath).replace(/^.*[/\\]/, '').replace(/\.json$/, '')
+  return { policy: 'v3', label: `${name} trial (gen ${gen})`, gen, source: overridePath }
+}
+
 /** meta.json of one training maze (the dialog cards read it next to world.json). */
-export function mazeTrainingMeta(spec: MazeTrainingWorldSpec, routes: MazeRoute[], bestScore: number | null): MazeTrainingMeta {
+export function mazeTrainingMeta(
+  spec: MazeTrainingWorldSpec,
+  routes: MazeRoute[],
+  bestScore: number | null,
+  candidate: MazeTrainingCandidate = SHIPPED_MAZE_TRAINING_CANDIDATE,
+): MazeTrainingMeta {
   const primary = routes[0]!
   const chain = taperChain(primary.route, spec.seed * 31, buildCourse('maze', spec.seed).boxes)
   let lengthM = 0
@@ -577,7 +604,7 @@ export function mazeTrainingMeta(spec: MazeTrainingWorldSpec, routes: MazeRoute[
     id: spec.id,
     seed: spec.seed,
     name: spec.name,
-    candidate: { policy: 'v3', label: 'v3 shipped (gen 1000)', gen: 1000, source: 'shippedPolicyV3.json' },
+    candidate,
     bestScore,
     chain: { points: chain.length, lengthM: Math.round(lengthM * 10) / 10 },
     routes: { forward: routes.filter((r) => !r.reversed).length, reversed: routes.filter((r) => r.reversed).length },
