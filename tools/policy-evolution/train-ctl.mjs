@@ -8,7 +8,7 @@
  *   node tools/policy-evolution/train-ctl.mjs restart       # stop + start
  *   node tools/policy-evolution/train-ctl.mjs ship          # stop -> ship.ts (HOLDOUT finish-count gate) -> start, verdict printed
  *
- * Known jobs: the v3mg policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
+ * Known jobs: the v3mg2 policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
  * and the vite dev server. Detection is by command line + repo path, never a blanket pkill pattern.
  */
 import { spawnSync } from 'node:child_process'
@@ -18,13 +18,13 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TRAIN = {
-  state: resolve(root, 'training-data/policy-evolution/v3mg.json'),
-  log: resolve(root, 'training-data/policy-evolution/v3mg.log'),
-  nohupLog: resolve(root, 'training-data/policy-evolution/v3mg.nohup.log'),
+  state: resolve(root, 'training-data/policy-evolution/v3mg2.json'),
+  log: resolve(root, 'training-data/policy-evolution/v3mg2.log'),
+  nohupLog: resolve(root, 'training-data/policy-evolution/v3mg2.nohup.log'),
   targetGen: 3000,
-  why: 'policy evolution: v3mg maze+grid fork (--kinds maze,grid --batch 6, warm from v3maze), 9 workers, ship check when the HOLDOUT gate passes',
+  why: 'policy evolution: v3mg2 maze+grid FRESH run (no warm start) - the pipe now reacts to collisions programmatically (policy_escape touch-escape stage), so training restarts from scratch; previous best archived as forward-only.json',
   // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself)
-  start: 'V3_OUT=training-data/policy-evolution/v3mg.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6 --warm training-data/policy-evolution/v3maze.json" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg.nohup.log 2>&1 &',
+  start: 'V3_OUT=training-data/policy-evolution/v3mg2.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg2.nohup.log 2>&1 &',
 }
 const VITE_WHY = 'vite dev server (localhost preview) - the test / play workflow'
 
@@ -33,7 +33,7 @@ const ps = () => spawnSync('ps', ['-Ao', 'pid,ppid,pcpu,etime,command'], { encod
 /** All processes belonging to a job; absolute repo path OR the repo-relative launcher paths (bash run-v3.sh / tee are started relative). */
 function findProcs(pattern) {
   const me = String(process.pid)
-  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|training-data\/policy-evolution\/v3mg\.log/
+  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|training-data\/policy-evolution\/v3mg2\.log/
   return ps()
     .map((l) => {
       const m = l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\S+)\s+(.*)$/)
@@ -45,7 +45,7 @@ function findProcs(pattern) {
     .filter(Boolean)
 }
 
-const trainProcs = () => findProcs(/run-islands|run-v3\.sh|v3cap\.log/)
+const trainProcs = () => findProcs(/run-islands|run-v3\.sh|v3mg2\.log/)
 const viteProcs = () => findProcs(/node_modules\/\.bin\/vite|vite\.js/).filter((p) => /vite/.test(p.cmd) && p.cmd.includes(root))
 
 function trainGen() {
@@ -179,12 +179,12 @@ function start() {
     spawnSync('sleep', ['0.5'])
     up = trainProcs().length > 0
   }
-  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3mg.nohup.log')
+  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3mg2.nohup.log')
 }
 
 function ship() {
   if (trainProcs().length) stop()
-  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3mg.json', '--v3', '--workers', '9'], {
+  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3mg2.json', '--v3', '--workers', '9'], {
     cwd: root,
     encoding: 'utf8',
   })
