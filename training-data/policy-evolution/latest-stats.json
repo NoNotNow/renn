@@ -1,72 +1,97 @@
 {
  "schema": "renn.policy-evolution.latest-stats/1",
- "source": "training-data/policy-evolution/v3mg4.json",
+ "source": "training-data/policy-evolution/v3mg5.json",
  "policy": "v3",
  "kinds": [
   "maze",
   "grid"
  ],
- "gen": 180,
- "updatedAt": "2026-10-11T10:40:51.575Z",
- "elapsedSec": 718,
+ "gen": 2000,
+ "updatedAt": "2026-10-11T14:49:12.936Z",
+ "elapsedSec": 5055,
  "islands": {
   "centers": [
-   1.075,
-   1.075,
-   0.55
+   0,
+   0,
+   0
   ],
   "ages": [
-   105,
-   180,
-   55
-  ]
+   25,
+   25,
+   1625
+  ],
+  "stagns": [
+   0,
+   0,
+   1
+  ],
+  "boosts": [
+   1,
+   1,
+   1
+  ],
+  "globalStagn": 1,
+  "globalBoost": 1,
+  "focus": {
+   "set": [
+    2
+   ],
+   "epochs": 0,
+   "sinceGen": 2000,
+   "max": 4
+  }
  },
  "stage": {
   "share": 0,
   "ema": 0
  },
  "epoch": {
-  "gen": 175,
+  "gen": 2000,
   "scores": [
-   1.8689476608591682,
-   1.750123108331273,
-   0.501406510683076
+   0.06515467156161016,
+   0.4155262559923677,
+   0.7774836620804383
   ],
-  "bestIsland": 0,
+  "bestIsland": 2,
   "train": {
-   "fitness": 1.2188088113664866,
-   "finished": 33,
-   "total": 43
+   "fitness": 0,
+   "finished": 30,
+   "total": 43,
+   "worst3": [
+    0,
+    0.9084814148609721,
+    0.9730613903726796
+   ]
   },
   "holdout": {
-   "fitness": 1.6760387251730637,
-   "finished": 20,
+   "fitness": 0,
+   "finished": 16,
    "total": 23
   },
   "perKind": [
    {
     "kind": "maze",
     "chains": 13,
-    "finished": 10,
-    "finishRate": 0.7692307692307693,
+    "finished": 11,
+    "finishRate": 0.8461538461538461,
     "setups": 5,
     "setupsAllFinished": 3,
     "allFinishedShare": 0.6,
     "offcourse": 2,
-    "crashes": 1,
-    "reverseShare": 0,
-    "maxReverseM": 0,
+    "crashes": 0,
+    "reverseShare": 0.004007480630510286,
+    "maxReverseM": 0.4038912044178779,
     "reversedEpisodes": 0
    },
    {
     "kind": "grid",
     "chains": 10,
-    "finished": 10,
-    "finishRate": 1,
+    "finished": 5,
+    "finishRate": 0.5,
     "setups": 5,
-    "setupsAllFinished": 5,
-    "allFinishedShare": 1,
-    "offcourse": 0,
+    "setupsAllFinished": 1,
+    "allFinishedShare": 0.2,
+    "offcourse": 5,
     "crashes": 0,
     "reverseShare": 0,
     "maxReverseM": 0,
@@ -75,9 +100,14 @@
   ]
  },
  "best": {
-  "gen": 150,
-  "train": 1.2734177482753974,
-  "holdout": 1.3627256925916158
+  "gen": 1900,
+  "train": 0,
+  "holdout": 0,
+  "worst3": [
+   0,
+   1.01457060244559,
+   1.0506980282035616
+  ]
  },
  "why": "every 20 gens"
 }

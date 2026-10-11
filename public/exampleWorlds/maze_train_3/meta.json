@@ -4,11 +4,11 @@
   "name": "Maze Training 3",
   "candidate": {
     "policy": "v3",
-    "label": "v3mg5 trial (gen 300)",
-    "gen": 300,
-    "source": "training-data/policy-evolution/.trial-snapshot-pinned.json"
+    "label": "v3mg5 trial (gen 1900)",
+    "gen": 1900,
+    "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
   },
-  "bestScore": 289,
+  "bestScore": 324,
   "chain": {
     "points": 10,
     "lengthM": 139.9
@@ -64,7 +64,7 @@
             10
           ]
         ],
-        "score": 23
+        "score": 154
       },
       {
         "pts": [
@@ -145,7 +145,7 @@
             10
           ]
         ],
-        "score": 289
+        "score": 217
       },
       {
         "pts": [
@@ -190,7 +190,7 @@
             193.7
           ]
         ],
-        "score": 155
+        "score": 141
       },
       {
         "pts": [
@@ -271,7 +271,7 @@
             193.7
           ]
         ],
-        "score": 146
+        "score": 324
       }
     ]
   }
