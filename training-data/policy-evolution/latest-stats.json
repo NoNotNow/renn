@@ -1,14 +1,14 @@
 {
  "schema": "renn.policy-evolution.latest-stats/1",
- "source": "training-data/policy-evolution/v3mg5.json",
+ "source": "training-data/policy-evolution/v3mg6.json",
  "policy": "v3",
  "kinds": [
   "maze",
   "grid"
  ],
- "gen": 2000,
- "updatedAt": "2026-10-11T14:49:12.936Z",
- "elapsedSec": 5055,
+ "gen": 1220,
+ "updatedAt": "2026-10-11T18:42:03.335Z",
+ "elapsedSec": 4920,
  "islands": {
   "centers": [
    0,
@@ -16,82 +16,77 @@
    0
   ],
   "ages": [
-   25,
-   25,
-   1625
+   70,
+   920,
+   20
   ],
   "stagns": [
    0,
    0,
-   1
+   0
   ],
   "boosts": [
    1,
    1,
    1
   ],
-  "globalStagn": 1,
+  "globalStagn": 2,
   "globalBoost": 1,
-  "focus": {
-   "set": [
-    2
-   ],
-   "epochs": 0,
-   "sinceGen": 2000,
-   "max": 4
-  }
+  "focus": null
  },
  "stage": {
   "share": 0,
   "ema": 0
  },
  "epoch": {
-  "gen": 2000,
+  "gen": 1200,
   "scores": [
-   0.06515467156161016,
-   0.4155262559923677,
-   0.7774836620804383
+   0.3957413697860326,
+   0.7369837106492337,
+   0.22448591744959112
   ],
-  "bestIsland": 2,
+  "bestIsland": 1,
+  "replaced": 2,
+  "by": "immigrant",
   "train": {
    "fitness": 0,
-   "finished": 30,
-   "total": 43,
+   "finished": 22,
+   "total": 54,
    "worst3": [
     0,
-    0.9084814148609721,
-    0.9730613903726796
+    0.48822946728887934,
+    0.6161889834152245
    ]
   },
   "holdout": {
    "fitness": 0,
-   "finished": 16,
+   "finished": 11,
    "total": 23
   },
   "perKind": [
    {
     "kind": "maze",
     "chains": 13,
-    "finished": 11,
-    "finishRate": 0.8461538461538461,
+    "finished": 7,
+    "finishRate": 0.5384615384615384,
     "setups": 5,
-    "setupsAllFinished": 3,
-    "allFinishedShare": 0.6,
-    "offcourse": 2,
+    "setupsAllFinished": 1,
+    "allFinishedShare": 0.2,
+    "offcourse": 6,
     "crashes": 0,
-    "reverseShare": 0.004007480630510286,
-    "maxReverseM": 0.4038912044178779,
+    "reverseShare": 0,
+    "maxReverseM": 0,
     "reversedEpisodes": 0
    },
    {
     "kind": "grid",
     "chains": 10,
-    "finished": 5,
-    "finishRate": 0.5,
+    "finished": 4,
+    "finishRate": 0.4,
     "setups": 5,
-    "setupsAllFinished": 1,
-    "allFinishedShare": 0.2,
-    "offcourse": 5,
+    "setupsAllFinished": 0,
+    "allFinishedShare": 0,
+    "offcourse": 6,
     "crashes": 0,
     "reverseShare": 0,
     "maxReverseM": 0,
@@ -100,13 +95,13 @@
   ]
  },
  "best": {
-  "gen": 1900,
+  "gen": 975,
   "train": 0,
   "holdout": 0,
   "worst3": [
    0,
-   1.01457060244559,
-   1.0506980282035616
+   0.6297785583467083,
+   0.8089069207585505
   ]
  },
  "why": "every 20 gens"
