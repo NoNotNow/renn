@@ -1,12 +1,12 @@
 /* @params
 [
-  {"key":"neuralPolicy","label":"Neural policy","type":"enum","options":[{"value":"v2"},{"value":"v3"}],"default":"v2","group":"Neural","description":"'v2' = the promoted v2 net, forward only (default, bit-identical to worlds without this key); 'v3' = the leg-trained v3 net (same 24 inputs / 2 outputs, H 24, default weights from shippedPolicyV3.json), can reverse when neuralReverse is on."},
+  {"key":"neuralPolicy","label":"Neural policy","type":"enum","options":[{"value":"v2"},{"value":"v3"}],"default":"v2","group":"Neural","description":"'v2' = the promoted v2 net, forward only (default, bit-identical to worlds without this key); 'v3' = the leg-trained v3 net (same 26 inputs / 2 outputs incl. the two touch flags, H 24, default weights from shippedPolicyV3.json), can reverse when neuralReverse is on."},
   {"key":"neuralReverse","label":"Neural: allow reversing (v3)","type":"boolean","default":false,"group":"Neural","description":"v3 only. Off: the net never reverses (target speed floored at 0). On: when blocked ahead with the rear rays clear the stage drives a short back leg (5-10 m along the own heading, at most neuralRevMaxM), then the route again."},
   {"key":"neuralRevMaxM","label":"Neural: max reverse distance","type":"number","default":12,"min":0,"unit":"m","group":"Neural","description":"Cap of the metres reversed in one back leg (v3 with neuralReverse).","advanced":true},
   {"key":"neuralMode","label":"Neural drive mode","type":"enum","options":[{"value":"off"},{"value":"always"},{"value":"auto"}],"default":"off","group":"Neural","description":"'off' = classic stack only (bit-identical); 'always' = the net drives whenever allowed (debug); 'auto' = the net takes over in crowded surroundings and hands back when they clear."},
   {"key":"neuralVMax","label":"Neural speed cap","type":"number","default":30,"min":0,"unit":"m/s","group":"Neural","description":"Upper bound of the net target speed while it drives."},
   {"key":"neuralGain","label":"Neural pedal gain","type":"number","default":1200,"min":1,"group":"Neural","description":"Actuator acceleration per unit pedal the net was trained on (power / mass of the 4 x 8 car).","advanced":true},
-  {"key":"neuralWeights","label":"Neural weights","type":"json","group":"Neural","description":"Flat genome (27 H + 2 numbers, H hidden units inferred from the length; 272 for H = 10, 650 for H = 24); default = the weights shipped in the stage params (v2: `w`, v3: `wV3`).","advanced":true},
+  {"key":"neuralWeights","label":"Neural weights","type":"json","group":"Neural","description":"Flat genome (29 H + 2 numbers, H hidden units inferred from the length; 292 for H = 10, 698 for H = 24; legacy 24-input genomes are zero-padded onto the two touch inputs); default = the weights shipped in the stage params (v2: `w`, v3: `wV3`).","advanced":true},
   {"key":"neuralLmin","label":"Aim distance (min)","type":"number","default":8,"min":0,"unit":"m","group":"Neural","advanced":true},
   {"key":"neuralTau","label":"Aim distance per speed","type":"number","default":0.6,"min":0,"unit":"s","group":"Neural","advanced":true},
   {"key":"neuralPeriod","label":"Aim refresh period","type":"number","default":0.5,"min":0,"unit":"s","group":"Neural","advanced":true},
@@ -32,7 +32,7 @@
 ]
 */
 var ANGLES = [0,0.17453292519943295,-0.17453292519943295,0.3490658503988659,-0.3490658503988659,0.6108652381980153,-0.6108652381980153,0.9599310885968813,-0.9599310885968813,1.3962634015954636,-1.3962634015954636,2.0943951023931953,-2.0943951023931953,3.141592653589793]
-var N_IN = 24, RANGE = 50, VF = 30, VR = 8, TAU = 0.05
+var N_IN = 26, RANGE = 50, VF = 30, VR = 8, TAU = 0.05
 function rnd(state) {
   state.rs = (state.rs + 0x6d2b79f5) >>> 0
   var t = state.rs
@@ -219,7 +219,7 @@ function deriveCmdV3(params, state, dt, pos, speed) {
   return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]
 }
 
-// AV stack · NEURAL drive mode (Phase 1: v2 policy, 24 inputs, no speed command). GENERATED from src/policyEvolution/policyStage.ts: do not edit by hand.
+// AV stack · NEURAL drive mode (Phase 1: the evolved policy net, 26 inputs incl. the two touch flags, no speed command). GENERATED from src/policyEvolution/policyStage.ts: do not edit by hand.
 // The shipped net (the policy evolved in src/policyEvolution) follows the command the AV stack hands over: the car is projected onto av.routePath
 // (fallback: straight line to av.carrot / maze goal / input.target), aim = clamp(lmin + tau * v, lmin, 40) m ahead along it, next = direction of the
 // segment beyond the aim, refreshed every period s: the SAME rule as in training (deriveCmd above). It writes steering / throttle / brake; the lateral,
@@ -278,6 +278,9 @@ function policyStep(input, dt, params, state, api) {
   x[n + 7] = td > 1e-6 ? (tx * left[0] + tz * left[2]) / td : 0
   x[n + 8] = state.steer || 0
   x[n + 9] = state.gas || 0
+  var env = input.environment
+  x[n + 10] = env && env.isTouchingObject ? 1 : 0
+  x[n + 11] = env && env.isTouchingSide ? 1 : 0
   var H = hiddenOf(w)
   if (!H) return {}
   state.x = x

@@ -162,6 +162,18 @@ function transform(input, dt, params, state, api) {
   var e = av.ego
   var tgt = input.target && input.target.pose && input.target.pose.position
   if (!tgt) return {}
+  // touch escape (av-ego, watch 'av.escape'): the escape aim is a new goal — a stored route / carrot / running manoeuvre belong to the
+  // pre-escape goal and would steer against the escape. Drop them once at escape start (also while fleeing: the flee-goal jump exclusion
+  // of goalJumpReplan must not keep a plan that ignores the escape). From then on this stage plans normally to the goal it sees — the
+  // escape aim — which is what actually drives a stopped car off the obstacle (reverse manoeuvre / reverse cruise live here).
+  if (av.escape && !state.escWas) {
+    state.route = undefined
+    if (state.active) {
+      state.active = false
+      state.stuckT = 0
+    }
+  }
+  state.escWas = !!av.escape
   var gxw = tgt[0]
   var gzw = tgt[2]
   // goalJumpReplan (m, default 8, 0 / false = off): the goal source / flee layer replaced the goal (a jump between frames, not a drifting follow goal). The stored route, its carrot and a running
