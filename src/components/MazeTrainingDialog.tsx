@@ -123,6 +123,30 @@ function routeScoreLabel(meta: MazeTrainingMeta, routeIndex: number): string {
 }
 
 /**
+ * Row-level weakest link: the WORST per-route score of the world — the minimum over the measured routes, i.e.
+ * the way the candidate fails at (the v3 fitness ranks exactly this weakest link, so the row shows directly
+ * where training is stuck). Includes the 1-based way number so the culprit route is visible without expanding
+ * the row. Routes without a measured score (older exports) are ignored; no tileSvg / nothing measured -> null.
+ */
+function worstRouteScore(meta: MazeTrainingMeta): { score: number; way: number } | null {
+  const routes = meta.tileSvg?.routes
+  if (!routes) return null
+  let worst: { score: number; way: number } | null = null
+  for (let i = 0; i < routes.length; i++) {
+    const score = routes[i]?.score
+    if (score == null) continue
+    if (!worst || score < worst.score) worst = { score, way: i + 1 }
+  }
+  return worst
+}
+
+/** "Worst: 23 pts · way 2"; "Worst: —" when no route score is available. */
+function worstScoreLabel(meta: MazeTrainingMeta): string {
+  const worst = worstRouteScore(meta)
+  return worst == null ? 'Worst: —' : `Worst: ${worst.score} pts · way ${worst.way}`
+}
+
+/**
  * Live active-vector overlay for the focused route's thumbnail: the route's chain polyline dimmed, plus the
  * segment the run currently drives as a glowing halo+core stroke. Pure render of the parsed live watch state.
  */
@@ -610,6 +634,9 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                     <>
                       <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>
                         {bestScoreLabel(meta)}
+                      </span>
+                      <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>
+                        {worstScoreLabel(meta)}
                       </span>
                       {routesLabel(meta) ? (
                         <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>

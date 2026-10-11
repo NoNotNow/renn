@@ -119,6 +119,9 @@ describe('MazeTrainingDialog', () => {
     }
     expect(screen.getAllByText('Best: 123 pts')).toHaveLength(MAZE_TRAINING_WORLDS.length - 1)
     expect(screen.getAllByText('Best: —')).toHaveLength(1)
+    // every row also shows the weakest link: the worst measured route score plus its way number
+    // (TILE_SCORES min is 140 at route index 3 -> way 4)
+    expect(screen.getAllByText('Worst: 140 pts · way 4')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     expect(screen.getAllByText('3 ways · 1 reversed')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     expect(screen.getByTestId('maze-training-resize-handle')).toBeInTheDocument()
   })
@@ -258,9 +261,25 @@ describe('MazeTrainingDialog', () => {
     await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByText('Best: 77 pts')
     expect(screen.queryByText(/reversed/)).not.toBeInTheDocument()
+    // no per-route scores -> no worst score either
+    expect(screen.getAllByText('Worst: —')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     for (const spec of MAZE_TRAINING_WORLDS) {
       expect(screen.getByTestId(`maze-training-card-${spec.id}`)).toBeInTheDocument()
     }
+  })
+
+  it('shows the worst route score with its way number (weakest link per row)', async () => {
+    // 2 forward + 2 reversed routes; TILE_SCORES applies in tile order (null = unmeasured is ignored)
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }))
+    const user = userEvent.setup()
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByText('Best: 10 pts')
+    // min over the measured routes: 140 at index 3 -> "Worst: 140 pts · way 4" (the reversed way 4)
+    expect(screen.getAllByText('Worst: 140 pts · way 4')).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    // the culprit way's own tile score matches the row label
+    await user.click(screen.getByTestId('maze-training-row-maze_train_2'))
+    expect(screen.getByText('Score: 140 pts')).toBeInTheDocument()
   })
 
   it('shows the live score line and the live active-vector overlay for the focused route', async () => {
