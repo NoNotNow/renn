@@ -4,11 +4,11 @@
   "name": "Maze Training 1",
   "candidate": {
     "policy": "v3",
-    "label": "v3mg2 trial (gen 50)",
-    "gen": 50,
+    "label": "v3mg2 trial (gen 100)",
+    "gen": 100,
     "source": "training-data/policy-evolution/latest-best.json"
   },
-  "bestScore": 94,
+  "bestScore": 733,
   "chain": {
     "points": 10,
     "lengthM": 134.9
@@ -64,7 +64,7 @@
             10
           ]
         ],
-        "score": 94
+        "score": 733
       },
       {
         "pts": [
@@ -109,7 +109,7 @@
             193.7
           ]
         ],
-        "score": 25
+        "score": 24
       }
     ]
   }
