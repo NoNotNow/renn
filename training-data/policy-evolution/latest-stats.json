@@ -1,24 +1,24 @@
 {
  "schema": "renn.policy-evolution.latest-stats/1",
- "source": "training-data/policy-evolution/v3mg2.json",
+ "source": "training-data/policy-evolution/v3mg3.json",
  "policy": "v3",
  "kinds": [
   "maze",
   "grid"
  ],
- "gen": 200,
- "updatedAt": "2026-10-11T10:11:14.253Z",
- "elapsedSec": 817,
+ "gen": 100,
+ "updatedAt": "2026-10-11T10:21:16.518Z",
+ "elapsedSec": 399,
  "islands": {
   "centers": [
-   1.327,
-   0.7,
-   1.448
+   0.85,
+   1.215,
+   0.949
   ],
   "ages": [
-   125,
-   0,
-   200
+   25,
+   100,
+   0
   ]
  },
  "stage": {
@@ -26,36 +26,36 @@
   "ema": 0
  },
  "epoch": {
-  "gen": 200,
+  "gen": 100,
   "scores": [
-   1.8343477166473419,
-   0.7535274632983695,
-   1.6920718081168051
+   1.0477838371808559,
+   1.0352240536495043,
+   1.0169189498797673
   ],
   "bestIsland": 0,
-  "replaced": 1,
+  "replaced": 2,
   "by": "immigrant",
   "train": {
-   "fitness": 1.3363855015842128,
-   "finished": 34,
+   "fitness": 0.7988943787673682,
+   "finished": 28,
    "total": 43
   },
   "holdout": {
-   "fitness": 1.5983807418088736,
-   "finished": 19,
+   "fitness": 1.245711439524494,
+   "finished": 17,
    "total": 23
   },
   "perKind": [
    {
     "kind": "maze",
     "chains": 13,
-    "finished": 9,
-    "finishRate": 0.6923076923076923,
+    "finished": 7,
+    "finishRate": 0.5384615384615384,
     "setups": 5,
-    "setupsAllFinished": 2,
-    "allFinishedShare": 0.4,
+    "setupsAllFinished": 1,
+    "allFinishedShare": 0.2,
     "offcourse": 4,
-    "crashes": 0,
+    "crashes": 2,
     "reverseShare": 0,
     "maxReverseM": 0,
     "reversedEpisodes": 0
@@ -77,9 +77,9 @@
   ]
  },
  "best": {
-  "gen": 200,
-  "train": 1.3363855015842128,
-  "holdout": 1.5983807418088736
+  "gen": 100,
+  "train": 0.7988943787673682,
+  "holdout": 1.245711439524494
  },
  "why": "every 20 gens"
 }
