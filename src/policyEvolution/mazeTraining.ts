@@ -498,6 +498,8 @@ export function buildMazeTrainingWorld(spec: MazeTrainingWorldSpec, genome?: num
       legEnds: [chains[i]!.length - 1],
       offM: 8,
       v3: true,
+      // touch escape (policyStages.ts): a lateral contact overrides the command for 0.3 s with an aim away from the touch
+      escape: true,
     })
     const car = parts.entities[0] as { transformers: string[] }
     car.transformers = [...car.transformers, mazeScoreStageId(i)]

@@ -8,7 +8,7 @@
     "gen": 1000,
     "source": "shippedPolicyV3.json"
   },
-  "bestScore": 519,
+  "bestScore": 452,
   "chain": {
     "points": 10,
     "lengthM": 139.9
@@ -64,7 +64,7 @@
             10
           ]
         ],
-        "score": 47
+        "score": 346
       },
       {
         "pts": [
@@ -145,7 +145,7 @@
             10
           ]
         ],
-        "score": 187
+        "score": 290
       },
       {
         "pts": [
@@ -190,7 +190,7 @@
             193.7
           ]
         ],
-        "score": 371
+        "score": 293
       },
       {
         "pts": [
@@ -271,7 +271,7 @@
             193.7
           ]
         ],
-        "score": 519
+        "score": 452
       }
     ]
   }

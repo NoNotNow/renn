@@ -152,7 +152,8 @@ export function buildPolicyChainsExampleWorld(spec: PolicyChainsExampleWorld, ge
   let firstCar = ''
   chains.forEach((chain, i) => {
     const ox = i * spec.spacing
-    const parts = policyCourseParts(course, genome, { origin: [ox, 0], suffix: `_${i}`, chain: chain.points, cmd: cmdConfigFor(`${spec.setupKey}#${i}${spec.v3 ? 'v3' : ''}`), ...(spec.v3 ? { v3: true, legEnds: chain.legEnds, offM: chain.offM } : {}) })
+    // the v3 worlds also carry the touch-escape stage (policyStages.ts): a lateral contact overrides the command for 0.3 s
+    const parts = policyCourseParts(course, genome, { origin: [ox, 0], suffix: `_${i}`, chain: chain.points, cmd: cmdConfigFor(`${spec.setupKey}#${i}${spec.v3 ? 'v3' : ''}`), ...(spec.v3 ? { v3: true, legEnds: chain.legEnds, offM: chain.offM, escape: true } : {}) })
     entities.push(...parts.entities)
     Object.assign(transformers, parts.transformers)
     if (!firstCar) firstCar = parts.carId

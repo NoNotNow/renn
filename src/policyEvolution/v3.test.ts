@@ -20,7 +20,8 @@ import { aggregateEvenness, aggregateKindEvenness, capNorm } from './es'
 import { runPolicyEpisode, SAFETY_WINDOW_S, STILL_WINDOW_S, v3EpisodeSeconds } from './episode'
 import { pursuitV2, reverserV3 } from './handWired'
 import { LegProgress } from './legs'
-import { GENOME_LENGTH_V2, POLICY_STAGE_CODE_V3 } from './policy'
+import { GENOME_LENGTH_V2 } from './policy'
+import { POLICY_DRIVE_STAGE_CODE } from './policyStages'
 import { RouteProgress } from './courses'
 import { freeChain, FREE_MARGIN } from './v3Chains'
 
@@ -117,7 +118,8 @@ describe('v3 stage', () => {
     },
     raycast: () => ({ hit: false }),
   }
-  const transform = new Function(`${POLICY_STAGE_CODE_V3}\nreturn transform`)() as (i: unknown, dt: number, p: unknown, s: unknown, a: unknown) => unknown
+  // the drive stage comes from the shared store (policyStages.ts) — the same code every world builder embeds
+  const transform = new Function(`${POLICY_DRIVE_STAGE_CODE}\nreturn transform`)() as (i: unknown, dt: number, p: unknown, s: unknown, a: unknown) => unknown
 
   it('puts the aim BEHIND the car on a reversal leg and follows the same legs as the episode tracker', () => {
     const pts: P[] = [[0, 0], [0, 40], [0, 25], [0, 70]]

@@ -3,7 +3,8 @@ import { chainReportByKind, parseKinds, v2GenomeFromFile } from './chainReport'
 import { CHAIN_KINDS } from './courses'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import { aggregateEvenness } from './es'
-import { genomeLengthV2, GENOME_LENGTH, GENOME_LENGTH_V2, hiddenOfV2, N_HIDDEN, N_IN, N_IN_V2, N_RAYS, padV1Genome, POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, policyForward, policyForwardV2, widenHidden } from './policy'
+import { genomeLengthV2, GENOME_LENGTH, GENOME_LENGTH_V2, hiddenOfV2, N_HIDDEN, N_IN, N_IN_V2, N_RAYS, padV1Genome, policyForward, policyForwardV2, widenHidden } from './policy'
+import { POLICY_V1_STAGE_CODE, POLICY_V2_STAGE_CODE } from './policyStages'
 import { freshGenome } from './islands'
 
 const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!
@@ -61,16 +62,16 @@ describe('policy v2', () => {
   })
 
   it('the v1 stage code is unchanged in layout (16 inputs) and v2 uses 24', () => {
-    expect(POLICY_STAGE_CODE).toContain(`N_IN = ${N_IN},`)
-    expect(POLICY_STAGE_CODE).not.toContain('deriveCmd')
-    expect(POLICY_STAGE_CODE_V2).toContain(`N_IN = ${N_IN_V2},`)
+    expect(POLICY_V1_STAGE_CODE).toContain(`N_IN = ${N_IN},`)
+    expect(POLICY_V1_STAGE_CODE).not.toContain('deriveCmd')
+    expect(POLICY_V2_STAGE_CODE).toContain(`N_IN = ${N_IN_V2},`)
   })
 
   it('the v2 stage forward pass equals policyForwardV2 on the inputs it builds (command from input.av.cmd)', () => {
     const g = freshGenome(createRng(11), 0.5, N_IN_V2)
     // car at the origin heading +z (left = +x): the aim point is 20 m ahead and 6 m to the right, the next segment goes straight on
     const cmd = { aim: [-6, 20], next: [-6, 30] }
-    const { inp, state } = runStage(POLICY_STAGE_CODE_V2, { w: g, gain: 1000 }, () => ({ av: { cmd } }))
+    const { inp, state } = runStage(POLICY_V2_STAGE_CODE, { w: g, gain: 1000 }, () => ({ av: { cmd } }))
     const gd = Math.hypot(6, 20)
     const x = [...new Array(N_RAYS).fill(1 - 20 / 50), 6 / 30, 0.3 / 10, 0.4 / 2, 20 / gd, -6 / gd, gd / 60, 1, 0, 0, 0]
     expect(x.length).toBe(N_IN_V2)
@@ -83,7 +84,7 @@ describe('policy v2', () => {
 
   it('the v1 stage forward pass equals policyForward', () => {
     const g = freshGenome(createRng(12), 0.5)
-    const { state } = runStage(POLICY_STAGE_CODE, { w: g, goals: [[0, 30]], reachR: 8, gain: 1000 })
+    const { state } = runStage(POLICY_V1_STAGE_CODE, { w: g, goals: [[0, 30]], reachR: 8, gain: 1000 })
     const x = [...new Array(N_RAYS).fill(1 - 20 / 50), 6 / 30, 0.3 / 10, 0.4 / 2, 1, 0, 30 / 60, 0, 0]
     const [steer, gas] = policyForward(g, x)
     expect(state.steer).toBeCloseTo(steer, 9)
@@ -94,16 +95,16 @@ describe('policy v2', () => {
     const g = freshGenome(createRng(13), 0.5, N_IN_V2)
     const chain = [[0, 0], [0, 40], [30, 80]]
     const cmd = { lmin: 12, tau: 0, period: 0.5, noiseDeg: 0, seed: 1 }
-    const a = runStage(POLICY_STAGE_CODE_V2, { w: g, gain: 1000, chain, cmd }, () => ({}), 1)
+    const a = runStage(POLICY_V2_STAGE_CODE, { w: g, gain: 1000, chain, cmd }, () => ({}), 1)
     expect(a.state.aim).toEqual([0, 12])
     expect(a.state.nxt[1]).toBeGreaterThan(12)
     // 1 frame later (1/60 s < period) the aim is held although the car moved; after the period it follows
-    const held = runStage(POLICY_STAGE_CODE_V2, { w: g, gain: 1000, chain, cmd }, (f) => ({ position: [0, 0, f === 0 ? 0 : 5] }), 2)
+    const held = runStage(POLICY_V2_STAGE_CODE, { w: g, gain: 1000, chain, cmd }, (f) => ({ position: [0, 0, f === 0 ? 0 : 5] }), 2)
     expect(held.state.aim).toEqual([0, 12])
-    const later = runStage(POLICY_STAGE_CODE_V2, { w: g, gain: 1000, chain, cmd }, (f) => ({ position: [0, 0, f === 0 ? 0 : 5] }), 40)
+    const later = runStage(POLICY_V2_STAGE_CODE, { w: g, gain: 1000, chain, cmd }, (f) => ({ position: [0, 0, f === 0 ? 0 : 5] }), 40)
     expect(later.state.aim).toEqual([0, 17])
     // input.av.cmd wins over the chain
-    const av = runStage(POLICY_STAGE_CODE_V2, { w: g, gain: 1000, chain, cmd }, () => ({ av: { cmd: { aim: [3, 9], next: [3, 19] } } }), 1)
+    const av = runStage(POLICY_V2_STAGE_CODE, { w: g, gain: 1000, chain, cmd }, () => ({ av: { cmd: { aim: [3, 9], next: [3, 19] } } }), 1)
     expect(av.state.aim).toBeUndefined()
   })
 })
@@ -187,14 +188,14 @@ describe('v2 hidden size H (len = 27 H + 2)', () => {
     const o2 = 24 * N_IN_V2 + 24
     for (let j = N_HIDDEN; j < 24; j++) g[o2 + j] = 0.3 - 0.02 * j
     const cmd = { aim: [-6, 20], next: [-6, 30] }
-    const { inp, state } = runStage(POLICY_STAGE_CODE_V2, { w: g, gain: 1000 }, () => ({ av: { cmd } }))
+    const { inp, state } = runStage(POLICY_V2_STAGE_CODE, { w: g, gain: 1000 }, () => ({ av: { cmd } }))
     const gd = Math.hypot(6, 20)
     const x = [...new Array(N_RAYS).fill(1 - 20 / 50), 6 / 30, 0.3 / 10, 0.4 / 2, 20 / gd, -6 / gd, gd / 60, 1, 0, 0, 0]
     const [steer, gas] = policyForwardV2(g, x)
     expect(state.steer).toBeCloseTo(steer, 9)
     expect(state.gas).toBeCloseTo(gas, 9)
     expect(inp.actions.steering_angle).toBeCloseTo(Math.abs(steer) < 1e-4 ? 1e-4 : steer, 9)
-    const bad = runStage(POLICY_STAGE_CODE_V2, { w: g.slice(0, g.length - 1), gain: 1000 }, () => ({ av: { cmd } }))
+    const bad = runStage(POLICY_V2_STAGE_CODE, { w: g.slice(0, g.length - 1), gain: 1000 }, () => ({ av: { cmd } }))
     expect(bad.inp.actions).toEqual({})
   })
 

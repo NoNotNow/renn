@@ -142,9 +142,10 @@ describe('maze training worlds', () => {
       for (let i = 0; i < K; i++) {
         const car = world.entities.find((e) => e.id === mazeCarId(i))
         expect(car?.transformers).toContain(mazeScoreStageId(i))
-        // the score stage of car i scores the SAME (shifted) chain its drive stage commands
+        // the score stage of car i scores the SAME (shifted) chain its car is commanded on (the v3 split: the chain lives on
+        // the input stage `policy_input_i`, the drive stage only runs the net on `input.av.cmd`)
         const scoreParams = world.transformers[mazeScoreStageId(i)]?.params
-        expect(scoreParams?.chain).toEqual(world.transformers[`policy_drive_${i}`]?.params?.chain)
+        expect(scoreParams?.chain).toEqual(world.transformers[`policy_input_${i}`]?.params?.chain)
         expect(scoreParams?.hud).toBe(i === 0)
         // every score stage sees ALL shifted chains, all car ids and the per-chain color pairs
         expect(scoreParams?.chains).toHaveLength(K)

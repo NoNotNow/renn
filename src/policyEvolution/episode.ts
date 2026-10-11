@@ -6,7 +6,8 @@ import { createRng } from '@/avEvolution/core/rng'
 import { buildCourse, buildSetupCourse, parseCourseKey, RouteProgress, COURSE_START, type Course } from './courses'
 import { chainOfEpisode, isChainEpisodeKey, polylineLength, type Chain } from './chains'
 import { LegProgress } from './legs'
-import { hiddenOfLength, N_IN_V2, POLICY_ACTUATOR_ID, POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, POLICY_STAGE_CODE_V3, POLICY_STAGE_ID } from './policy'
+import { hiddenOfLength, N_IN_V2, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
+import { policyDriveStage, policyEscapeStage, policyInputStage, policyV1Stage, policyV2Stage, POLICY_ESCAPE_STAGE_ID, POLICY_INPUT_STAGE_ID } from './policyStages'
 
 
 /**
@@ -111,13 +112,23 @@ export function cmdConfigFor(key: string): CmdConfig {
 /**
  * Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world).
  * With `opts.chain` (v2) the stage derives its command from that chain polyline and `opts.cmd`; without it the v1 goal stage is used.
+ * A v3 chain (`opts.v3`) is built from the shared stage store (policyStages.ts): an INPUT stage (priority 4) writes `input.av.cmd`
+ * from the chain, the DRIVE stage (priority 5, unchanged code) reads it — the same command math as the single stage before, so the
+ * split is behavior-preserving (bit-identical actions, see policyStages.test.ts). v1 / v2 stay single stages (legacy strings).
+ * `opts.escape` (OPT-IN, v3 only) inserts the touch-escape stage (priority 4.5, see policyStages.ts): a lateral contact overrides
+ * the command for 0.3 s with an aim away from the touch point. It is set by the maze training and v3 example worlds, NEVER by
+ * `runPolicyEpisode` — the fitness episodes must keep the exact training semantics.
  */
-export function policyCourseParts(course: Course, genome: ArrayLike<number>, opts: { origin?: V2; suffix?: string; noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig; legEnds?: number[]; offM?: number; v3?: boolean } = {}) {
+export function policyCourseParts(course: Course, genome: ArrayLike<number>, opts: { origin?: V2; suffix?: string; noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig; legEnds?: number[]; offM?: number; v3?: boolean; escape?: boolean } = {}) {
   const [ox, oz] = opts.origin ?? [0, 0]
   const sfx = opts.suffix ?? ''
   const carId = POLICY_CAR_ID + sfx
   const stageId = POLICY_STAGE_ID + sfx
   const actuatorId = POLICY_ACTUATOR_ID + sfx
+  const splitV3 = !!(opts.chain && opts.v3)
+  const inputId = POLICY_INPUT_STAGE_ID + sfx
+  const escapeId = POLICY_ESCAPE_STAGE_ID + sfx
+  const withEscape = splitV3 && opts.escape === true
   const rad = (d: number) => (d * Math.PI) / 180
   const entities: unknown[] = [
     {
@@ -128,7 +139,7 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
       position: [(course.startAt ?? COURSE_START)[0] + ox, CAR_START_Y, (course.startAt ?? COURSE_START)[1] + oz],
       rotation: [0, rad(course.startYawDeg ?? 0), 0],
       ...CAR_BODY,
-      transformers: [stageId, actuatorId],
+      transformers: [...(splitV3 ? [inputId, ...(withEscape ? [escapeId] : [])] : []), stageId, actuatorId],
     },
   ]
   course.boxes.forEach((b, i) => {
@@ -143,30 +154,30 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
       friction: 0.5,
     })
   })
-  const transformers = {
-    [stageId]: {
-      type: 'custom',
-      priority: 5,
-      enabled: true,
-      name: 'Policy drive',
-      code: opts.chain ? (opts.v3 ? POLICY_STAGE_CODE_V3 : POLICY_STAGE_CODE_V2) : POLICY_STAGE_CODE,
-      params: {
-        w: Array.from(genome),
-        ...(opts.chain
-          ? { chain: opts.chain.map((p) => [p[0] + ox, p[1] + oz]), cmd: opts.cmd ?? cmdConfigFor('default'), ...(opts.v3 ? { legEnds: opts.legEnds, offM: opts.offM } : {}) }
-          : { goals: course.waypoints.map((g) => [g[0] + ox, g[1] + oz]), reachR: 8 }),
-        gain: CAR2_PARAMS.power / CAR_BODY.mass,
-        ...(opts.noise ? { noise: opts.noise, noiseSeed: opts.noiseSeed ?? 1 } : {}),
-      },
-    },
-    [actuatorId]: { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS },
-  }
+  const gain = CAR2_PARAMS.power / CAR_BODY.mass
+  const noiseParams = opts.noise ? { noise: opts.noise, noiseSeed: opts.noiseSeed ?? 1 } : {}
+  const chainParams = opts.chain
+    ? { chain: opts.chain.map((p) => [p[0] + ox, p[1] + oz]), cmd: opts.cmd ?? cmdConfigFor('default'), ...(opts.v3 ? { legEnds: opts.legEnds, offM: opts.offM } : {}) }
+    : { goals: course.waypoints.map((g) => [g[0] + ox, g[1] + oz]), reachR: 8 }
+  const transformers: Record<string, unknown> = splitV3
+    ? {
+        // v3 split chain (shared store): the input stage owns the command (chain / legs / cmd config), the escape stage (opt-in)
+        // overrides it on a lateral touch, the drive stage runs the net
+        ...(withEscape ? { [escapeId]: policyEscapeStage() } : {}),
+        [inputId]: policyInputStage({ chain: opts.chain!.map((p) => [p[0] + ox, p[1] + oz]), legEnds: opts.legEnds, offM: opts.offM, cmd: opts.cmd ?? cmdConfigFor('default') }),
+        [stageId]: policyDriveStage({ w: Array.from(genome), gain, ...noiseParams }),
+        [actuatorId]: { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS },
+      }
+    : {
+        [stageId]: (opts.chain ? policyV2Stage : policyV1Stage)({ w: Array.from(genome), ...chainParams, gain, ...noiseParams }),
+        [actuatorId]: { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS },
+      }
   return { carId, entities, transformers }
 }
 
 export const POLICY_GROUND = { id: 'ground', name: 'Ground', bodyType: 'static', shape: { type: 'plane' }, position: [0, 0, 0], rotation: [0, 0, 0], friction: 1 }
 
-export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts: { noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig; legEnds?: number[]; offM?: number; v3?: boolean } = {}): RennWorld {
+export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts: { noise?: number; noiseSeed?: number; chain?: V2[]; cmd?: CmdConfig; legEnds?: number[]; offM?: number; v3?: boolean; escape?: boolean } = {}): RennWorld {
   const parts = policyCourseParts(course, genome, opts)
   return {
     version: '1.0',

@@ -42,6 +42,76 @@
     "debugTargetLineEntityId": "policy_car_body_0"
   },
   "transformers": {
+    "policy_escape_0": {
+      "type": "custom",
+      "priority": 4.5,
+      "enabled": true,
+      "name": "Policy escape",
+      "code": "\nvar ESCAPE_RAYS = 12\nvar ESCAPE_RAY_M = 1.5\nfunction transform(input, dt, params, state, api) {\n  if (state.t === undefined) state.t = 0\n  state.t += dt\n  var touching = !!(input.environment && input.environment.isTouchingSide)\n  if (touching) {\n    var pos = input.position\n    var up = api.getUpVector(input.rotation)\n    var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n    var left = api.vec.normalize(api.vec.cross(up, fwd))\n    var hl = 4.1, hw = 2.1\n    var px = 0\n    var pz = 0\n    var best = Infinity\n    for (var ri = 0; ri < ESCAPE_RAYS; ri++) {\n      var dx = Math.cos((ri * 2 * Math.PI) / ESCAPE_RAYS)\n      var dz = Math.sin((ri * 2 * Math.PI) / ESCAPE_RAYS)\n      // distance from the centre to the hull edge along the ray (box frame: fwd = length axis, left = width axis)\n      var df = Math.abs(dx * fwd[0] + dz * fwd[2])\n      var dl = Math.abs(dx * left[0] + dz * left[2])\n      var edge = Math.min(df > 1e-6 ? hl / df : 1e9, dl > 1e-6 ? hw / dl : 1e9) + 0.05\n      var rr = api.raycast([pos[0] + dx * edge, pos[1], pos[2] + dz * edge], [dx, 0, dz], ESCAPE_RAY_M, { visualize: false })\n      if (!rr.hit || rr.entityId === input.entityId) continue\n      if (edge + rr.distance < best) {\n        best = edge + rr.distance\n        px = pos[0] + dx * (edge + rr.distance)\n        pz = pos[2] + dz * (edge + rr.distance)\n      }\n    }\n    if (best === Infinity) {\n      var g = api.vec.dot(input.velocity, fwd) < -0.5 ? -1 : 1\n      px = pos[0] + fwd[0] * g * (hl + 0.3)\n      pz = pos[2] + fwd[2] * g * (hl + 0.3)\n    }\n    var ex = pos[0] - px\n    var ez = pos[2] - pz\n    var el = Math.sqrt(ex * ex + ez * ez)\n    if (el > 1e-3) state.esc = { dx: ex / el, dz: ez / el, until: state.t + 0.3 }\n  }\n  var esc = state.esc\n  if (esc && state.t < esc.until) {\n    var p2 = input.position\n    var ax = p2[0] + esc.dx * 30\n    var az = p2[2] + esc.dz * 30\n    var av = input.av || (input.av = {})\n    av.cmd = { aim: [ax, az], next: [p2[0] + esc.dx * (30 + 12), p2[2] + esc.dz * (30 + 12)] }\n    api.watch('policy.escape', 'on ' + Math.round(ax) + ',' + Math.round(az) + ' d ' + esc.dx.toFixed(2) + ',' + esc.dz.toFixed(2) + ' ' + (esc.until - state.t).toFixed(2) + ' s')\n    state.shown = 1\n  } else if (state.esc) {\n    state.esc = null\n    if (state.shown) {\n      state.shown = 0\n      api.watch('policy.escape', 'off')\n    }\n  }\n  return {}\n}\n",
+      "params": {}
+    },
+    "policy_input_0": {
+      "type": "custom",
+      "priority": 4,
+      "enabled": true,
+      "name": "Policy input",
+      "code": "\nfunction rnd(state) {\n  state.rs = (state.rs + 0x6d2b79f5) >>> 0\n  var t = state.rs\n  t = Math.imul(t ^ (t >>> 15), t | 1)\n  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)\n  return ((t ^ (t >>> 14)) >>> 0) / 4294967296\n}\n\nfunction legInit(ch, ends) {\n  var n = ch.length\n  var cum = [0]\n  for (var q = 1; q < n; q++) cum.push(cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))\n  var es = ends && ends.length ? ends : [n - 1]\n  var legs = []\n  var a = 0\n  for (var k = 0; k < es.length; k++) {\n    var len = cum[es[k]] - cum[a]\n    legs.push({ a: a, b: es[k], s0: cum[a], len: len, reach: Math.min(5, Math.max(2.5, 0.4 * len)) })\n    a = es[k]\n  }\n  return { ch: ch, cum: cum, legs: legs, li: 0, s: 0, seg: 0, done: false, dist: 0, doneLen: 0, total: cum[n - 1], off: 6 }\n}\nfunction legStep(t, px, pz) {\n  if (t.done) return\n  var L = t.legs[t.li]\n  var ch = t.ch\n  var bestD = Infinity, bestS = t.s, bestSeg = Math.max(L.a, t.seg)\n  for (var i = Math.max(L.a, t.seg - 1); i <= Math.min(L.b - 1, t.seg + 2); i++) {\n    var ax = ch[i][0], az = ch[i][1]\n    var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az\n    var len2 = dx * dx + dz * dz || 1\n    var u = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))\n    var d = Math.hypot(px - (ax + u * dx), pz - (az + u * dz))\n    if (d < bestD) {\n      bestD = d\n      bestS = t.cum[i] - L.s0 + u * Math.sqrt(len2)\n      bestSeg = i\n    }\n  }\n  t.seg = bestSeg\n  t.dist = bestD\n  if (bestS > t.s) t.s = bestS\n  var e = ch[L.b]\n  var endD = Math.hypot(px - e[0], pz - e[1])\n  if (endD < L.reach || (t.s >= L.len - 1e-6 && bestD <= t.off)) {\n    if (t.li >= t.legs.length - 1) {\n      t.done = true\n      t.s = L.len\n    } else {\n      t.doneLen += L.len\n      t.li++\n      t.s = 0\n      t.seg = t.legs[t.li].a\n    }\n  }\n}\nfunction legProgress(t) {\n  return t.done ? t.total : t.doneLen + t.s\n}\nfunction legPoint(t, leg, s) {\n  var ch = t.ch, cum = t.cum\n  var target = leg.s0 + Math.max(0, Math.min(s, leg.len))\n  var i = leg.a\n  while (i < leg.b - 1 && cum[i + 1] < target) i++\n  var seglen = (cum[i + 1] - cum[i]) || 1\n  var f = (target - cum[i]) / seglen\n  return [ch[i][0] + (ch[i + 1][0] - ch[i][0]) * f, ch[i][1] + (ch[i + 1][1] - ch[i][1]) * f]\n}\n\nfunction deriveCmd(params, state, dt, pos, speed) {\n  var cfg = params.cmd || {}\n  if (!state.lt) {\n    state.lt = legInit(params.chain, params.legEnds)\n    state.lt.off = params.offM != null ? params.offM : 6\n    state.ct = 1e9\n    state.lastLi = 0\n    state.cr = { rs: (cfg.seed >>> 0) || 1 }\n  }\n  var t = state.lt\n  var px = pos[0], pz = pos[2]\n  legStep(t, px, pz)\n  if (t.li !== state.lastLi) {\n    state.lastLi = t.li\n    state.ct = 1e9\n  }\n  state.ct += dt\n  if (!state.aim || state.ct >= (cfg.period != null ? cfg.period : 0.5)) {\n    state.ct = 0\n    var leg = t.legs[t.li]\n    var lmin = cfg.lmin != null ? cfg.lmin : 12\n    var L = Math.min(Math.max(lmin + (cfg.tau != null ? cfg.tau : 1.5) * speed, lmin), 40)\n    var sa = Math.min(t.s + L, leg.len)\n    var a = legPoint(t, leg, sa)\n    var nd = cfg.noiseDeg != null ? cfg.noiseDeg : 3\n    if (nd > 0) {\n      var e = (rnd(state.cr) * 2 - 1) * nd * Math.PI / 180\n      var c = Math.cos(e), sn = Math.sin(e)\n      var vx = a[0] - px, vz = a[1] - pz\n      a = [px + vx * c - vz * sn, pz + vx * sn + vz * c]\n    }\n    var b\n    if (sa + 12 > leg.len && t.li < t.legs.length - 1) {\n      var nl = t.legs[t.li + 1]\n      b = legPoint(t, nl, Math.min(sa + 12 - leg.len, nl.len))\n    } else b = legPoint(t, leg, Math.min(sa + 12, leg.len))\n    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) {\n      var ch = params.chain\n      var lx = ch[leg.b][0] - ch[leg.b - 1][0], lz = ch[leg.b][1] - ch[leg.b - 1][1]\n      var ll = Math.hypot(lx, lz) || 1\n      b = [a[0] + lx / ll * 12, a[1] + lz / ll * 12]\n    }\n    state.aim = a\n    state.nxt = b\n  }\n  return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]\n}\nfunction transform(input, dt, params, state, api) {\n  var ch = params.chain\n  if (!ch || ch.length < 2) return {}\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  var c = deriveCmd(params, state, dt, input.position, Math.abs(api.vec.dot(input.velocity, fwd)))\n  var av = input.av || (input.av = {})\n  av.cmd = { aim: [c[0], c[1]], next: [c[2], c[3]] }\n  return {}\n}\n",
+      "params": {
+        "chain": [
+          [
+            0,
+            0
+          ],
+          [
+            -7.997,
+            -0.029
+          ],
+          [
+            -16.281,
+            -1.614
+          ],
+          [
+            -15.97,
+            -13.703
+          ],
+          [
+            -3.7,
+            -16.462
+          ],
+          [
+            14.389,
+            -15.801
+          ],
+          [
+            16.34,
+            -35.993
+          ],
+          [
+            14.172,
+            -62.674
+          ],
+          [
+            16.593,
+            -95.268
+          ],
+          [
+            16,
+            -96
+          ]
+        ],
+        "legEnds": [
+          9
+        ],
+        "offM": 8,
+        "cmd": {
+          "lmin": 8,
+          "tau": 0.6,
+          "period": 0.5,
+          "noiseDeg": 3,
+          "seed": 4711
+        }
+      }
+    },
     "policy_drive_0": {
       "type": "custom",
       "priority": 5,
@@ -701,59 +771,6 @@
           1.20099,
           -0.47775
         ],
-        "chain": [
-          [
-            0,
-            0
-          ],
-          [
-            -7.997,
-            -0.029
-          ],
-          [
-            -16.281,
-            -1.614
-          ],
-          [
-            -15.97,
-            -13.703
-          ],
-          [
-            -3.7,
-            -16.462
-          ],
-          [
-            14.389,
-            -15.801
-          ],
-          [
-            16.34,
-            -35.993
-          ],
-          [
-            14.172,
-            -62.674
-          ],
-          [
-            16.593,
-            -95.268
-          ],
-          [
-            16,
-            -96
-          ]
-        ],
-        "cmd": {
-          "lmin": 8,
-          "tau": 0.6,
-          "period": 0.5,
-          "noiseDeg": 3,
-          "seed": 4711
-        },
-        "legEnds": [
-          9
-        ],
-        "offM": 8,
         "gain": 1200
       }
     },
@@ -769,6 +786,112 @@
         "tireGripSlipSpeedThreshold": 2,
         "lateralGripSlipScale": 0.3,
         "jumpImpulse": 200
+      }
+    },
+    "policy_escape_1": {
+      "type": "custom",
+      "priority": 4.5,
+      "enabled": true,
+      "name": "Policy escape",
+      "code": "\nvar ESCAPE_RAYS = 12\nvar ESCAPE_RAY_M = 1.5\nfunction transform(input, dt, params, state, api) {\n  if (state.t === undefined) state.t = 0\n  state.t += dt\n  var touching = !!(input.environment && input.environment.isTouchingSide)\n  if (touching) {\n    var pos = input.position\n    var up = api.getUpVector(input.rotation)\n    var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n    var left = api.vec.normalize(api.vec.cross(up, fwd))\n    var hl = 4.1, hw = 2.1\n    var px = 0\n    var pz = 0\n    var best = Infinity\n    for (var ri = 0; ri < ESCAPE_RAYS; ri++) {\n      var dx = Math.cos((ri * 2 * Math.PI) / ESCAPE_RAYS)\n      var dz = Math.sin((ri * 2 * Math.PI) / ESCAPE_RAYS)\n      // distance from the centre to the hull edge along the ray (box frame: fwd = length axis, left = width axis)\n      var df = Math.abs(dx * fwd[0] + dz * fwd[2])\n      var dl = Math.abs(dx * left[0] + dz * left[2])\n      var edge = Math.min(df > 1e-6 ? hl / df : 1e9, dl > 1e-6 ? hw / dl : 1e9) + 0.05\n      var rr = api.raycast([pos[0] + dx * edge, pos[1], pos[2] + dz * edge], [dx, 0, dz], ESCAPE_RAY_M, { visualize: false })\n      if (!rr.hit || rr.entityId === input.entityId) continue\n      if (edge + rr.distance < best) {\n        best = edge + rr.distance\n        px = pos[0] + dx * (edge + rr.distance)\n        pz = pos[2] + dz * (edge + rr.distance)\n      }\n    }\n    if (best === Infinity) {\n      var g = api.vec.dot(input.velocity, fwd) < -0.5 ? -1 : 1\n      px = pos[0] + fwd[0] * g * (hl + 0.3)\n      pz = pos[2] + fwd[2] * g * (hl + 0.3)\n    }\n    var ex = pos[0] - px\n    var ez = pos[2] - pz\n    var el = Math.sqrt(ex * ex + ez * ez)\n    if (el > 1e-3) state.esc = { dx: ex / el, dz: ez / el, until: state.t + 0.3 }\n  }\n  var esc = state.esc\n  if (esc && state.t < esc.until) {\n    var p2 = input.position\n    var ax = p2[0] + esc.dx * 30\n    var az = p2[2] + esc.dz * 30\n    var av = input.av || (input.av = {})\n    av.cmd = { aim: [ax, az], next: [p2[0] + esc.dx * (30 + 12), p2[2] + esc.dz * (30 + 12)] }\n    api.watch('policy.escape', 'on ' + Math.round(ax) + ',' + Math.round(az) + ' d ' + esc.dx.toFixed(2) + ',' + esc.dz.toFixed(2) + ' ' + (esc.until - state.t).toFixed(2) + ' s')\n    state.shown = 1\n  } else if (state.esc) {\n    state.esc = null\n    if (state.shown) {\n      state.shown = 0\n      api.watch('policy.escape', 'off')\n    }\n  }\n  return {}\n}\n",
+      "params": {}
+    },
+    "policy_input_1": {
+      "type": "custom",
+      "priority": 4,
+      "enabled": true,
+      "name": "Policy input",
+      "code": "\nfunction rnd(state) {\n  state.rs = (state.rs + 0x6d2b79f5) >>> 0\n  var t = state.rs\n  t = Math.imul(t ^ (t >>> 15), t | 1)\n  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)\n  return ((t ^ (t >>> 14)) >>> 0) / 4294967296\n}\n\nfunction legInit(ch, ends) {\n  var n = ch.length\n  var cum = [0]\n  for (var q = 1; q < n; q++) cum.push(cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))\n  var es = ends && ends.length ? ends : [n - 1]\n  var legs = []\n  var a = 0\n  for (var k = 0; k < es.length; k++) {\n    var len = cum[es[k]] - cum[a]\n    legs.push({ a: a, b: es[k], s0: cum[a], len: len, reach: Math.min(5, Math.max(2.5, 0.4 * len)) })\n    a = es[k]\n  }\n  return { ch: ch, cum: cum, legs: legs, li: 0, s: 0, seg: 0, done: false, dist: 0, doneLen: 0, total: cum[n - 1], off: 6 }\n}\nfunction legStep(t, px, pz) {\n  if (t.done) return\n  var L = t.legs[t.li]\n  var ch = t.ch\n  var bestD = Infinity, bestS = t.s, bestSeg = Math.max(L.a, t.seg)\n  for (var i = Math.max(L.a, t.seg - 1); i <= Math.min(L.b - 1, t.seg + 2); i++) {\n    var ax = ch[i][0], az = ch[i][1]\n    var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az\n    var len2 = dx * dx + dz * dz || 1\n    var u = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))\n    var d = Math.hypot(px - (ax + u * dx), pz - (az + u * dz))\n    if (d < bestD) {\n      bestD = d\n      bestS = t.cum[i] - L.s0 + u * Math.sqrt(len2)\n      bestSeg = i\n    }\n  }\n  t.seg = bestSeg\n  t.dist = bestD\n  if (bestS > t.s) t.s = bestS\n  var e = ch[L.b]\n  var endD = Math.hypot(px - e[0], pz - e[1])\n  if (endD < L.reach || (t.s >= L.len - 1e-6 && bestD <= t.off)) {\n    if (t.li >= t.legs.length - 1) {\n      t.done = true\n      t.s = L.len\n    } else {\n      t.doneLen += L.len\n      t.li++\n      t.s = 0\n      t.seg = t.legs[t.li].a\n    }\n  }\n}\nfunction legProgress(t) {\n  return t.done ? t.total : t.doneLen + t.s\n}\nfunction legPoint(t, leg, s) {\n  var ch = t.ch, cum = t.cum\n  var target = leg.s0 + Math.max(0, Math.min(s, leg.len))\n  var i = leg.a\n  while (i < leg.b - 1 && cum[i + 1] < target) i++\n  var seglen = (cum[i + 1] - cum[i]) || 1\n  var f = (target - cum[i]) / seglen\n  return [ch[i][0] + (ch[i + 1][0] - ch[i][0]) * f, ch[i][1] + (ch[i + 1][1] - ch[i][1]) * f]\n}\n\nfunction deriveCmd(params, state, dt, pos, speed) {\n  var cfg = params.cmd || {}\n  if (!state.lt) {\n    state.lt = legInit(params.chain, params.legEnds)\n    state.lt.off = params.offM != null ? params.offM : 6\n    state.ct = 1e9\n    state.lastLi = 0\n    state.cr = { rs: (cfg.seed >>> 0) || 1 }\n  }\n  var t = state.lt\n  var px = pos[0], pz = pos[2]\n  legStep(t, px, pz)\n  if (t.li !== state.lastLi) {\n    state.lastLi = t.li\n    state.ct = 1e9\n  }\n  state.ct += dt\n  if (!state.aim || state.ct >= (cfg.period != null ? cfg.period : 0.5)) {\n    state.ct = 0\n    var leg = t.legs[t.li]\n    var lmin = cfg.lmin != null ? cfg.lmin : 12\n    var L = Math.min(Math.max(lmin + (cfg.tau != null ? cfg.tau : 1.5) * speed, lmin), 40)\n    var sa = Math.min(t.s + L, leg.len)\n    var a = legPoint(t, leg, sa)\n    var nd = cfg.noiseDeg != null ? cfg.noiseDeg : 3\n    if (nd > 0) {\n      var e = (rnd(state.cr) * 2 - 1) * nd * Math.PI / 180\n      var c = Math.cos(e), sn = Math.sin(e)\n      var vx = a[0] - px, vz = a[1] - pz\n      a = [px + vx * c - vz * sn, pz + vx * sn + vz * c]\n    }\n    var b\n    if (sa + 12 > leg.len && t.li < t.legs.length - 1) {\n      var nl = t.legs[t.li + 1]\n      b = legPoint(t, nl, Math.min(sa + 12 - leg.len, nl.len))\n    } else b = legPoint(t, leg, Math.min(sa + 12, leg.len))\n    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) {\n      var ch = params.chain\n      var lx = ch[leg.b][0] - ch[leg.b - 1][0], lz = ch[leg.b][1] - ch[leg.b - 1][1]\n      var ll = Math.hypot(lx, lz) || 1\n      b = [a[0] + lx / ll * 12, a[1] + lz / ll * 12]\n    }\n    state.aim = a\n    state.nxt = b\n  }\n  return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]\n}\nfunction transform(input, dt, params, state, api) {\n  var ch = params.chain\n  if (!ch || ch.length < 2) return {}\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  var c = deriveCmd(params, state, dt, input.position, Math.abs(api.vec.dot(input.velocity, fwd)))\n  var av = input.av || (input.av = {})\n  av.cmd = { aim: [c[0], c[1]], next: [c[2], c[3]] }\n  return {}\n}\n",
+      "params": {
+        "chain": [
+          [
+            130,
+            0
+          ],
+          [
+            122,
+            -0.062
+          ],
+          [
+            113.238,
+            0.088
+          ],
+          [
+            103.645,
+            -0.012
+          ],
+          [
+            98.059,
+            -4.891
+          ],
+          [
+            97.884,
+            -16.308
+          ],
+          [
+            85.32300000000001,
+            -16.449
+          ],
+          [
+            81.445,
+            -26.347
+          ],
+          [
+            72.102,
+            -32.022
+          ],
+          [
+            65.496,
+            -42.376
+          ],
+          [
+            66.582,
+            -60.617
+          ],
+          [
+            66.955,
+            -79.469
+          ],
+          [
+            88.082,
+            -79.615
+          ],
+          [
+            97.61500000000001,
+            -64.642
+          ],
+          [
+            113.79599999999999,
+            -72.895
+          ],
+          [
+            128.733,
+            -74.166
+          ],
+          [
+            134.406,
+            -49.034
+          ],
+          [
+            148.359,
+            -69.804
+          ],
+          [
+            146,
+            -96
+          ]
+        ],
+        "legEnds": [
+          18
+        ],
+        "offM": 8,
+        "cmd": {
+          "lmin": 8,
+          "tau": 0.6,
+          "period": 0.5,
+          "noiseDeg": 3,
+          "seed": 4711
+        }
       }
     },
     "policy_drive_1": {
@@ -1430,95 +1553,6 @@
           1.20099,
           -0.47775
         ],
-        "chain": [
-          [
-            130,
-            0
-          ],
-          [
-            122,
-            -0.062
-          ],
-          [
-            113.238,
-            0.088
-          ],
-          [
-            103.645,
-            -0.012
-          ],
-          [
-            98.059,
-            -4.891
-          ],
-          [
-            97.884,
-            -16.308
-          ],
-          [
-            85.32300000000001,
-            -16.449
-          ],
-          [
-            81.445,
-            -26.347
-          ],
-          [
-            72.102,
-            -32.022
-          ],
-          [
-            65.496,
-            -42.376
-          ],
-          [
-            66.582,
-            -60.617
-          ],
-          [
-            66.955,
-            -79.469
-          ],
-          [
-            88.082,
-            -79.615
-          ],
-          [
-            97.61500000000001,
-            -64.642
-          ],
-          [
-            113.79599999999999,
-            -72.895
-          ],
-          [
-            128.733,
-            -74.166
-          ],
-          [
-            134.406,
-            -49.034
-          ],
-          [
-            148.359,
-            -69.804
-          ],
-          [
-            146,
-            -96
-          ]
-        ],
-        "cmd": {
-          "lmin": 8,
-          "tau": 0.6,
-          "period": 0.5,
-          "noiseDeg": 3,
-          "seed": 4711
-        },
-        "legEnds": [
-          18
-        ],
-        "offM": 8,
         "gain": 1200
       }
     },
@@ -1534,6 +1568,76 @@
         "tireGripSlipSpeedThreshold": 2,
         "lateralGripSlipScale": 0.3,
         "jumpImpulse": 200
+      }
+    },
+    "policy_escape_2": {
+      "type": "custom",
+      "priority": 4.5,
+      "enabled": true,
+      "name": "Policy escape",
+      "code": "\nvar ESCAPE_RAYS = 12\nvar ESCAPE_RAY_M = 1.5\nfunction transform(input, dt, params, state, api) {\n  if (state.t === undefined) state.t = 0\n  state.t += dt\n  var touching = !!(input.environment && input.environment.isTouchingSide)\n  if (touching) {\n    var pos = input.position\n    var up = api.getUpVector(input.rotation)\n    var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n    var left = api.vec.normalize(api.vec.cross(up, fwd))\n    var hl = 4.1, hw = 2.1\n    var px = 0\n    var pz = 0\n    var best = Infinity\n    for (var ri = 0; ri < ESCAPE_RAYS; ri++) {\n      var dx = Math.cos((ri * 2 * Math.PI) / ESCAPE_RAYS)\n      var dz = Math.sin((ri * 2 * Math.PI) / ESCAPE_RAYS)\n      // distance from the centre to the hull edge along the ray (box frame: fwd = length axis, left = width axis)\n      var df = Math.abs(dx * fwd[0] + dz * fwd[2])\n      var dl = Math.abs(dx * left[0] + dz * left[2])\n      var edge = Math.min(df > 1e-6 ? hl / df : 1e9, dl > 1e-6 ? hw / dl : 1e9) + 0.05\n      var rr = api.raycast([pos[0] + dx * edge, pos[1], pos[2] + dz * edge], [dx, 0, dz], ESCAPE_RAY_M, { visualize: false })\n      if (!rr.hit || rr.entityId === input.entityId) continue\n      if (edge + rr.distance < best) {\n        best = edge + rr.distance\n        px = pos[0] + dx * (edge + rr.distance)\n        pz = pos[2] + dz * (edge + rr.distance)\n      }\n    }\n    if (best === Infinity) {\n      var g = api.vec.dot(input.velocity, fwd) < -0.5 ? -1 : 1\n      px = pos[0] + fwd[0] * g * (hl + 0.3)\n      pz = pos[2] + fwd[2] * g * (hl + 0.3)\n    }\n    var ex = pos[0] - px\n    var ez = pos[2] - pz\n    var el = Math.sqrt(ex * ex + ez * ez)\n    if (el > 1e-3) state.esc = { dx: ex / el, dz: ez / el, until: state.t + 0.3 }\n  }\n  var esc = state.esc\n  if (esc && state.t < esc.until) {\n    var p2 = input.position\n    var ax = p2[0] + esc.dx * 30\n    var az = p2[2] + esc.dz * 30\n    var av = input.av || (input.av = {})\n    av.cmd = { aim: [ax, az], next: [p2[0] + esc.dx * (30 + 12), p2[2] + esc.dz * (30 + 12)] }\n    api.watch('policy.escape', 'on ' + Math.round(ax) + ',' + Math.round(az) + ' d ' + esc.dx.toFixed(2) + ',' + esc.dz.toFixed(2) + ' ' + (esc.until - state.t).toFixed(2) + ' s')\n    state.shown = 1\n  } else if (state.esc) {\n    state.esc = null\n    if (state.shown) {\n      state.shown = 0\n      api.watch('policy.escape', 'off')\n    }\n  }\n  return {}\n}\n",
+      "params": {}
+    },
+    "policy_input_2": {
+      "type": "custom",
+      "priority": 4,
+      "enabled": true,
+      "name": "Policy input",
+      "code": "\nfunction rnd(state) {\n  state.rs = (state.rs + 0x6d2b79f5) >>> 0\n  var t = state.rs\n  t = Math.imul(t ^ (t >>> 15), t | 1)\n  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)\n  return ((t ^ (t >>> 14)) >>> 0) / 4294967296\n}\n\nfunction legInit(ch, ends) {\n  var n = ch.length\n  var cum = [0]\n  for (var q = 1; q < n; q++) cum.push(cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))\n  var es = ends && ends.length ? ends : [n - 1]\n  var legs = []\n  var a = 0\n  for (var k = 0; k < es.length; k++) {\n    var len = cum[es[k]] - cum[a]\n    legs.push({ a: a, b: es[k], s0: cum[a], len: len, reach: Math.min(5, Math.max(2.5, 0.4 * len)) })\n    a = es[k]\n  }\n  return { ch: ch, cum: cum, legs: legs, li: 0, s: 0, seg: 0, done: false, dist: 0, doneLen: 0, total: cum[n - 1], off: 6 }\n}\nfunction legStep(t, px, pz) {\n  if (t.done) return\n  var L = t.legs[t.li]\n  var ch = t.ch\n  var bestD = Infinity, bestS = t.s, bestSeg = Math.max(L.a, t.seg)\n  for (var i = Math.max(L.a, t.seg - 1); i <= Math.min(L.b - 1, t.seg + 2); i++) {\n    var ax = ch[i][0], az = ch[i][1]\n    var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az\n    var len2 = dx * dx + dz * dz || 1\n    var u = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))\n    var d = Math.hypot(px - (ax + u * dx), pz - (az + u * dz))\n    if (d < bestD) {\n      bestD = d\n      bestS = t.cum[i] - L.s0 + u * Math.sqrt(len2)\n      bestSeg = i\n    }\n  }\n  t.seg = bestSeg\n  t.dist = bestD\n  if (bestS > t.s) t.s = bestS\n  var e = ch[L.b]\n  var endD = Math.hypot(px - e[0], pz - e[1])\n  if (endD < L.reach || (t.s >= L.len - 1e-6 && bestD <= t.off)) {\n    if (t.li >= t.legs.length - 1) {\n      t.done = true\n      t.s = L.len\n    } else {\n      t.doneLen += L.len\n      t.li++\n      t.s = 0\n      t.seg = t.legs[t.li].a\n    }\n  }\n}\nfunction legProgress(t) {\n  return t.done ? t.total : t.doneLen + t.s\n}\nfunction legPoint(t, leg, s) {\n  var ch = t.ch, cum = t.cum\n  var target = leg.s0 + Math.max(0, Math.min(s, leg.len))\n  var i = leg.a\n  while (i < leg.b - 1 && cum[i + 1] < target) i++\n  var seglen = (cum[i + 1] - cum[i]) || 1\n  var f = (target - cum[i]) / seglen\n  return [ch[i][0] + (ch[i + 1][0] - ch[i][0]) * f, ch[i][1] + (ch[i + 1][1] - ch[i][1]) * f]\n}\n\nfunction deriveCmd(params, state, dt, pos, speed) {\n  var cfg = params.cmd || {}\n  if (!state.lt) {\n    state.lt = legInit(params.chain, params.legEnds)\n    state.lt.off = params.offM != null ? params.offM : 6\n    state.ct = 1e9\n    state.lastLi = 0\n    state.cr = { rs: (cfg.seed >>> 0) || 1 }\n  }\n  var t = state.lt\n  var px = pos[0], pz = pos[2]\n  legStep(t, px, pz)\n  if (t.li !== state.lastLi) {\n    state.lastLi = t.li\n    state.ct = 1e9\n  }\n  state.ct += dt\n  if (!state.aim || state.ct >= (cfg.period != null ? cfg.period : 0.5)) {\n    state.ct = 0\n    var leg = t.legs[t.li]\n    var lmin = cfg.lmin != null ? cfg.lmin : 12\n    var L = Math.min(Math.max(lmin + (cfg.tau != null ? cfg.tau : 1.5) * speed, lmin), 40)\n    var sa = Math.min(t.s + L, leg.len)\n    var a = legPoint(t, leg, sa)\n    var nd = cfg.noiseDeg != null ? cfg.noiseDeg : 3\n    if (nd > 0) {\n      var e = (rnd(state.cr) * 2 - 1) * nd * Math.PI / 180\n      var c = Math.cos(e), sn = Math.sin(e)\n      var vx = a[0] - px, vz = a[1] - pz\n      a = [px + vx * c - vz * sn, pz + vx * sn + vz * c]\n    }\n    var b\n    if (sa + 12 > leg.len && t.li < t.legs.length - 1) {\n      var nl = t.legs[t.li + 1]\n      b = legPoint(t, nl, Math.min(sa + 12 - leg.len, nl.len))\n    } else b = legPoint(t, leg, Math.min(sa + 12, leg.len))\n    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) {\n      var ch = params.chain\n      var lx = ch[leg.b][0] - ch[leg.b - 1][0], lz = ch[leg.b][1] - ch[leg.b - 1][1]\n      var ll = Math.hypot(lx, lz) || 1\n      b = [a[0] + lx / ll * 12, a[1] + lz / ll * 12]\n    }\n    state.aim = a\n    state.nxt = b\n  }\n  return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]\n}\nfunction transform(input, dt, params, state, api) {\n  var ch = params.chain\n  if (!ch || ch.length < 2) return {}\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  var c = deriveCmd(params, state, dt, input.position, Math.abs(api.vec.dot(input.velocity, fwd)))\n  var av = input.av || (input.av = {})\n  av.cmd = { aim: [c[0], c[1]], next: [c[2], c[3]] }\n  return {}\n}\n",
+      "params": {
+        "chain": [
+          [
+            276,
+            -96
+          ],
+          [
+            275.897,
+            -88
+          ],
+          [
+            276.375,
+            -78.222
+          ],
+          [
+            275.95,
+            -66.272
+          ],
+          [
+            276.996,
+            -51.665
+          ],
+          [
+            277.396,
+            -33.656
+          ],
+          [
+            271.61,
+            -16.661
+          ],
+          [
+            243.929,
+            -17.111
+          ],
+          [
+            260.098,
+            -0.761
+          ],
+          [
+            260,
+            0
+          ]
+        ],
+        "legEnds": [
+          9
+        ],
+        "offM": 8,
+        "cmd": {
+          "lmin": 8,
+          "tau": 0.6,
+          "period": 0.5,
+          "noiseDeg": 3,
+          "seed": 4711
+        }
       }
     },
     "policy_drive_2": {
@@ -2195,59 +2299,6 @@
           1.20099,
           -0.47775
         ],
-        "chain": [
-          [
-            276,
-            -96
-          ],
-          [
-            275.897,
-            -88
-          ],
-          [
-            276.375,
-            -78.222
-          ],
-          [
-            275.95,
-            -66.272
-          ],
-          [
-            276.996,
-            -51.665
-          ],
-          [
-            277.396,
-            -33.656
-          ],
-          [
-            271.61,
-            -16.661
-          ],
-          [
-            243.929,
-            -17.111
-          ],
-          [
-            260.098,
-            -0.761
-          ],
-          [
-            260,
-            0
-          ]
-        ],
-        "cmd": {
-          "lmin": 8,
-          "tau": 0.6,
-          "period": 0.5,
-          "noiseDeg": 3,
-          "seed": 4711
-        },
-        "legEnds": [
-          9
-        ],
-        "offM": 8,
         "gain": 1200
       }
     },
@@ -2263,6 +2314,112 @@
         "tireGripSlipSpeedThreshold": 2,
         "lateralGripSlipScale": 0.3,
         "jumpImpulse": 200
+      }
+    },
+    "policy_escape_3": {
+      "type": "custom",
+      "priority": 4.5,
+      "enabled": true,
+      "name": "Policy escape",
+      "code": "\nvar ESCAPE_RAYS = 12\nvar ESCAPE_RAY_M = 1.5\nfunction transform(input, dt, params, state, api) {\n  if (state.t === undefined) state.t = 0\n  state.t += dt\n  var touching = !!(input.environment && input.environment.isTouchingSide)\n  if (touching) {\n    var pos = input.position\n    var up = api.getUpVector(input.rotation)\n    var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n    var left = api.vec.normalize(api.vec.cross(up, fwd))\n    var hl = 4.1, hw = 2.1\n    var px = 0\n    var pz = 0\n    var best = Infinity\n    for (var ri = 0; ri < ESCAPE_RAYS; ri++) {\n      var dx = Math.cos((ri * 2 * Math.PI) / ESCAPE_RAYS)\n      var dz = Math.sin((ri * 2 * Math.PI) / ESCAPE_RAYS)\n      // distance from the centre to the hull edge along the ray (box frame: fwd = length axis, left = width axis)\n      var df = Math.abs(dx * fwd[0] + dz * fwd[2])\n      var dl = Math.abs(dx * left[0] + dz * left[2])\n      var edge = Math.min(df > 1e-6 ? hl / df : 1e9, dl > 1e-6 ? hw / dl : 1e9) + 0.05\n      var rr = api.raycast([pos[0] + dx * edge, pos[1], pos[2] + dz * edge], [dx, 0, dz], ESCAPE_RAY_M, { visualize: false })\n      if (!rr.hit || rr.entityId === input.entityId) continue\n      if (edge + rr.distance < best) {\n        best = edge + rr.distance\n        px = pos[0] + dx * (edge + rr.distance)\n        pz = pos[2] + dz * (edge + rr.distance)\n      }\n    }\n    if (best === Infinity) {\n      var g = api.vec.dot(input.velocity, fwd) < -0.5 ? -1 : 1\n      px = pos[0] + fwd[0] * g * (hl + 0.3)\n      pz = pos[2] + fwd[2] * g * (hl + 0.3)\n    }\n    var ex = pos[0] - px\n    var ez = pos[2] - pz\n    var el = Math.sqrt(ex * ex + ez * ez)\n    if (el > 1e-3) state.esc = { dx: ex / el, dz: ez / el, until: state.t + 0.3 }\n  }\n  var esc = state.esc\n  if (esc && state.t < esc.until) {\n    var p2 = input.position\n    var ax = p2[0] + esc.dx * 30\n    var az = p2[2] + esc.dz * 30\n    var av = input.av || (input.av = {})\n    av.cmd = { aim: [ax, az], next: [p2[0] + esc.dx * (30 + 12), p2[2] + esc.dz * (30 + 12)] }\n    api.watch('policy.escape', 'on ' + Math.round(ax) + ',' + Math.round(az) + ' d ' + esc.dx.toFixed(2) + ',' + esc.dz.toFixed(2) + ' ' + (esc.until - state.t).toFixed(2) + ' s')\n    state.shown = 1\n  } else if (state.esc) {\n    state.esc = null\n    if (state.shown) {\n      state.shown = 0\n      api.watch('policy.escape', 'off')\n    }\n  }\n  return {}\n}\n",
+      "params": {}
+    },
+    "policy_input_3": {
+      "type": "custom",
+      "priority": 4,
+      "enabled": true,
+      "name": "Policy input",
+      "code": "\nfunction rnd(state) {\n  state.rs = (state.rs + 0x6d2b79f5) >>> 0\n  var t = state.rs\n  t = Math.imul(t ^ (t >>> 15), t | 1)\n  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)\n  return ((t ^ (t >>> 14)) >>> 0) / 4294967296\n}\n\nfunction legInit(ch, ends) {\n  var n = ch.length\n  var cum = [0]\n  for (var q = 1; q < n; q++) cum.push(cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))\n  var es = ends && ends.length ? ends : [n - 1]\n  var legs = []\n  var a = 0\n  for (var k = 0; k < es.length; k++) {\n    var len = cum[es[k]] - cum[a]\n    legs.push({ a: a, b: es[k], s0: cum[a], len: len, reach: Math.min(5, Math.max(2.5, 0.4 * len)) })\n    a = es[k]\n  }\n  return { ch: ch, cum: cum, legs: legs, li: 0, s: 0, seg: 0, done: false, dist: 0, doneLen: 0, total: cum[n - 1], off: 6 }\n}\nfunction legStep(t, px, pz) {\n  if (t.done) return\n  var L = t.legs[t.li]\n  var ch = t.ch\n  var bestD = Infinity, bestS = t.s, bestSeg = Math.max(L.a, t.seg)\n  for (var i = Math.max(L.a, t.seg - 1); i <= Math.min(L.b - 1, t.seg + 2); i++) {\n    var ax = ch[i][0], az = ch[i][1]\n    var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az\n    var len2 = dx * dx + dz * dz || 1\n    var u = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))\n    var d = Math.hypot(px - (ax + u * dx), pz - (az + u * dz))\n    if (d < bestD) {\n      bestD = d\n      bestS = t.cum[i] - L.s0 + u * Math.sqrt(len2)\n      bestSeg = i\n    }\n  }\n  t.seg = bestSeg\n  t.dist = bestD\n  if (bestS > t.s) t.s = bestS\n  var e = ch[L.b]\n  var endD = Math.hypot(px - e[0], pz - e[1])\n  if (endD < L.reach || (t.s >= L.len - 1e-6 && bestD <= t.off)) {\n    if (t.li >= t.legs.length - 1) {\n      t.done = true\n      t.s = L.len\n    } else {\n      t.doneLen += L.len\n      t.li++\n      t.s = 0\n      t.seg = t.legs[t.li].a\n    }\n  }\n}\nfunction legProgress(t) {\n  return t.done ? t.total : t.doneLen + t.s\n}\nfunction legPoint(t, leg, s) {\n  var ch = t.ch, cum = t.cum\n  var target = leg.s0 + Math.max(0, Math.min(s, leg.len))\n  var i = leg.a\n  while (i < leg.b - 1 && cum[i + 1] < target) i++\n  var seglen = (cum[i + 1] - cum[i]) || 1\n  var f = (target - cum[i]) / seglen\n  return [ch[i][0] + (ch[i + 1][0] - ch[i][0]) * f, ch[i][1] + (ch[i + 1][1] - ch[i][1]) * f]\n}\n\nfunction deriveCmd(params, state, dt, pos, speed) {\n  var cfg = params.cmd || {}\n  if (!state.lt) {\n    state.lt = legInit(params.chain, params.legEnds)\n    state.lt.off = params.offM != null ? params.offM : 6\n    state.ct = 1e9\n    state.lastLi = 0\n    state.cr = { rs: (cfg.seed >>> 0) || 1 }\n  }\n  var t = state.lt\n  var px = pos[0], pz = pos[2]\n  legStep(t, px, pz)\n  if (t.li !== state.lastLi) {\n    state.lastLi = t.li\n    state.ct = 1e9\n  }\n  state.ct += dt\n  if (!state.aim || state.ct >= (cfg.period != null ? cfg.period : 0.5)) {\n    state.ct = 0\n    var leg = t.legs[t.li]\n    var lmin = cfg.lmin != null ? cfg.lmin : 12\n    var L = Math.min(Math.max(lmin + (cfg.tau != null ? cfg.tau : 1.5) * speed, lmin), 40)\n    var sa = Math.min(t.s + L, leg.len)\n    var a = legPoint(t, leg, sa)\n    var nd = cfg.noiseDeg != null ? cfg.noiseDeg : 3\n    if (nd > 0) {\n      var e = (rnd(state.cr) * 2 - 1) * nd * Math.PI / 180\n      var c = Math.cos(e), sn = Math.sin(e)\n      var vx = a[0] - px, vz = a[1] - pz\n      a = [px + vx * c - vz * sn, pz + vx * sn + vz * c]\n    }\n    var b\n    if (sa + 12 > leg.len && t.li < t.legs.length - 1) {\n      var nl = t.legs[t.li + 1]\n      b = legPoint(t, nl, Math.min(sa + 12 - leg.len, nl.len))\n    } else b = legPoint(t, leg, Math.min(sa + 12, leg.len))\n    if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) {\n      var ch = params.chain\n      var lx = ch[leg.b][0] - ch[leg.b - 1][0], lz = ch[leg.b][1] - ch[leg.b - 1][1]\n      var ll = Math.hypot(lx, lz) || 1\n      b = [a[0] + lx / ll * 12, a[1] + lz / ll * 12]\n    }\n    state.aim = a\n    state.nxt = b\n  }\n  return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]\n}\nfunction transform(input, dt, params, state, api) {\n  var ch = params.chain\n  if (!ch || ch.length < 2) return {}\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  var c = deriveCmd(params, state, dt, input.position, Math.abs(api.vec.dot(input.velocity, fwd)))\n  var av = input.av || (input.av = {})\n  av.cmd = { aim: [c[0], c[1]], next: [c[2], c[3]] }\n  return {}\n}\n",
+      "params": {
+        "chain": [
+          [
+            406,
+            -96
+          ],
+          [
+            405.946,
+            -88
+          ],
+          [
+            405.997,
+            -79.238
+          ],
+          [
+            405.933,
+            -69.642
+          ],
+          [
+            406.126,
+            -59.129
+          ],
+          [
+            405.374,
+            -48.287
+          ],
+          [
+            393.13,
+            -48.17
+          ],
+          [
+            389.445,
+            -58.731
+          ],
+          [
+            389.128,
+            -73.488
+          ],
+          [
+            379.583,
+            -79.838
+          ],
+          [
+            373.388,
+            -68.225
+          ],
+          [
+            357.633,
+            -63.846
+          ],
+          [
+            352.019,
+            -80.53
+          ],
+          [
+            326.92,
+            -81.055
+          ],
+          [
+            326.348,
+            -55.829
+          ],
+          [
+            329.865,
+            -31.537
+          ],
+          [
+            344.928,
+            -14.776
+          ],
+          [
+            364.359,
+            0.08
+          ],
+          [
+            390,
+            0
+          ]
+        ],
+        "legEnds": [
+          18
+        ],
+        "offM": 8,
+        "cmd": {
+          "lmin": 8,
+          "tau": 0.6,
+          "period": 0.5,
+          "noiseDeg": 3,
+          "seed": 4711
+        }
       }
     },
     "policy_drive_3": {
@@ -2924,95 +3081,6 @@
           1.20099,
           -0.47775
         ],
-        "chain": [
-          [
-            406,
-            -96
-          ],
-          [
-            405.946,
-            -88
-          ],
-          [
-            405.997,
-            -79.238
-          ],
-          [
-            405.933,
-            -69.642
-          ],
-          [
-            406.126,
-            -59.129
-          ],
-          [
-            405.374,
-            -48.287
-          ],
-          [
-            393.13,
-            -48.17
-          ],
-          [
-            389.445,
-            -58.731
-          ],
-          [
-            389.128,
-            -73.488
-          ],
-          [
-            379.583,
-            -79.838
-          ],
-          [
-            373.388,
-            -68.225
-          ],
-          [
-            357.633,
-            -63.846
-          ],
-          [
-            352.019,
-            -80.53
-          ],
-          [
-            326.92,
-            -81.055
-          ],
-          [
-            326.348,
-            -55.829
-          ],
-          [
-            329.865,
-            -31.537
-          ],
-          [
-            344.928,
-            -14.776
-          ],
-          [
-            364.359,
-            0.08
-          ],
-          [
-            390,
-            0
-          ]
-        ],
-        "cmd": {
-          "lmin": 8,
-          "tau": 0.6,
-          "period": 0.5,
-          "noiseDeg": 3,
-          "seed": 4711
-        },
-        "legEnds": [
-          18
-        ],
-        "offM": 8,
         "gain": 1200
       }
     },
@@ -4432,6 +4500,8 @@
       "friction": 0.01,
       "angularDamping": 0.3,
       "transformers": [
+        "policy_input_0",
+        "policy_escape_0",
         "policy_drive_0",
         "policy_car_0",
         "maze_score_0"
@@ -5480,6 +5550,8 @@
       "friction": 0.01,
       "angularDamping": 0.3,
       "transformers": [
+        "policy_input_1",
+        "policy_escape_1",
         "policy_drive_1",
         "policy_car_1",
         "maze_score_1"
@@ -6528,6 +6600,8 @@
       "friction": 0.01,
       "angularDamping": 0.3,
       "transformers": [
+        "policy_input_2",
+        "policy_escape_2",
         "policy_drive_2",
         "policy_car_2",
         "maze_score_2"
@@ -7576,6 +7650,8 @@
       "friction": 0.01,
       "angularDamping": 0.3,
       "transformers": [
+        "policy_input_3",
+        "policy_escape_3",
         "policy_drive_3",
         "policy_car_3",
         "maze_score_3"
