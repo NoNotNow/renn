@@ -6,7 +6,8 @@
  * Per world: world.json, meta.json (bestScore null until measured) and a top-down thumb.svg (one maze frame per route
  * copy side by side, like the world layout; forward chains orange, reversed chains blue).
  * With --score: run each world headless (shipped v3 candidate, up to 120 s sim, all cars drive simultaneously, stop
- * once EVERY car is within MAZE_GOAL_REACH_M of its goal), write the measured bestScore (max over all route cars)
+ * once EVERY car is within MAZE_GOAL_REACH_M of its goal), snapshot each car's watch score AT the moment it reaches
+ * (the in-world stage freezes the score at its finish), write the measured bestScore (max over all route cars)
  * into meta.json and print the per-car table. meta.json also carries `tileSvg` (per-route chain polylines in route_<i>.svg
  * pixel space + per-route scores) for the dialog's per-route tiles.
  * Source of truth: src/policyEvolution/mazeTraining.ts. Update the policy: tools/policy-evolution/ship.ts, then re-run.
@@ -90,7 +91,11 @@ async function scoreWorld(world: RennWorld, chains: number[][][], vRef: number, 
   try {
     const scorers = chains.map((ch) => identicalScorer(ch, vRef, bonusRate))
     const reachedAt: Array<number | null> = new Array(K).fill(null)
-    const identical = new Array<number>(K).fill(0)
+    // per-car snapshot AT the moment of reaching: the in-world stage freezes the score at its finish (MAZE_GOAL_REACH_M),
+    // so the watch value stands still afterwards — but snapshotting at reachedAt makes each car's result independent of
+    // the rest of the run (a slow route can no longer drag the early cars' scores through post-finish penalties)
+    const snapshot = new Array<number>(K).fill(0)
+    const fromWatch = new Array<boolean>(K).fill(false)
     let t = 0
     const frames = Math.round(MAX_SIM_S / DEFAULT_DT)
     for (let f = 0; f < frames; f++) {
@@ -98,17 +103,27 @@ async function scoreWorld(world: RennWorld, chains: number[][][], vRef: number, 
       t = (f + 1) * DEFAULT_DT
       let allReached = true
       for (let i = 0; i < K; i++) {
+        if (reachedAt[i] !== null) continue
         const p = sim.getPosition(mazeCarId(i))
         const v = sim.getVelocity(mazeCarId(i))
-        identical[i] = scorers[i]!.step(p[0], p[2], v[0], v[2], DEFAULT_DT)
-        if (reachedAt[i] === null && Math.hypot(p[0] - goalPos[i]![0]!, p[2] - goalPos[i]![2]!) < MAZE_GOAL_REACH_M) reachedAt[i] = t
-        if (reachedAt[i] === null) allReached = false
+        snapshot[i] = scorers[i]!.step(p[0], p[2], v[0], v[2], DEFAULT_DT)
+        if (Math.hypot(p[0] - goalPos[i]![0]!, p[2] - goalPos[i]![2]!) < MAZE_GOAL_REACH_M) {
+          reachedAt[i] = t
+          const m = /(\d+)/.exec(String(watchValues(mazeCarId(i))['maze.score'] ?? ''))
+          if (m) {
+            snapshot[i] = Number(m[1])
+            fromWatch[i] = true
+          }
+        } else {
+          allReached = false
+        }
       }
       if (allReached) break
     }
     return reachedAt.map((reached, i) => {
+      if (reached !== null) return { reached: true, seconds: reached, score: snapshot[i]!, fromWatch: fromWatch[i]! }
       const m = /(\d+)/.exec(String(watchValues(mazeCarId(i))['maze.score'] ?? ''))
-      return { reached: reached !== null, seconds: reached ?? t, score: m ? Number(m[1]) : identical[i], fromWatch: Boolean(m) }
+      return { reached: false, seconds: t, score: m ? Number(m[1]) : snapshot[i]!, fromWatch: Boolean(m) }
     })
   } finally {
     sim.dispose()

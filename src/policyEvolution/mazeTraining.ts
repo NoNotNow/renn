@@ -368,7 +368,9 @@ export const MAZE_CARROT_COLOR = '#aa44ff'
  * the own tapered chain (1 pt / m, never backwards) plus a speed bonus (up to `bonusRate` pt/s at `vRef`) minus a
  * per-second TOUCH penalty (wall contact via `isTouchingSide` costs `wallPenaltyPerS`, object contact — any contact
  * without a lateral one and without support below the hull, i.e. not merely standing on the ground — costs
- * `objectPenaltyPerS`; walls cost more than objects).
+ * `objectPenaltyPerS`; walls cost more than objects). FINISH: once the car comes within `MAZE_GOAL_REACH_M` of its
+ * chain end the route counts as cleared — progress snaps to the full chain length and the score FREEZES (no further
+ * progress, bonus or penalties, the carrot parks on the end point), so the watch score never drops after the finish.
  * DRAWING happens only from car 0's stage (api.visualizeLine renders for the entity named by
  * world.debugTargetLineEntityId): every chain in its color pair (forward green -> orange, reversed blue -> orange,
  * y = 0.35) plus one carrot per car (own from input.position at state.s + 8, the others via api.getWorldPosition,
@@ -397,25 +399,35 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
   }
   var total = state.cum[n - 1]
   var px = input.position[0], pz = input.position[2]
-  var bestD = Infinity, bestS = state.s, bestSeg = state.seg
-  for (var i = Math.max(0, state.seg - 2); i <= Math.min(n - 2, state.seg + 3); i++) {
-    var ax = ch[i][0], az = ch[i][1]
-    var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az
-    var len2 = dx * dx + dz * dz || 1
-    var t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))
-    var d = Math.hypot(px - (ax + t * dx), pz - (az + t * dz))
-    if (d < bestD) {
-      bestD = d
-      bestS = state.cum[i] + t * Math.sqrt(len2)
-      bestSeg = i
-    }
-  }
-  state.seg = bestSeg
-  if (bestS > state.s) state.s = bestS
   var vRef = params.vRef || 20
   var v = Math.min(Math.hypot(input.velocity[0], input.velocity[2]), vRef)
-  state.bonus += (v / vRef) * dt * (params.bonusRate || 5)
-  state.penalty += dt * (wallT ? (params.wallPenaltyPerS || 12) : objT ? (params.objectPenaltyPerS || 4) : 0)
+  // finish: within MAZE_GOAL_REACH_M of the chain end the route is cleared (same rule as the exporter early-stop).
+  // Progress jumps to the full chain length (the leg-off margin is never driven), then the score FREEZES: no more
+  // progress, bonus or touch penalties, the carrot parks on the end point — the watch score can only stand still.
+  if (!state.done && Math.hypot(px - ch[n - 1][0], pz - ch[n - 1][1]) < ${MAZE_GOAL_REACH_M}) {
+    state.done = true
+    state.s = total
+    state.seg = n - 2
+  }
+  if (!state.done) {
+    var bestD = Infinity, bestS = state.s, bestSeg = state.seg
+    for (var i = Math.max(0, state.seg - 2); i <= Math.min(n - 2, state.seg + 3); i++) {
+      var ax = ch[i][0], az = ch[i][1]
+      var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az
+      var len2 = dx * dx + dz * dz || 1
+      var t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))
+      var d = Math.hypot(px - (ax + t * dx), pz - (az + t * dz))
+      if (d < bestD) {
+        bestD = d
+        bestS = state.cum[i] + t * Math.sqrt(len2)
+        bestSeg = i
+      }
+    }
+    state.seg = bestSeg
+    if (bestS > state.s) state.s = bestS
+    state.bonus += (v / vRef) * dt * (params.bonusRate || 5)
+    state.penalty += dt * (wallT ? (params.wallPenaltyPerS || 12) : objT ? (params.objectPenaltyPerS || 4) : 0)
+  }
   var score = Math.floor(state.s + state.bonus - state.penalty)
   if (score < 0) score = 0
   if (params.hud) api.setScore(score)

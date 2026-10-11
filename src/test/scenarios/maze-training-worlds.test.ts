@@ -11,6 +11,7 @@ import {
   MAZE_GOAL_REACH_M,
   MAZE_GOAL_Y,
   MAZE_SCORE_STAGE_BASE,
+  MAZE_SCORE_STAGE_CODE,
   MAZE_TRAINING_WORLDS,
   MAZE_TRAIN_CHAIN_COLORS,
   MAZE_TRAIN_CHAIN_COLORS_REVERSED,
@@ -199,6 +200,81 @@ describe('maze training worlds', () => {
         }
       })
     }
+  })
+})
+
+// --- the in-world score stage: the finish freeze (commit 6eb1fd58 follow-up) ---------------------------------------------------------
+
+describe('maze training score stage: finish freeze', () => {
+  const transform = new Function(`${MAZE_SCORE_STAGE_CODE}\nreturn transform`)() as (
+    input: any,
+    dt: number,
+    params: any,
+    state: any,
+    api: any,
+  ) => unknown
+  const chain = [[0, 0], [50, 0]] as unknown as number[][]
+  const params = {
+    chain,
+    chains: [chain],
+    chainColors: [],
+    cars: [mazeCarId(0)],
+    idx: 0,
+    hud: false,
+    vRef: 20,
+    bonusRate: 5,
+    wallPenaltyPerS: 12,
+    objectPenaltyPerS: 4,
+  }
+  const mkApi = () => {
+    const watch: Record<string, string> = {}
+    return {
+      watch: (k: string, v: string) => {
+        watch[k] = v
+      },
+      getWatch: () => watch,
+      raycast: () => ({ hit: true }),
+      setScore: () => {},
+      getWorldPosition: () => null,
+      visualizeLine: () => {},
+    }
+  }
+  const stepAt = (state: Record<string, unknown>, api: ReturnType<typeof mkApi>, x: number, wall: boolean) =>
+    transform(
+      { position: [x, 1, 0], velocity: [20, 0, 0], environment: wall ? { isTouchingSide: true } : {} },
+      DEFAULT_DT,
+      params,
+      state,
+      api,
+    )
+  const scoreOf = (api: ReturnType<typeof mkApi>) => Number(/(\d+)/.exec(api.getWatch()['maze.score']!)![1])
+
+  it('freezes the score at the goal: touch penalties after the finish change nothing', () => {
+    const state: Record<string, unknown> = {}
+    const api = mkApi()
+    stepAt(state, api, 20, false)
+    // 43 m on a 50 m chain: within MAZE_GOAL_REACH_M (8 m) of the end -> the route counts as cleared
+    stepAt(state, api, 43, false)
+    expect(state.done).toBe(true)
+    const frozen = scoreOf(api)
+    expect(frozen).toBeGreaterThan(0)
+    // 5 s of scraping a wall past the goal: -60 pts of penalty would show without the freeze
+    for (let k = 0; k < 5 / DEFAULT_DT; k++) stepAt(state, api, 60, true)
+    expect(scoreOf(api)).toBe(frozen)
+    // progress parked at the full chain length (the leg-off margin is credited, the carrot arc sits on the end)
+    expect(api.getWatch()['maze.prog']).toBe('50.0 / 50 m')
+  })
+
+  it('does not finish early: outside the reach radius the penalties still apply', () => {
+    const state: Record<string, unknown> = {}
+    const api = mkApi()
+    stepAt(state, api, 20, false)
+    expect(state.done).toBeUndefined()
+    // 2 s of wall contact at 12 pt/s: 25 m progress + ~10 pts speed bonus - 24 pts penalty = 11 pts
+    for (let k = 0; k < 2 / DEFAULT_DT; k++) stepAt(state, api, 25, true)
+    expect(state.done).toBeUndefined()
+    expect(scoreOf(api)).toBe(11)
+    expect(api.getWatch()['maze.prog']).toBe('25.0 / 50 m')
   })
 })
 
