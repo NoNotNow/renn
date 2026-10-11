@@ -361,6 +361,8 @@ function transform(input, dt, params, state, api) {
   }
   scoreKeeping(av, input, params, state, api)
   if (params.fleeArea && input.target && input.target.pose && ((tids && tids.length) || params.goalWatchdog > 0)) fleeGoal(av, av.threats || [], input, params, state, api)
+  // touch escape (see escapeTouch below): runs AFTER the flee layer and replaces the goal again, so it wins over the mission goal AND the flee layer
+  if (input.target && input.target.pose) escapeTouch(av, input, params, state, api)
   // maze profile switch (opt-in, default off): params.mazeProfile (object of param overrides, applied LAST so it beats the binding) is published as av.profile while the car is confined (av.maze) and for
   // params.mazeProfileHold s (default 1.5) after it left. Hold-based, not sticky to the route exit. Chasers (no fleeArea => no av.maze) never get it. Stages take effect on their next real run.
   var mProf = params.mazeProfile
@@ -427,6 +429,102 @@ function scoreKeeping(av, input, params, state, api) {
     if (params.hud === true) {
       api.setScore(sc.goals)
       api.setDamage(sc.hits)
+    }
+  }
+}
+
+// Touch escape: a lateral contact (input.environment.isTouchingSide: wall, other body, low bar — not the floor) overrides the
+// goal for AV_ESCAPE_HOLD_S. The aim is AV_ESCAPE_AIM_M from the car in the direction OPPOSITE the touch point: the nearest hit
+// of a short ray sweep around the hull (AV_ESCAPE_RAYS horizontal directions, cast from just outside the hull edge so the car never
+// hits itself; only a body within AV_ESCAPE_RAY_M of the hull wins, i.e. an actual touch). A body this car TRACKS (a pursuer,
+// params.threatIds) never counts — pursuit contact is the flee layer's business, the escape must not fire on every chaser ram.
+// No hit (a contact below the ray plane, a rounded body, a body whose collider the ray starts inside during a ram): the markContact
+// estimate — half a vehicle length ahead in the driving direction (see av-route-planner.js), skipped when a tracked pursuer could
+// itself be the touch (within own hull circumradius + its bounding radius).
+// The aim is re-derived from the CURRENT position every frame and the hold extended while the touch persists; after the last touch
+// it expires after exactly AV_ESCAPE_HOLD_S and the normal goal logic (mission goal, flee layer) resumes. While it is active the route
+// planner drops its stored route / carrot / manoeuvre once (av.escape, see av-route-planner.js) and then plans to the goal it sees — the
+// escape aim — so the car is really driven off the obstacle (a stopped car only moves via the route planner's manoeuvre / reverse cruise).
+// Watch 'av.escape': 'on <aimX>,<aimZ> d <dirX>,<dirZ> <remaining> s' every active frame, 'off' once at the end.
+var AV_ESCAPE_HOLD_S = 0.3 // s the escape aim owns the goal after the last lateral touch
+var AV_ESCAPE_AIM_M = 30   // m the escape aim lies from the car along the escape direction
+var AV_ESCAPE_RAYS = 12    // horizontal raycast directions of the touch-point sweep
+var AV_ESCAPE_RAY_M = 1.5  // m ray length from the hull edge: only a body actually touching the hull wins
+function escapeTouch(av, input, params, state, api) {
+  var pos = input.position
+  var e = av.ego
+  var now = state.t
+  var touching = !!(input.environment && input.environment.isTouchingSide)
+  if (touching) {
+    var hl = ((av.vehicle && av.vehicle.length) || params.vehicleLength || 4) / 2
+    var hw = ((av.vehicle && av.vehicle.width) || params.vehicleWidth || 2) / 2
+    var tids = params.threatIds
+    var px = 0
+    var pz = 0
+    var best = Infinity
+    for (var ri = 0; ri < AV_ESCAPE_RAYS; ri++) {
+      var dx = Math.cos((ri * 2 * Math.PI) / AV_ESCAPE_RAYS)
+      var dz = Math.sin((ri * 2 * Math.PI) / AV_ESCAPE_RAYS)
+      // distance from the centre to the hull edge along the ray (box frame: fwd = length axis, left = width axis)
+      var df = Math.abs(dx * e.fwd[0] + dz * e.fwd[2])
+      var dl = Math.abs(dx * e.left[0] + dz * e.left[2])
+      var edge = Math.min(df > 1e-6 ? hl / df : 1e9, dl > 1e-6 ? hw / dl : 1e9) + 0.05
+      var rr = api.raycast([pos[0] + dx * edge, pos[1], pos[2] + dz * edge], [dx, 0, dz], AV_ESCAPE_RAY_M, { visualize: false })
+      // a touch of a body this car TRACKS (a pursuer, params.threatIds) is pursuit contact, not an obstacle touch:
+      // the flee layer owns pursuers; the escape must not fire on every chaser ram
+      if (!rr.hit || rr.entityId === input.entityId || (tids && tids.indexOf(rr.entityId) >= 0)) continue
+      if (edge + rr.distance < best) {
+        best = edge + rr.distance
+        px = pos[0] + dx * (edge + rr.distance)
+        pz = pos[2] + dz * (edge + rr.distance)
+      }
+    }
+    if (best !== Infinity) {
+      var ex = pos[0] - px
+      var ez = pos[2] - pz
+      var el = Math.sqrt(ex * ex + ez * ez)
+      if (el > 1e-3) state.esc = { dx: ex / el, dz: ez / el, until: now + AV_ESCAPE_HOLD_S }
+    } else {
+      // no hit (a contact below the ray plane, a rounded body, a body whose collider the ray starts inside during a ram):
+      // the markContact estimate — half a vehicle length ahead in the driving direction. A tracked pursuer that could itself
+      // be the touch (no id to tell it by: within own hull circumradius + its bounding radius) skips the estimate — pursuit
+      // contact is the flee layer's business (as for the raycast hits above).
+      var tids2 = params.threatIds || []
+      var tNear = false
+      var ownR = Math.sqrt(hl * hl + hw * hw)
+      for (var ti = 0; ti < tids2.length && !tNear; ti++) {
+        var trec = state.trk && state.trk[tids2[ti]]
+        if (!trec) continue
+        var tdx = trec.x - pos[0]
+        var tdz = trec.z - pos[2]
+        var ent = api.getEntity(tids2[ti])
+        var s = ent && ent.shape
+        var tr = s && s.type === 'box' ? Math.sqrt(((s.width || 2) / 2) * ((s.width || 2) / 2) + ((s.depth || 4) / 2) * ((s.depth || 4) / 2)) : s && (s.type === 'sphere' || s.type === 'cylinder' || s.type === 'cone') ? s.radius || 1 : 4
+        var tR = ownR + tr + 0.3
+        if (tdx * tdx + tdz * tdz < tR * tR) tNear = true
+      }
+      if (!tNear) {
+        var g = e.speed < -0.5 ? -1 : 1
+        var fx = pos[0] + e.fwd[0] * g * (hl + 0.3)
+        var fz = pos[2] + e.fwd[2] * g * (hl + 0.3)
+        var fl = Math.sqrt((pos[0] - fx) * (pos[0] - fx) + (pos[2] - fz) * (pos[2] - fz))
+        if (fl > 1e-3) state.esc = { dx: (pos[0] - fx) / fl, dz: (pos[2] - fz) / fl, until: now + AV_ESCAPE_HOLD_S }
+      }
+    }
+  }
+  var esc = state.esc
+  if (esc && now < esc.until) {
+    var ax = pos[0] + esc.dx * AV_ESCAPE_AIM_M
+    var az = pos[2] + esc.dz * AV_ESCAPE_AIM_M
+    input.target.pose.position = [ax, input.target.pose.position[1], az]
+    av.escape = { x: ax, z: az, dx: esc.dx, dz: esc.dz, until: esc.until }
+    api.watch('av.escape', 'on ' + Math.round(ax) + ',' + Math.round(az) + ' d ' + esc.dx.toFixed(2) + ',' + esc.dz.toFixed(2) + ' ' + (esc.until - now).toFixed(2) + ' s')
+    state.escShown = 1
+  } else if (state.esc) {
+    state.esc = null
+    if (state.escShown) {
+      state.escShown = 0
+      api.watch('av.escape', 'off')
     }
   }
 }
