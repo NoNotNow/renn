@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MazeTrainingDialog from './MazeTrainingDialog'
 import { theme } from '@/config/theme'
@@ -123,7 +123,7 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByTestId('maze-training-resize-handle')).toBeInTheDocument()
   })
 
-  it('a row click expands its route tiles (one per way); tiles are individually clickable and select the run target vector', async () => {
+  it('a row click expands its route tiles (one per way); clicking a tile selects the way it started', async () => {
     const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 123, { forward: 3, reversed: 1 }))
     render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
@@ -156,7 +156,7 @@ describe('MazeTrainingDialog', () => {
     const initiallySelected = screen.getByTestId('maze-training-route-tile-maze_train_1-0')
     expect(initiallySelected).toHaveStyle({ borderColor: theme.accent, background: theme.bg.surface })
     expect((initiallySelected as HTMLElement).style.boxShadow).toBe('')
-    // click a tile: it becomes the selected target vector (only one pressed)
+    // click a tile: it starts the run on that way and stays marked as the started way (only one pressed)
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_1-2'))
     expect(screen.getByTestId('maze-training-route-tile-maze_train_1-2')).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByTestId('maze-training-route-tile-maze_train_1-0')).toHaveAttribute('aria-pressed', 'false')
@@ -174,34 +174,40 @@ describe('MazeTrainingDialog', () => {
     expect(screen.queryByText('v3 shipped (gen 1000)')).not.toBeInTheDocument()
   })
 
-  it('Play loads the selected route (default 0, tile click changes it)', async () => {
+  it('clicking a route tile starts the run on that way', async () => {
     const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }))
     const onPlay = vi.fn()
     render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
     await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByText('Best: 10 pts')
-    // default: route 0
-    await user.click(screen.getByTestId('maze-training-play-maze_train_3'))
-    expect(onPlay).toHaveBeenCalledWith('maze_train_3', 0)
-    // select way 3 (reversed) via its tile, then play that run
+    // There is no default-route-0 start: a run can only be started through a tile.
     await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-3'))
-    await user.click(screen.getByTestId('maze-training-play-maze_train_3'))
-    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 3)
+    expect(onPlay).toHaveBeenCalledWith('maze_train_3', 3)
+    // starting another way of the same run reports that route instead
+    await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-1'))
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 1)
     expect(onPlay).toHaveBeenCalledTimes(2)
+    // keyboard Enter on a tile starts that way too
+    const tile2 = screen.getByTestId('maze-training-route-tile-maze_train_3-2')
+    tile2.focus()
+    await user.keyboard('{Enter}')
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 2)
+    expect(onPlay).toHaveBeenCalledTimes(3)
   })
 
-  it('Play loads the maze and keeps the panel open and expanded', async () => {
+  it('starting a run via a tile keeps the panel open and expanded', async () => {
     const user = userEvent.setup()
-    stubFetchWithMeta((spec) => makeMeta(spec, 10))
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 3, reversed: 1 }))
     const onPlay = vi.fn()
     const onClose = vi.fn()
     render(<MazeTrainingDialog isOpen onClose={onClose} onPlayExampleWorld={onPlay} />)
     await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByText('Best: 10 pts')
     expect(screen.getByTestId('maze-training-row-maze_train_3')).toHaveAttribute('aria-pressed', 'false')
-    await user.click(screen.getByTestId('maze-training-play-maze_train_3'))
+    await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
+    await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-0'))
     expect(onPlay).toHaveBeenCalledTimes(1)
     expect(onPlay).toHaveBeenCalledWith('maze_train_3', 0)
     expect(onClose).not.toHaveBeenCalled()
@@ -209,7 +215,7 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByTestId('maze-training-row-maze_train_3')).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('shows "not exported yet" and a disabled play button when meta fetch fails', async () => {
+  it('shows "not exported yet" and renders no route tiles (no way to start the run) when meta fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
     const user = userEvent.setup()
     const onPlay = vi.fn()
@@ -218,10 +224,8 @@ describe('MazeTrainingDialog', () => {
     await waitFor(() => {
       expect(screen.getAllByText('not exported yet')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     })
-    for (const spec of MAZE_TRAINING_WORLDS) {
-      expect(screen.getByTestId(`maze-training-play-${spec.id}`)).toBeDisabled()
-    }
-    fireEvent.click(screen.getByTestId('maze-training-play-maze_train_3'))
+    // tiles only render for exported worlds, so no run can be started
+    expect(screen.queryAllByTestId(/maze-training-route-tile-/)).toHaveLength(0)
     expect(onPlay).not.toHaveBeenCalled()
   })
 

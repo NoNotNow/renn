@@ -8,7 +8,6 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
-import { secondaryButtonStyle, secondaryButtonStyleDisabled } from './sharedStyles'
 import { useCornerBrResize } from '@/hooks/useCornerBrResize'
 import {
   MAZE_TRAINING_WORLDS,
@@ -77,7 +76,7 @@ function mazeMetaUrl(spec: MazeTrainingWorldSpec): string {
   return `${BASE_URL}exampleWorlds/${encodeURIComponent(spec.id)}/meta.json`
 }
 
-/** Per-route tile image (individually clickable in the expanded row = the run's target vector). */
+/** Per-route tile image (clicking a tile in the expanded row starts the run on that way). */
 function mazeRouteTileUrl(spec: MazeTrainingWorldSpec, routeIndex: number): string {
   return `${BASE_URL}exampleWorlds/${encodeURIComponent(spec.id)}/route_${routeIndex}.svg`
 }
@@ -265,7 +264,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
   const [selectedId, setSelectedId] = useState<string | null>(null)
   /** Run row whose full-width thumbnail is expanded (one at a time; null = all rows single-line). */
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
-  /** Selected route tile per world (the run's target vector; default route 0). */
+  /** Route tile per world that started the run (the accent border marks the started way; default route 0). */
   const [selectedRoutes, setSelectedRoutes] = useState<Record<string, number>>({})
   const [collapsed, setCollapsed] = useState<boolean>(() => readStoredCollapsed())
   const [size, setSize] = useState<PanelSize>(() => readStoredSize() ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
@@ -427,17 +426,15 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
     setExpandedRowId((prev) => (prev === id ? null : id))
   }, [])
 
-  const handlePlay = useCallback(
-    (id: string) => {
-      setSelectedId(id)
-      onPlayExampleWorld(id, selectedRoutes[id] ?? 0)
+  /** Clicking a route tile starts the run on that way (kept selected so the accent border marks the started way). */
+  const handleTileClick = useCallback(
+    (worldId: string, routeIndex: number) => {
+      setSelectedId(worldId)
+      setSelectedRoutes((prev) => ({ ...prev, [worldId]: routeIndex }))
+      onPlayExampleWorld(worldId, routeIndex)
     },
-    [onPlayExampleWorld, selectedRoutes],
+    [onPlayExampleWorld],
   )
-
-  const handleTileClick = useCallback((worldId: string, routeIndex: number) => {
-    setSelectedRoutes((prev) => ({ ...prev, [worldId]: routeIndex }))
-  }, [])
 
   const handleThumbError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     e.currentTarget.style.display = 'none'
@@ -623,25 +620,6 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                   ) : (
                     <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>not exported yet</span>
                   )}
-                  <button
-                    type="button"
-                    data-testid={`maze-training-play-${spec.id}`}
-                    disabled={!exported}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handlePlay(spec.id)
-                    }}
-                    style={{
-                      ...secondaryButtonStyle,
-                      ...(exported ? {} : secondaryButtonStyleDisabled),
-                      ...(exported && selected ? { background: theme.button.pick } : {}),
-                      padding: '3px 10px',
-                      fontSize: 12,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Play
-                  </button>
                 </div>
                 {rowExpanded && meta ? (
                   <div style={{ padding: '0 8px 8px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -658,7 +636,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                             tabIndex={0}
                             aria-pressed={tileSelected}
                             aria-label={`${spec.name} way ${i + 1} (${reversed ? 'reversed' : 'forward'})`}
-                            title={`Way ${i + 1} (${reversed ? 'reversed' : 'forward'}) — select as the run's target vector`}
+                            title={`Way ${i + 1} (${reversed ? 'reversed' : 'forward'}) — start the run on this way`}
                             onClick={() => handleTileClick(spec.id, i)}
                             onKeyDown={(e) => e.key === 'Enter' && handleTileClick(spec.id, i)}
                             style={{
