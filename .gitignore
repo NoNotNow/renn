@@ -35,3 +35,6 @@ coverage/
 
 # Agent orchestration run dirs (/orchestrate skill)
 .orchestrate/
+
+# Policy trial snapshot (pinned by train-ctl trial, overwritten every deploy)
+training-data/policy-evolution/.trial-snapshot.json

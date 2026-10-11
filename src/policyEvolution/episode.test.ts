@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { polyGap, rectPoly } from '@/avEvolution/eval/geometry'
-import { buildCourse, COURSE_KINDS, courseKey, parseCourseKey, withVariant, COURSE_LENGTH, FIELD_HALF_WIDTH, holdoutCourseKeys, RouteProgress, trainCourseKeys } from './courses'
+import { polyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
+import { buildCourse, COURSE_KINDS, courseKey, parseCourseKey, polylineNearestDist, withVariant, COURSE_LENGTH, FIELD_HALF_WIDTH, holdoutCourseKeys, RouteProgress, trainCourseKeys } from './courses'
 import { runPolicyEpisode } from './episode'
 import { GENOME_LENGTH, N_HIDDEN, N_IN, N_OUT, N_RAYS } from './policy'
 
@@ -125,6 +125,26 @@ describe('field track', () => {
     expect(r.lastDist).toBeLessThan(10)
     r.update(40, -5)
     expect(r.lastDist).toBeGreaterThan(30)
+  })
+
+  it('polylineNearestDist finds the true nearest segment (no hint, vertices included)', () => {
+    const L: V2[] = [
+      [0, 0],
+      [10, 0],
+    ]
+    expect(polylineNearestDist(L, 5, 0)).toBeCloseTo(0, 9) // on the segment
+    expect(polylineNearestDist(L, 5, 3)).toBeCloseTo(3, 9) // perpendicular
+    expect(polylineNearestDist(L, -4, 0)).toBeCloseTo(4, 9) // before the start vertex
+    expect(polylineNearestDist(L, 14, 0)).toBeCloseTo(4, 9) // past the end vertex
+    const bent: V2[] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+    ]
+    expect(polylineNearestDist(bent, 12, 2)).toBeCloseTo(2, 9) // nearest on the SECOND segment
+    expect(polylineNearestDist(bent, 5, 5)).toBeCloseTo(5, 9) // the elbow is further than the first segment
+    expect(polylineNearestDist([[3, 4]], 0, 0)).toBe(0) // degenerate: single point
+    expect(polylineNearestDist([], 0, 0)).toBe(0) // degenerate: empty
   })
 })
 

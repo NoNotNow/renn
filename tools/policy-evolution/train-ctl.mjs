@@ -10,23 +10,27 @@
  *   node tools/policy-evolution/train-ctl.mjs trial [FILE]  # deploy the best candidate (default latest-best.json) into the
  *                                                           # maze training worlds (--score export) + on-disk gate, verdict printed
  *
- * Known jobs: the v3mg3 policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
+ * Known jobs: the v3mg4 policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
  * and the vite dev server. Detection is by command line + repo path, never a blanket pkill pattern.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TRAIN = {
-  state: resolve(root, 'training-data/policy-evolution/v3mg3.json'),
-  log: resolve(root, 'training-data/policy-evolution/v3mg3.log'),
-  nohupLog: resolve(root, 'training-data/policy-evolution/v3mg3.nohup.log'),
+  state: resolve(root, 'training-data/policy-evolution/v3mg4.json'),
+  log: resolve(root, 'training-data/policy-evolution/v3mg4.log'),
+  nohupLog: resolve(root, 'training-data/policy-evolution/v3mg4.nohup.log'),
   targetGen: 3000,
-  why: 'policy evolution: v3mg3 maze+grid FRESH run (no warm start) with the deviation penalty (devFactor: straying toward the offcourse boundary scales the norm down to V3_FAIL_FACTOR); previous bests archived as forward-only.json (v3mg gen 2400) and v3mg2-best.json (gen 200)',
+  why: 'policy evolution: v3mg4 maze+grid FRESH run (no warm start) with the absolute deviation penalty (devPenaltyNorm: the max distance from the ORIGINAL chain is subtracted from the points as a route fraction) - nets cannot score through detours; previous bests archived as forward-only.json (v3mg gen 2400) and v3mg2-best.json (gen 200)',
   // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself)
-  start: 'V3_OUT=training-data/policy-evolution/v3mg3.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg3.nohup.log 2>&1 &',
+  start: 'V3_OUT=training-data/policy-evolution/v3mg4.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg4.nohup.log 2>&1 &',
+}
+const WATCH = {
+  why: 'auto-trial watcher: deploys the newest candidate into the maze training worlds every 5 min (skips cycles without a new best)',
+  start: 'nohup node tools/policy-evolution/auto-trial.mjs --every 300 > training-data/policy-evolution/auto-trial.log 2>&1 &',
 }
 const VITE_WHY = 'vite dev server (localhost preview) - the test / play workflow'
 
@@ -35,7 +39,7 @@ const ps = () => spawnSync('ps', ['-Ao', 'pid,ppid,pcpu,etime,command'], { encod
 /** All processes belonging to a job; absolute repo path OR the repo-relative launcher paths (bash run-v3.sh / tee are started relative). */
 function findProcs(pattern) {
   const me = String(process.pid)
-  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|training-data\/policy-evolution\/v3mg3\.log/
+  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|tools\/policy-evolution\/auto-trial\.mjs|training-data\/policy-evolution\/v3mg4\.log/
   return ps()
     .map((l) => {
       const m = l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\S+)\s+(.*)$/)
@@ -47,7 +51,8 @@ function findProcs(pattern) {
     .filter(Boolean)
 }
 
-const trainProcs = () => findProcs(/run-islands|run-v3\.sh|v3mg3\.log/)
+const trainProcs = () => findProcs(/run-islands|run-v3\.sh|v3mg4\.log/)
+const watchProcs = () => findProcs(/auto-trial\.mjs/)
 const viteProcs = () => findProcs(/node_modules\/\.bin\/vite|vite\.js/).filter((p) => /vite/.test(p.cmd) && p.cmd.includes(root))
 
 function trainGen() {
@@ -129,6 +134,12 @@ function status() {
     console.log(`  control: node tools/policy-evolution/train-ctl.mjs start`)
   }
   console.log('')
+  const wa = watchProcs()
+  if (wa.length) {
+    console.log(`AUTO-TRIAL  RUNNING`)
+    console.log(`  why:    ${WATCH.why}`)
+    for (const p of wa) console.log(`  pid ${p.pid}  cpu ${p.cpu}%  up ${p.etime}  ${p.cmd.slice(0, 120)}`)
+  }
   if (vi.length) {
     console.log(`VITE DEV  RUNNING`)
     console.log(`  why:    ${VITE_WHY}`)
@@ -140,32 +151,34 @@ function status() {
   return { running: tr.length > 0 }
 }
 
-/** Stop right after a gen line: the state file saves every finished gen, so at most the in-flight gen is lost. */
+/** Stop right after a gen line: the state file saves every finished gen, so at most the in-flight gen is lost. Also stops the auto-trial watcher. */
 function stop() {
   const tr = trainProcs()
-  if (!tr.length) {
+  const watch = watchProcs()
+  if (!tr.length && !watch.length) {
     console.log('training is not running')
     return
   }
   const before = trainGen()
-  const logSize = existsSync(TRAIN.log) ? statSync(TRAIN.log).size : 0
-  const deadline = Date.now() + 15000
-  while (Date.now() < deadline) {
-    const now = Date.now()
-    let size = logSize
-    try {
-      size = statSync(TRAIN.log).size
-    } catch {}
-    if (size > logSize) {
-      const m = readFileSync(TRAIN.log, 'utf8').match(/^gen (\d+).*$/gm)
-      if (m && m[m.length - 1]) break // a fresh gen line landed: safe boundary
+  if (tr.length) {
+    const logSize = existsSync(TRAIN.log) ? statSync(TRAIN.log).size : 0
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      let size = logSize
+      try {
+        size = statSync(TRAIN.log).size
+      } catch {}
+      if (size > logSize) {
+        const m = readFileSync(TRAIN.log, 'utf8').match(/^gen (\d+).*$/gm)
+        if (m && m[m.length - 1]) break // a fresh gen line landed: safe boundary
+      }
+      spawnSync('sleep', ['0.25'])
     }
-    spawnSync('sleep', ['0.25'])
   }
-  const pids = tr.map((p) => p.pid)
+  const pids = [...tr, ...watch].map((p) => p.pid)
   spawnSync('kill', pids)
   spawnSync('sleep', ['2'])
-  const left = trainProcs()
+  const left = [...trainProcs(), ...watchProcs()]
   if (left.length) spawnSync('kill', ['-9', ...left.map((p) => p.pid)])
   console.log(`training stopped (pids ${pids.join(' ')}); state gen ${before} -> ${trainGen()}`)
 }
@@ -181,12 +194,22 @@ function start() {
     spawnSync('sleep', ['0.5'])
     up = trainProcs().length > 0
   }
-  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3mg3.nohup.log')
+  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3mg4.nohup.log')
+  // the auto-trial watcher deploys the newest candidate every 5 min while the run is up (idempotent if one is already up)
+  if (up && !watchProcs().length) {
+    spawnSync('bash', ['-c', WATCH.start], { cwd: root, stdio: 'ignore' })
+    let watching = false
+    for (let i = 0; i < 20 && !watching; i++) {
+      spawnSync('sleep', ['0.5'])
+      watching = watchProcs().length > 0
+    }
+    console.log(watching ? 'auto-trial watcher started (a new candidate is deployed into the maze training worlds every 5 min)' : 'auto-trial watcher FAILED to come up, check training-data/policy-evolution/auto-trial.log')
+  }
 }
 
 function ship() {
   if (trainProcs().length) stop()
-  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3mg3.json', '--v3', '--workers', '9'], {
+  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3mg4.json', '--v3', '--workers', '9'], {
     cwd: root,
     encoding: 'utf8',
   })
@@ -199,7 +222,9 @@ function ship() {
 /**
  * Deploy the best candidate into the maze training worlds WITHOUT touching the shipped policy:
  * re-export maze_train_1..5 with --score via RENN_V3_GENOME_FILE (meta.json names the trial candidate),
- * then run the on-disk consistency gate against the same file. Default: training-data/policy-evolution/latest-best.json.
+ * then run the on-disk consistency gate against the same pinned candidate. Default: training-data/policy-evolution/latest-best.json.
+ * The candidate is PINNED to a snapshot file for the whole trial: latest-best.json advancing mid-trial (the training
+ * writes it on every new best) can never leave the worlds and the gate disagreeing.
  */
 function trial(file = 'training-data/policy-evolution/latest-best.json') {
   const path = resolve(root, file)
@@ -217,8 +242,10 @@ function trial(file = 'training-data/policy-evolution/latest-best.json') {
   }
   const gen = parsed.best?.gen ?? parsed.gen ?? '?'
   const src = parsed.source ?? file
+  const snap = resolve(root, 'training-data/policy-evolution/.trial-snapshot.json')
+  copyFileSync(path, snap)
   console.log(`trial: deploying ${src} (gen ${gen}) into the maze training worlds (export --score, then the on-disk gate)`)
-  const env = { ...process.env, RENN_V3_GENOME_FILE: path }
+  const env = { ...process.env, RENN_V3_GENOME_FILE: snap }
   const exp = spawnSync('npx', ['tsx', 'tools/renn-mcp/export-maze-training-worlds.ts', '--score'], { cwd: root, env, stdio: 'inherit' })
   if (exp.status !== 0) {
     console.log('trial FAILED: the world export failed')

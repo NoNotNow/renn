@@ -3,7 +3,7 @@ import { installDeterminism } from '@/test/avLab/determinism'
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 import type { RennWorld } from '@/types/world'
 import { createRng } from '@/avEvolution/core/rng'
-import { buildCourse, buildSetupCourse, parseCourseKey, RouteProgress, COURSE_START, type Course } from './courses'
+import { buildCourse, buildSetupCourse, parseCourseKey, polylineNearestDist, RouteProgress, COURSE_START, type Course } from './courses'
 import { chainOfEpisode, isChainEpisodeKey, polylineLength, type Chain } from './chains'
 import { LegProgress } from './legs'
 import { hiddenOfLength, N_IN_V2, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
@@ -77,10 +77,8 @@ export interface PolicyEpisodeMetrics {
   reverseShare?: number
   /** v3 episodes: longest distance (m) driven backwards in one go */
   maxReverseM?: number
-  /** v3 episodes: largest distance (m) from the current leg's chain during the episode (deviation from the path vector) */
-  maxDevM?: number
-  /** v3 episodes: the episode's offcourse boundary (m) — maxDevM / offLimitM is the deviation fraction */
-  offLimitM?: number
+  /** v3 episodes: largest distance (m) from the ORIGINAL chain polyline during the episode (deviation from the path vector) */
+  maxDevOrigM?: number
 }
 
 /** Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world). */
@@ -257,7 +255,7 @@ export async function runPolicyEpisode(
     let reverseFrames = 0
     let reverseRun = 0
     let maxReverse = 0
-    let maxDev = 0
+    let maxDevOrig = 0
     for (let frame = 0; frame < frames; frame++) {
       sim.runFrames(1)
       det.advance(DEFAULT_DT)
@@ -272,7 +270,10 @@ export async function runPolicyEpisode(
       }
       const progress = route.update(cp[0], cp[2])
       if (v3) {
-        if (route.lastDist > maxDev) maxDev = route.lastDist
+        // deviation from the ORIGINAL chain (full polyline, not just the current leg): the v3 fitness subtracts
+        // the episode's max deviation from the model's points, so following the path vector is the only free route
+        const devOrig = polylineNearestDist(chainPoints!, cp[0], cp[2])
+        if (devOrig > maxDevOrig) maxDevOrig = devOrig
         const v = sim.getVelocity(POLICY_CAR_ID)
         const fvx = -(2 * (q.x * q.z + q.w * q.y))
         const fvz = -(1 - 2 * (q.x * q.x + q.y * q.y))
@@ -335,7 +336,7 @@ export async function runPolicyEpisode(
       norm: score / (routeLength * NORM_SPEED),
       wallMs: performance.now() - t0,
       length: routeLength,
-      ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevM: maxDev, offLimitM: offCourseM } : {}),
+      ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevOrigM: maxDevOrig } : {}),
     }
   } finally {
     sim?.dispose()

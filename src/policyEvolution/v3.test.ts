@@ -16,7 +16,7 @@ import {
 } from './chains'
 import { v3ReportByKind } from './chainReport'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage } from './curriculum'
-import { aggregateEvenness, aggregateKindEvenness, capNorm, devFactor, V3_FAIL_FACTOR } from './es'
+import { aggregateEvenness, aggregateKindEvenness, capNorm, devPenaltyNorm, V3_FAIL_FACTOR } from './es'
 import { runPolicyEpisode, SAFETY_WINDOW_S, STILL_WINDOW_S, v3EpisodeSeconds } from './episode'
 import { pursuitV2, reverserV3 } from './handWired'
 import { LegProgress } from './legs'
@@ -293,10 +293,9 @@ describe('v3 episodes', () => {
     const a = await runPolicyEpisode(g, 'bay:2#0v3')
     const b = await runPolicyEpisode(g, 'bay:2#0v3')
     expect({ ...a, wallMs: 0 }).toEqual({ ...b, wallMs: 0 })
-    // deviation metrics: tracked every frame, bounded by the offcourse limit for a non-offcourse episode
-    expect(a.maxDevM!).toBeGreaterThanOrEqual(0)
-    expect(a.offLimitM!).toBeGreaterThan(0)
-    expect(a.maxDevM!).toBeLessThanOrEqual(a.offLimitM!)
+    // deviation from the original chain: tracked every frame, always a sane non-negative distance
+    expect(a.maxDevOrigM!).toBeGreaterThanOrEqual(0)
+    expect(Number.isFinite(a.maxDevOrigM!)).toBe(true)
   })
 
   it('hand-wired reverser finishes every dead-end bay and corridor chain, a forward-only follower finishes none (REVERSE USAGE is reported)', async () => {
@@ -446,21 +445,23 @@ describe('v3 fitness: evenness across kinds', () => {
     expect(aggregateKindEvenness([mk(27, 'crash')], 15)).toBeCloseTo(0.5 * aggregateKindEvenness(slow, 15), 12)
   })
 
-  it('deviation penalty: straying toward the offcourse boundary scales the norm down to V3_FAIL_FACTOR', () => {
-    expect(devFactor(undefined, 10)).toBe(1)
-    expect(devFactor(3, undefined)).toBe(1)
-    expect(devFactor(3, 0)).toBe(1)
-    expect(devFactor(2, 10)).toBe(1) // up to the soft limit: free
-    expect(devFactor(0, 10)).toBe(1)
-    expect(devFactor(10, 10)).toBeCloseTo(V3_FAIL_FACTOR, 12) // at the boundary: the fail share
-    expect(devFactor(15, 10)).toBeCloseTo(V3_FAIL_FACTOR, 12) // clamped
-    expect(devFactor(7.5, 10)).toBeCloseTo(1 - 0.5 * (1 - V3_FAIL_FACTOR), 12) // half way between soft and limit
-    // same progress, one near the chain, one straying: the strayer scores lower
-    const onChain = { key: 'maze:1#0v3', norm: 0.9, outcome: 'finish' as const, maxDevM: 1, offLimitM: 10 }
-    const offChain = { key: 'maze:1#0v3', norm: 0.9, outcome: 'finish' as const, maxDevM: 9.5, offLimitM: 10 }
+  it('deviation penalty: the max distance from the original chain is subtracted from the points as a route fraction', () => {
+    expect(devPenaltyNorm(undefined, 100)).toBe(0)
+    expect(devPenaltyNorm(5, undefined)).toBe(0)
+    expect(devPenaltyNorm(5, 0)).toBe(0)
+    expect(devPenaltyNorm(0, 100)).toBe(0)
+    expect(devPenaltyNorm(5, 100)).toBeCloseTo(0.05, 12) // 5 m off the vector on a 100 m chain = 5 % of the route points
+    expect(devPenaltyNorm(30, 100)).toBeCloseTo(0.3, 12)
+    // same norm and progress, one near the chain, one straying: the strayer scores lower
+    const onChain = { key: 'maze:1#0v3', norm: 0.9, outcome: 'finish' as const, length: 100, maxDevOrigM: 0.5 }
+    const offChain = { key: 'maze:1#0v3', norm: 0.9, outcome: 'finish' as const, length: 100, maxDevOrigM: 20 }
     expect(aggregateKindEvenness([onChain])).toBeGreaterThan(aggregateKindEvenness([offChain]))
-    // a metric without deviation fields is unchanged (v3 episodes before the penalty, hand-built test metrics)
+    expect(aggregateKindEvenness([offChain])).toBeCloseTo(aggregateKindEvenness([onChain]) - 0.195, 12)
+    // a metric without deviation fields pays nothing (hand-built test metrics, pre-penalty run files)
     const plain = { key: 'maze:1#0v3', norm: 0.9, outcome: 'finish' as const }
-    expect(aggregateKindEvenness([plain])).toBe(aggregateKindEvenness([{ ...onChain, maxDevM: 0 }]))
+    expect(aggregateKindEvenness([plain])).toBe(aggregateKindEvenness([{ ...onChain, maxDevOrigM: 0 }]))
+    // the penalty stacks with the fail factor: an offcourse strayer keeps the fail share of the penalized norm
+    const crashed = { key: 'maze:1#0v3', norm: 0.9, outcome: 'offcourse' as const, length: 100, maxDevOrigM: 6 }
+    expect(aggregateKindEvenness([crashed])).toBeCloseTo(V3_FAIL_FACTOR * (0.9 - 0.06), 12)
   })
 })

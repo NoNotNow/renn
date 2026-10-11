@@ -97,19 +97,14 @@ export function aggregateEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key
 export const V3_FAIL_FACTOR = 0.5
 
 /**
- * v3 deviation penalty: straying from the commanded chain is punished continuously, not only at the offcourse boundary.
- * Up to V3_DEV_SOFT of the chain's offcourse limit the episode pays nothing; from there the norm is scaled linearly down
- * to V3_FAIL_FACTOR at the limit itself — an episode that survives AT the boundary keeps the same share as one that
- * actually went offcourse (the fail factor applies to both on top of whatever progress was made).
+ * v3 deviation penalty: the episode's points (norm) minus the largest distance from the ORIGINAL chain, converted to the
+ * norm currency as a route fraction (maxDevOrigM / chain length) — one metre off the path vector costs one metre of
+ * route points. Following the vector is the only free route: cutting corners or wandering (up to the offcourse
+ * termination) pays directly, so nets cannot score through detours.
  */
-export const V3_DEV_SOFT = 0.5
-
-/** 1 for small / missing deviation, linearly down to V3_FAIL_FACTOR as maxDevM reaches offLimitM (undefined / <= 0 limit = off). */
-export function devFactor(maxDevM: number | undefined, offLimitM: number | undefined): number {
-  if (maxDevM === undefined || offLimitM === undefined || !(offLimitM > 0)) return 1
-  const frac = Math.min(Math.max(maxDevM / offLimitM, 0), 1)
-  if (frac <= V3_DEV_SOFT) return 1
-  return 1 - ((frac - V3_DEV_SOFT) / (1 - V3_DEV_SOFT)) * (1 - V3_FAIL_FACTOR)
+export function devPenaltyNorm(maxDevOrigM: number | undefined, lengthM: number | undefined): number {
+  if (maxDevOrigM === undefined || !lengthM || !(lengthM > 0)) return 0
+  return maxDevOrigM / lengthM
 }
 
 /**
@@ -122,14 +117,14 @@ export function capNorm(norm: number, meanSpeed: number | undefined, speedCap?: 
 }
 
 export function aggregateKindEvenness(
-  metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevM?: number; offLimitM?: number }>,
+  metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number }>,
   speedCap?: number,
 ): number {
   if (!metrics.length) return 0
   const byKind = new Map<string, Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>>()
   for (const raw of metrics) {
     const failed = raw.outcome !== undefined && raw.outcome !== 'finish' && raw.outcome !== 'timeout'
-    const norm = capNorm(raw.norm, raw.meanSpeed, speedCap) * devFactor(raw.maxDevM, raw.offLimitM)
+    const norm = capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length)
     const m = failed ? { key: raw.key, norm: norm * V3_FAIL_FACTOR } : norm === raw.norm ? raw : { key: raw.key, norm }
     const kind = parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind
     const list = byKind.get(kind)

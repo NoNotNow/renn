@@ -466,6 +466,25 @@ export function buildSetupCourse(setupKey: string): Course {
   return buildCourse(kind, seed, variant, difficulty, true)
 }
 
+/**
+ * Nearest distance (m) from a point to a polyline — the TRUE nearest segment (no segment hint), so it never
+ * over-reports deviation. Used for deviation-from-the-original-chain metrics (episode.ts).
+ */
+export function polylineNearestDist(points: readonly V2[], x: number, z: number): number {
+  let best = Infinity
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i]!
+    const b = points[i + 1]!
+    const dx = b[0] - a[0]
+    const dz = b[1] - a[1]
+    const len2 = dx * dx + dz * dz || 1
+    const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / len2))
+    const d = Math.hypot(x - (a[0] + t * dx), z - (a[1] + t * dz))
+    if (d < best) best = d
+  }
+  return best === Infinity ? 0 : best
+}
+
 /** Arc-length progress of a point along the route polyline (start + waypoints), searched near a segment hint. */
 export class RouteProgress {
   private readonly pts: V2[]
