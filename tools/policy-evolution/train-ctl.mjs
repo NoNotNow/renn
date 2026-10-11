@@ -8,7 +8,7 @@
  *   node tools/policy-evolution/train-ctl.mjs restart       # stop + start
  *   node tools/policy-evolution/train-ctl.mjs ship          # stop -> ship.ts (HOLDOUT finish-count gate) -> start, verdict printed
  *
- * Known jobs: the v3cap policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
+ * Known jobs: the v3mg policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
  * and the vite dev server. Detection is by command line + repo path, never a blanket pkill pattern.
  */
 import { spawnSync } from 'node:child_process'
@@ -18,13 +18,13 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TRAIN = {
-  state: resolve(root, 'training-data/policy-evolution/v3cap.json'),
-  log: resolve(root, 'training-data/policy-evolution/v3cap.log'),
-  nohupLog: resolve(root, 'training-data/policy-evolution/v3cap.nohup.log'),
+  state: resolve(root, 'training-data/policy-evolution/v3mg.json'),
+  log: resolve(root, 'training-data/policy-evolution/v3mg.log'),
+  nohupLog: resolve(root, 'training-data/policy-evolution/v3mg.nohup.log'),
   targetGen: 3000,
-  why: 'policy evolution: v3cap speed-capped fork (--speed-cap 15, warm from v3 gen 1500), 7 workers, ship check when the HOLDOUT gate passes',
+  why: 'policy evolution: v3mg maze+grid fork (--kinds maze,grid --batch 6, warm from v3maze), 9 workers, ship check when the HOLDOUT gate passes',
   // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself)
-  start: 'V3_OUT=training-data/policy-evolution/v3cap.json V3_EXTRA_ARGS="--speed-cap 15 --warm training-data/policy-evolution/v3.json" nohup bash tools/policy-evolution/run-v3.sh 3000 7 > training-data/policy-evolution/v3cap.nohup.log 2>&1 &',
+  start: 'V3_OUT=training-data/policy-evolution/v3mg.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6 --warm training-data/policy-evolution/v3maze.json" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg.nohup.log 2>&1 &',
 }
 const VITE_WHY = 'vite dev server (localhost preview) - the test / play workflow'
 
@@ -33,7 +33,7 @@ const ps = () => spawnSync('ps', ['-Ao', 'pid,ppid,pcpu,etime,command'], { encod
 /** All processes belonging to a job; absolute repo path OR the repo-relative launcher paths (bash run-v3.sh / tee are started relative). */
 function findProcs(pattern) {
   const me = String(process.pid)
-  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|training-data\/policy-evolution\/v3cap\.log/
+  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|training-data\/policy-evolution\/v3mg\.log/
   return ps()
     .map((l) => {
       const m = l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\S+)\s+(.*)$/)
@@ -67,10 +67,23 @@ function lastGenLine() {
   }
 }
 
+/** The agent-facing latest best candidate export (written by run-islands on every best change + resume). */
+function latestBestLine() {
+  try {
+    const lb = JSON.parse(readFileSync(resolve(root, 'training-data/policy-evolution/latest-best.json'), 'utf8'))
+    const b = lb.best ?? {}
+    const fit = (x) => (typeof x === 'number' ? x.toFixed(3) : '?')
+    return `  best:   gen ${b.gen ?? '?'} (train ${fit(b.train)}, holdout ${fit(b.holdout)}) from ${lb.source ?? '?'}  ->  training-data/policy-evolution/latest-best.json (trial: RENN_V3_GENOME_FILE=... on the maze worlds gate)`
+  } catch {
+    return null
+  }
+}
+
 function status() {
   const tr = trainProcs()
   const vi = viteProcs()
   const gen = trainGen()
+  const best = latestBestLine()
   console.log(`repo: ${root}\n`)
   if (tr.length) {
     const workers = tr.filter((p) => /run-islands/.test(p.cmd)).length
@@ -78,11 +91,13 @@ function status() {
     console.log(`TRAINING  RUNNING  gen ${gen ?? '?'}/${TRAIN.targetGen}  (~${workers} proc, ~${Math.round(cpu)}% CPU total)`)
     console.log(`  why:    ${TRAIN.why}`)
     console.log(`  last:   ${lastGenLine() ?? '-'}`)
+    if (best) console.log(best)
     for (const p of tr) console.log(`  pid ${p.pid}  cpu ${p.cpu}%  up ${p.etime}  ${p.cmd.slice(0, 120)}`)
     console.log(`  control: node tools/policy-evolution/train-ctl.mjs stop|start|restart|ship`)
   } else {
     console.log(`TRAINING  STOPPED  (state gen ${gen ?? '?'}/${TRAIN.targetGen}, resume keeps every finished generation)`)
     console.log(`  why it exists: ${TRAIN.why}`)
+    if (best) console.log(best)
     console.log(`  control: node tools/policy-evolution/train-ctl.mjs start`)
   }
   console.log('')
@@ -138,12 +153,12 @@ function start() {
     spawnSync('sleep', ['0.5'])
     up = trainProcs().length > 0
   }
-  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3cap.nohup.log')
+  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3mg.nohup.log')
 }
 
 function ship() {
   if (trainProcs().length) stop()
-  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3cap.json', '--v3', '--workers', '9'], {
+  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3mg.json', '--v3', '--workers', '9'], {
     cwd: root,
     encoding: 'utf8',
   })

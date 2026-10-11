@@ -121,6 +121,16 @@ const SHIPPED_V3_URL = new URL('./shippedPolicyV3.json', import.meta.url)
 
 /** Shipped v3 genome, or undefined before training produced `shippedPolicyV3.json` (read at call time so the exporter works before and after a ship). */
 export function shippedGenomeV3(): number[] | undefined {
+  // RENN_V3_GENOME_FILE: trial a candidate (training-data/policy-evolution/latest-best.json or a run file) WITHOUT
+  // touching the shipped policy. Accepts { genome: number[] } (latest-best.json) or { best: { genome } } (run files).
+  // A set-but-broken override fails loudly — never silently fall back to the shipped genome.
+  const override = process.env.RENN_V3_GENOME_FILE
+  if (override) {
+    const parsed = JSON.parse(readFileSync(override, 'utf8')) as { genome?: number[]; best?: { genome?: number[] } }
+    const genome = parsed.genome ?? parsed.best?.genome
+    if (!genome || genome.length === 0) throw new Error(`RENN_V3_GENOME_FILE ${override} has no genome`)
+    return genome
+  }
   // vitest rewrites import.meta.url, so also try the repo path from the working directory (tests and tools run from the repo root)
   for (const file of [SHIPPED_V3_URL, 'src/policyEvolution/shippedPolicyV3.json']) {
     try {

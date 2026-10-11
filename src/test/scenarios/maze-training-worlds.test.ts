@@ -238,6 +238,8 @@ describe('maze training worlds: route tiles and focusMazeRoute', () => {
 // gap, now measured on every route (forward AND reversed). The gate goes green for all five when a maze-trained
 // candidate clears every route; re-export + re-measure then:
 //   npx tsx tools/renn-mcp/export-maze-training-worlds.ts --score
+// Trialing a candidate (the run always writes its latest best to training-data/policy-evolution/latest-best.json):
+//   RENN_V3_GENOME_FILE=training-data/policy-evolution/latest-best.json MAZE_TRAIN_SIM=1 npx vitest run src/test/scenarios/maze-training-worlds.test.ts -t 'headless v3 run'
 
 const GOAL_REACH_M = MAZE_GOAL_REACH_M
 const MAX_SIM_S = 120

@@ -170,6 +170,33 @@ async function main() {
   const pool = new PolicyPool(workers)
   const evaluate = pool.evaluator()
   fs.mkdirSync(path.dirname(out), { recursive: true })
+  // agent-facing export of the latest best candidate: one stable path (default <out dir>/latest-best.json),
+  // written whenever best changes and once on resume. Trial the candidate without touching the shipped policy:
+  //   RENN_V3_GENOME_FILE=<latest-best.json> MAZE_TRAIN_SIM=1 npx vitest run src/test/scenarios/maze-training-worlds.test.ts
+  const latestBest = args['latest-best'] ? String(args['latest-best']) : path.join(path.dirname(out), 'latest-best.json')
+  const writeLatestBest = (why: string) => {
+    if (!file.best) return
+    fs.writeFileSync(
+      latestBest,
+      JSON.stringify(
+        {
+          schema: 'renn.policy-evolution.latest-best/1',
+          source: out,
+          policy: v3 ? 'v3' : v2 ? 'v2' : 'v1',
+          kinds: [...kinds],
+          ...(file.speedCap ? { speedCap: file.speedCap } : {}),
+          best: file.best,
+          genome: file.best.genome,
+          why,
+          updatedAt: new Date().toISOString(),
+        },
+        null,
+        1,
+      ) + '\n',
+    )
+    console.log(`latest-best -> ${latestBest} (gen ${file.best.gen}, ${why})`)
+  }
+  if (resumed && file.best) writeLatestBest('resume')
   const t0 = Date.now()
   try {
     for (let i = 0; i < gens; i++) {
@@ -214,7 +241,10 @@ async function main() {
         if (v3) line += `\n  HOLDOUT per kind:\n    ${formatV3Report(v3ReportByKind(ho, kinds))}`
         else if (v2) line += `\n  HOLDOUT per kind: ${formatChainReport(chainReportByKind(ho, kinds))}`
         Object.assign(entry, { scores, best, event, train: trainFit, holdout: holdFit })
-        if (!file.best || trainFit > file.best.train) file.best = { gen: isl.state.gen, island: best, train: trainFit, holdout: holdFit, genome: theta }
+        if (!file.best || trainFit > file.best.train) {
+          file.best = { gen: isl.state.gen, island: best, train: trainFit, holdout: holdFit, genome: theta }
+          writeLatestBest('new best by TRAIN')
+        }
       }
       file.history.push(entry)
       file.state = isl.state
