@@ -1,4 +1,5 @@
 import type { V2 } from '@/avEvolution/eval/geometry'
+import { WallLos } from './wallLos'
 
 /**
  * Leg-wise chain progress (v3, spec-command-chains.md section v3). A chain is a polyline split into LEGS at the point indices `legEnds` (leg k runs from
@@ -85,13 +86,20 @@ interface LegApi {
   legInit(ch: V2[], ends?: number[]): LegTrackState
   legStep(t: LegTrackState, x: number, z: number): void
   legProgress(t: LegTrackState): number
+  legPoint(t: LegTrackState, leg: LegTrackState['legs'][number], s: number): V2
 }
 let api: LegApi | undefined
-const legApi = (): LegApi => (api ??= new Function(`${LEG_TRACK_JS}; return { legInit: legInit, legStep: legStep, legProgress: legProgress }`)() as LegApi)
+const legApi = (): LegApi =>
+  (api ??= new Function(
+    `${LEG_TRACK_JS}; return { legInit: legInit, legStep: legStep, legProgress: legProgress, legPoint: legPoint }`,
+  )() as LegApi)
 
 /** TS handle on the shared leg tracker (the same code the policy stage runs). */
 export class LegProgress {
   private readonly t: LegTrackState
+  private readonly los?: WallLos
+  /** LOS-gated credit high-water (only advanced when the credit vector was wall-free); equals the raw progress without `los` */
+  private credited = 0
   /** distance of the last position to the current leg (m) */
   get lastDist(): number {
     return this.t.dist
@@ -106,19 +114,39 @@ export class LegProgress {
   get done(): boolean {
     return this.t.done
   }
-  /** best (monotone) progress: completed legs + projection onto the current leg; the full length once done */
+  /** best (monotone) progress: completed legs + projection onto the current leg; the full length once done — with `los`, the OCCLUSION-GATED credit high-water */
   get progress(): number {
+    return this.los ? this.credited : legApi().legProgress(this.t)
+  }
+
+  /** the raw tracker progress without the line-of-sight gate (diagnostics / tests: the occluded share = raw - credited) */
+  get progressRaw(): number {
     return legApi().legProgress(this.t)
   }
 
-  /** `legEnds`: point indices where the legs end (see above); undefined = one leg. `offM` is only used for the "past the leg end" test. */
-  constructor(points: V2[], legEnds?: number[], offM = 6) {
+  /**
+   * `legEnds`: point indices where the legs end (see above); undefined = one leg. `offM` is only used for the "past the
+   * leg end" test. `los` (v3 episodes): the wall line-of-sight of the course — progress credit is only given on frames
+   * where the segment car -> projected chain point crosses no wall (a projection onto a chain point behind a wall is
+   * NOT credit the car drove); the previous credit stands while occluded, the aim input of the net is unaffected.
+   */
+  constructor(points: V2[], legEnds?: number[], offM = 6, los?: WallLos) {
     this.t = legApi().legInit(points, legEnds)
     this.t.off = offM
+    this.los = los
   }
 
   update(x: number, z: number): number {
     legApi().legStep(this.t, x, z)
-    return this.progress
+    if (!this.los) return legApi().legProgress(this.t)
+    const raw = legApi().legProgress(this.t)
+    // finish credits in full: the reach test is a physical proximity to the leg end, not a projection
+    if (this.t.done) this.credited = raw
+    else {
+      // the projected chain point this frame's credit refers to (the tracker's own projection on the current leg)
+      const p = legApi().legPoint(this.t, this.t.legs[this.t.li]!, this.t.s)
+      if (!this.los.blocked(x, z, p[0], p[1])) this.credited = raw
+    }
+    return this.credited
   }
 }

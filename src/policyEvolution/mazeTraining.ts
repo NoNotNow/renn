@@ -14,6 +14,7 @@ import { createRng } from '@/avEvolution/core/rng'
 import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { buildCourse, KIND_SALT, type Course, type CourseBox } from './courses'
+import { WALL_LOS_JS } from './wallLos'
 import { POLICY_CAR_ID, POLICY_GROUND, policyCourseParts, type CmdConfig } from './episode'
 
 export interface MazeTrainingWorldSpec {
@@ -364,11 +365,16 @@ export const MAZE_CARROT_COLOR = '#aa44ff'
 /**
  * Custom-transformer code of the per-car score stage (same code string on every car, params differ: `chain` = the own
  * shifted chain, `chains` = ALL shifted chains, `chainColors` = per-chain [start, end] color pairs, `cars` = all car
- * entity ids, `idx` = the own copy index, `hud` = only car 0 writes the HUD score). Monotone arc-length progress along
+ * entity ids, `idx` = the own copy index, `hud` = only car 0 writes the HUD score, `walls` = the own copy's wall rect
+ * corner polys for the line-of-sight gate). Monotone arc-length progress along
  * the own tapered chain (1 pt / m, never backwards) plus a speed bonus (up to `bonusRate` pt/s at `vRef`) minus a
  * per-second TOUCH penalty (wall contact via `isTouchingSide` costs `wallPenaltyPerS`, object contact — any contact
  * without a lateral one and without support below the hull, i.e. not merely standing on the ground — costs
- * `objectPenaltyPerS`; walls cost more than objects). HIGH-WATER MARK: the run score (progress + bonus - penalties,
+ * `objectPenaltyPerS`; walls cost more than objects). LINE-OF-SIGHT GATE (WALL_LOS_JS above): the progress credit is
+ * only raised when the segment car -> projected chain point crosses no wall of `params.walls` — a projection onto a
+ * chain point behind a wall (wrong side of a wall, parallel corridor, shortcut across a maze interval) is not credit
+ * the car drove; while occluded the previous credit stands and bonus / penalties keep running. Stages without
+ * `params.walls` (pre-gate exports) keep the old ungated behavior. HIGH-WATER MARK: the run score (progress + bonus - penalties,
  * floored at 0) keeps draining while the car touches, but the DISPLAYED / snapshotted score is `state.best` = the
  * maximum of the run score over time — it can never decrease. A car that stalls against a wall drains its run score
  * to 0 (12 pt/s), but the score it earned on the way stays visible and comparable against a car that gave up at the
@@ -380,7 +386,8 @@ export const MAZE_CARROT_COLOR = '#aa44ff'
  * y = 0.35) plus one carrot per car (own from input.position at state.s + 8, the others via api.getWorldPosition,
  * nearest chain point + 8 m ahead).
  */
-export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, state, api) {
+export const MAZE_SCORE_STAGE_CODE = `${WALL_LOS_JS}
+function transform(input, dt, params, state, api) {
   if (state.t === undefined) state.t = 0
   state.t += dt
   var env = input.environment
@@ -401,6 +408,8 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
     state.penalty = 0
     state.seg = 0
     state.best = 0
+    // line-of-sight gate cache: the own copy's wall rects, preprocessed with bounding circles (empty = ungated)
+    state.los = losWallsInit(params.walls || [])
   }
   var total = state.cum[n - 1]
   var px = input.position[0], pz = input.position[2]
@@ -415,7 +424,7 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
     state.seg = n - 2
   }
   if (!state.done) {
-    var bestD = Infinity, bestS = state.s, bestSeg = state.seg
+    var bestD = Infinity, bestS = state.s, bestSeg = state.seg, bestPX = px, bestPZ = pz
     for (var i = Math.max(0, state.seg - 2); i <= Math.min(n - 2, state.seg + 3); i++) {
       var ax = ch[i][0], az = ch[i][1]
       var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az
@@ -426,10 +435,14 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
         bestD = d
         bestS = state.cum[i] + t * Math.sqrt(len2)
         bestSeg = i
+        bestPX = ax + t * dx
+        bestPZ = az + t * dz
       }
     }
     state.seg = bestSeg
-    if (bestS > state.s) state.s = bestS
+    // line-of-sight gate: only credit the projection when the car -> projected chain point segment crosses no wall —
+    // the previous credit stands while occluded (bonus / penalties keep running, the carrot vector stays the aim)
+    if (bestS > state.s && !losBlocked(state.los, px, pz, bestPX, bestPZ)) state.s = bestS
     state.bonus += (v / vRef) * dt * (params.bonusRate || 5)
     state.penalty += dt * (wallT ? (params.wallPenaltyPerS || 12) : objT ? (params.objectPenaltyPerS || 4) : 0)
   }
@@ -523,6 +536,13 @@ export function buildMazeTrainingWorld(spec: MazeTrainingWorldSpec, genome?: num
   const spacing = MAZE_TRAIN_ROUTES.spacingM
   const carIds = routes.map((_, i) => mazeCarId(i))
   const chainsShifted: V2[][] = chains.map((ch, i) => ch.map((p) => [p[0] + i * spacing, p[1]] as V2))
+  // per-copy wall rect corner polys (the line-of-sight gate of the score stage; rounded like the chain points)
+  const wallsShifted: V2[][][] = routes.map((_, i) =>
+    course.boxes.map((b) => {
+      const poly = rectPoly(b.at[0] + i * spacing, b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])
+      return poly.map((p) => [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000] as V2)
+    }),
+  )
   const chainColors = routes.map((r) =>
     r.reversed ? [MAZE_TRAIN_CHAIN_COLORS_REVERSED.start, MAZE_TRAIN_CHAIN_COLORS_REVERSED.end] : [MAZE_TRAIN_CHAIN_COLORS.start, MAZE_TRAIN_CHAIN_COLORS.end],
   )
@@ -564,6 +584,7 @@ export function buildMazeTrainingWorld(spec: MazeTrainingWorldSpec, genome?: num
       params: {
         chain: chainsShifted[i]!,
         chains: chainsShifted,
+        walls: wallsShifted[i]!,
         chainColors,
         cars: carIds,
         idx: i,

@@ -6,6 +6,7 @@ import { createRng } from '@/avEvolution/core/rng'
 import { buildCourse, buildSetupCourse, parseCourseKey, polylineNearestDist, RouteProgress, COURSE_START, type Course } from './courses'
 import { chainOfEpisode, isChainEpisodeKey, polylineLength, type Chain } from './chains'
 import { LegProgress } from './legs'
+import { WallLos } from './wallLos'
 import { V3_OBJECT_TOUCH_PENALTY, V3_WALL_TOUCH_PENALTY } from './es'
 import { hiddenOfLength, N_IN_V2, N_IN_V3, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
 import { policyDriveStage, policyInputStage, policyV1Stage, policyV2Stage, POLICY_INPUT_STAGE_ID } from './policyStages'
@@ -250,7 +251,10 @@ export async function runPolicyEpisode(
   })
   const wallIds = new Set(course.boxes.map((_, i) => `box_${i}`))
   const hullR = Math.hypot(CAR_SIZE[0], CAR_SIZE[1]) / 2
-  const route = v3 ? new LegProgress(chainPoints!, legEnds, offM) : new RouteProgress(chainPoints ?? course)
+  // v3 line-of-sight gate: the same course walls the touch test uses — progress credit is only given on frames
+  // whose car -> projected chain point segment crosses no wall (LegProgress holds the gated credit high-water)
+  const los = v3 ? new WallLos(walls.map((w) => w.poly)) : undefined
+  const route = v3 ? new LegProgress(chainPoints!, legEnds, offM, los) : new RouteProgress(chainPoints ?? course)
   const t0 = performance.now()
   const det = installDeterminism(1, 0)
   const prevWarn = console.warn

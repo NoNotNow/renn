@@ -298,6 +298,107 @@ describe('maze training score stage: finish freeze', () => {
   })
 })
 
+// --- the in-world score stage: the line-of-sight gate on the progress credit ("wall between vector and car") ---------
+
+describe('maze training score stage: line-of-sight gate', () => {
+  const transform = new Function(`${MAZE_SCORE_STAGE_CODE}\nreturn transform`)() as (
+    input: any,
+    dt: number,
+    params: any,
+    state: any,
+    api: any,
+  ) => unknown
+  // chain along x from (0,0) to (50,0); one wall along x at z = 4 covering the whole chain: a car NORTH of it
+  // projects onto the chain across the wall (the wrong-side / parallel-corridor occlusion the gate must catch)
+  const chain = [[0, 0], [50, 0]] as unknown as number[][]
+  const walls = [[[-5, 3.5], [55, 3.5], [55, 4.5], [-5, 4.5]]]
+  const params = {
+    chain,
+    chains: [chain],
+    walls,
+    chainColors: [],
+    cars: [mazeCarId(0)],
+    idx: 0,
+    hud: false,
+    vRef: 20,
+    bonusRate: 5,
+    wallPenaltyPerS: 12,
+    objectPenaltyPerS: 4,
+  }
+  const mkApi = () => {
+    const watch: Record<string, string> = {}
+    return {
+      watch: (k: string, v: string) => {
+        watch[k] = v
+      },
+      getWatch: () => watch,
+      raycast: () => ({ hit: false }),
+      setScore: () => {},
+      getWorldPosition: () => null,
+      visualizeLine: () => {},
+    }
+  }
+  const stepAt = (state: Record<string, unknown>, api: ReturnType<typeof mkApi>, x: number, z: number, wall = false) =>
+    transform(
+      { position: [x, 1, z], velocity: [20, 0, 0], environment: wall ? { isTouchingSide: true } : {} },
+      DEFAULT_DT,
+      params,
+      state,
+      api,
+    )
+  const scoreOf = (api: ReturnType<typeof mkApi>) => Number(/(\d+)/.exec(api.getWatch()['maze.score']!)![1])
+
+  it('(i) an occluded chain projection gives NO progress credit: the previous credit stands', () => {
+    const state: Record<string, unknown> = {}
+    const api = mkApi()
+    stepAt(state, api, 10, 1)
+    expect(api.getWatch()['maze.prog']).toBe('10.0 / 50 m')
+    stepAt(state, api, 20, 8) // north of the wall: the projection (20, 0) is behind it
+    expect(api.getWatch()['maze.prog']).toBe('10.0 / 50 m')
+    expect(state.seg).toBe(0)
+  })
+
+  it('(ii) free sight credits normally (a stage without walls stays ungated, like the pre-gate exports)', () => {
+    const state: Record<string, unknown> = {}
+    const api = mkApi()
+    stepAt(state, api, 20, 1)
+    expect(api.getWatch()['maze.prog']).toBe('20.0 / 50 m')
+    const legacy = { ...params, walls: undefined }
+    const state2: Record<string, unknown> = {}
+    transform({ position: [20, 1, 8], velocity: [20, 0, 0], environment: {} }, DEFAULT_DT, legacy, state2, mkApi())
+    expect((state2 as { s?: number }).s).toBeCloseTo(20, 6)
+  })
+
+  it('(iii) once the occlusion is gone the progress keeps flowing (no deadlock); bonus and penalties run while occluded', () => {
+    const state: Record<string, unknown> = {}
+    const api = mkApi()
+    stepAt(state, api, 10, 1)
+    stepAt(state, api, 20, 8)
+    const bonusWhileOccluded = state.bonus as number
+    // 0.5 s of scraping the wall on the wrong side: the credit stays, the penalty keeps running
+    for (let k = 0; k < 0.5 / DEFAULT_DT; k++) stepAt(state, api, 20, 8, true)
+    expect(api.getWatch()['maze.prog']).toBe('10.0 / 50 m')
+    expect(state.penalty as number).toBeGreaterThan(0)
+    expect(state.bonus as number).toBeGreaterThanOrEqual(bonusWhileOccluded)
+    // back on the chain's side of the wall: the credit jumps to the visible projection
+    stepAt(state, api, 30, 2)
+    expect(api.getWatch()['maze.prog']).toBe('30.0 / 50 m')
+  })
+
+  it('(iv) the shown score stays the HIGH-WATER of the occlusion-corrected curve', () => {
+    const state: Record<string, unknown> = {}
+    const api = mkApi()
+    stepAt(state, api, 10, 1)
+    const high = scoreOf(api)
+    expect(high).toBeGreaterThanOrEqual(10)
+    // 8 s occluded against the wall: no credit, -96 pts of run-score drain — the shown score keeps the peak
+    for (let k = 0; k < 8 / DEFAULT_DT; k++) stepAt(state, api, 20, 8, true)
+    expect(scoreOf(api)).toBe(high)
+    expect(state.best).toBe(high)
+    expect(state.s).toBe(10)
+  })
+})
+
 // --- route tiles + the load-time route focus (dialog round 5) -------------------------------------------------------
 
 describe('maze training worlds: route tiles and focusMazeRoute', () => {

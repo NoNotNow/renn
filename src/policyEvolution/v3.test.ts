@@ -20,6 +20,7 @@ import { aggregateEvenness, aggregateKindEvenness, capNorm, devPenaltyNorm, V3_F
 import { runPolicyEpisode, SAFETY_WINDOW_S, STILL_WINDOW_S, v3EpisodeSeconds } from './episode'
 import { pursuitV3, reverserV3 } from './handWired'
 import { LegProgress } from './legs'
+import { WallLos } from './wallLos'
 import { GENOME_LENGTH_V3 } from './policy'
 import { POLICY_DRIVE_STAGE_CODE } from './policyStages'
 import { RouteProgress } from './courses'
@@ -97,6 +98,53 @@ describe('leg-wise progress (doubling-back chain)', () => {
     for (let x = -30; x <= 30; x += 3) lp.update(x, -20)
     expect(lp.leg).toBe(0)
     expect(lp.progress).toBeCloseTo(20, 6)
+  })
+})
+
+describe('leg progress line-of-sight gate (v3 credit vector vs course walls)', () => {
+  // one chain leg along x, one wall along x at z = 4: the car north of it projects onto the chain ACROSS the wall
+  const chain: P[] = [[0, 0], [40, 0]]
+  const wall: P[] = [[-2, 3.5], [42, 3.5], [42, 4.5], [-2, 4.5]]
+  const los = new WallLos([wall])
+
+  it('(i) an occluded chain projection gives NO credit: the raw progress advances, the credit high-water does not', () => {
+    const lp = new LegProgress(chain, undefined, 6, los)
+    expect(lp.update(10, 1)).toBeCloseTo(10, 6) // free: credit
+    expect(lp.update(20, 8)).toBeCloseTo(10, 6) // projection point (20, 0) is behind the wall: no credit
+    expect(lp.progressRaw).toBeCloseTo(20, 6) // ...while the raw tracker sees the projection
+  })
+
+  it('(ii) free sight credits normally', () => {
+    const lp = new LegProgress(chain, undefined, 6, los)
+    expect(lp.update(20, 1)).toBeCloseTo(20, 6)
+    expect(lp.progress).toBeCloseTo(20, 6)
+  })
+
+  it('(iii) once the occlusion is gone the progress keeps flowing (no deadlock), and the credit never decreases', () => {
+    const lp = new LegProgress(chain, undefined, 6, los)
+    lp.update(10, 1)
+    lp.update(20, 8) // occluded
+    expect(lp.update(25, 2)).toBeCloseTo(25, 6) // free again: the credit jumps to the visible projection
+    expect(lp.update(20, 8)).toBeCloseTo(25, 6) // occluded again: the credit high-water stands
+  })
+
+  it('(iv) finish credits in full regardless of the gate (reach is physical proximity, not a projection)', () => {
+    const lp = new LegProgress(chain, undefined, 6, los)
+    lp.update(10, 8) // occluded start: nothing credited yet
+    lp.update(38, 1) // within reach (5 m) of the leg end
+    expect(lp.done).toBe(true)
+    expect(lp.progress).toBeCloseTo(40, 6)
+  })
+
+  it('without walls the tracker stays ungated (bit-identical to the shared leg tracker)', () => {
+    const gated = new LegProgress(chain, undefined, 6, los)
+    const plain = new LegProgress(chain)
+    for (let x = 0; x <= 20; x += 2) {
+      gated.update(x, 8) // behind the wall the whole way
+      expect(plain.update(x, 8)).toBeCloseTo(x, 6)
+    }
+    expect(gated.progress).toBe(0)
+    expect(plain.progress).toBeCloseTo(20, 6)
   })
 })
 

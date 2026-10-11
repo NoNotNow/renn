@@ -35,6 +35,7 @@ import {
 import type { MazeTrainingCandidate } from '../../src/policyEvolution/mazeTraining'
 import type { CourseBox } from '../../src/policyEvolution/courses'
 import type { V2 } from '../../src/avEvolution/eval/geometry'
+import { WallLos } from '../../src/policyEvolution/wallLos'
 import { DEFAULT_DT, WorldSimulator } from '../../src/test/helpers/worldSimulator'
 import type { RennWorld } from '../../src/types/world'
 
@@ -48,18 +49,21 @@ function watchValues(entityId: string): Record<string, unknown> {
   return out
 }
 
-/** Same scoring rule as the in-world stage (monotone chain progress + speed bonus), as a cross-check of the watch value. */
-function identicalScorer(chain: number[][], vRef: number, bonusRate: number) {
+/** Same scoring rule as the in-world stage (monotone chain progress + speed bonus, incl. the wall line-of-sight gate on the progress credit), as a cross-check of the watch value. */
+function identicalScorer(chain: number[][], walls: V2[][], vRef: number, bonusRate: number) {
   const cum = [0]
   for (let q = 1; q < chain.length; q++) cum.push(cum[q - 1]! + Math.hypot(chain[q]![0] - chain[q - 1]![0], chain[q]![1] - chain[q - 1]![1]))
   let s = 0
   let bonus = 0
   let seg = 0
+  const los = new WallLos(walls)
   return {
     step(px: number, pz: number, vx: number, vz: number, dt: number): number {
       let bestD = Infinity
       let bestS = s
       let bestSeg = seg
+      let bestPX = px
+      let bestPZ = pz
       for (let i = Math.max(0, seg - 2); i <= Math.min(chain.length - 2, seg + 3); i++) {
         const ax = chain[i]![0]
         const az = chain[i]![1]
@@ -72,10 +76,12 @@ function identicalScorer(chain: number[][], vRef: number, bonusRate: number) {
           bestD = d
           bestS = cum[i]! + t * Math.sqrt(len2)
           bestSeg = i
+          bestPX = ax + t * dx
+          bestPZ = az + t * dz
         }
       }
       seg = bestSeg
-      if (bestS > s) s = bestS
+      if (bestS > s && !los.blocked(px, pz, bestPX, bestPZ)) s = bestS
       bonus += (Math.min(Math.hypot(vx, vz), vRef) / vRef) * dt * bonusRate
       return Math.floor(s + bonus)
     },
@@ -83,13 +89,13 @@ function identicalScorer(chain: number[][], vRef: number, bonusRate: number) {
 }
 
 /** Headless run of one world: every car drives simultaneously; per car reached/seconds/score, bestScore = max over cars. */
-async function scoreWorld(world: RennWorld, chains: number[][][], vRef: number, bonusRate: number) {
+async function scoreWorld(world: RennWorld, chains: number[][][], wallsWorld: V2[][][], vRef: number, bonusRate: number) {
   const K = chains.length
   const goalPos = (world.entities as { id: string; position: number[] }[]).filter((e) => e.id.startsWith(MAZE_GOAL_PREFIX)).map((e) => e.position)
   setAgentObservationWatchActive(true)
   const sim = await WorldSimulator.create(world, 0)
   try {
-    const scorers = chains.map((ch) => identicalScorer(ch, vRef, bonusRate))
+    const scorers = chains.map((ch, i) => identicalScorer(ch, wallsWorld[i] ?? [], vRef, bonusRate))
     const reachedAt: Array<number | null> = new Array(K).fill(null)
     // per-car snapshot AT the moment of reaching: the in-world stage freezes the score at its finish (MAZE_GOAL_REACH_M),
     // so the watch value stands still afterwards — but snapshotting at reachedAt makes each car's result independent of
@@ -201,15 +207,18 @@ async function main(): Promise<void> {
   for (const spec of MAZE_TRAINING_WORLDS) {
     const { course, routes, chains } = mazeTrainingRoutes(spec)
     const world = buildMazeTrainingWorld(spec, genome)
-    const scoreStage0 = (world.transformers as Record<string, { params?: { vRef?: number; bonusRate?: number; chains?: number[][][] } }>)[mazeScoreStageId(0)]
+    const scoreStages = (world.transformers as Record<string, { params?: { vRef?: number; bonusRate?: number; chains?: number[][][]; walls?: V2[][] } }>)
+    const scoreStage0 = scoreStages[mazeScoreStageId(0)]
     const chainsWorld = (scoreStage0?.params?.chains ?? []) as number[][][]
+    // the line-of-sight gate walls live on each route's own score stage (shifted to its maze copy)
+    const wallsWorld = Array.from({ length: chainsWorld.length }, (_, i) => (scoreStages[mazeScoreStageId(i)]?.params?.walls ?? []) as V2[][])
     const outDir = resolve(root, 'public/exampleWorlds', spec.id)
     mkdirSync(outDir, { recursive: true })
     writeFileSync(resolve(outDir, 'world.json'), JSON.stringify(world, null, 2) + '\n')
     let bestScore: number | null = null
     let routeScores: Array<number | null> = routes.map(() => null)
     if (withScore) {
-      const results = await scoreWorld(world, chainsWorld, scoreStage0?.params?.vRef ?? 20, scoreStage0?.params?.bonusRate ?? 5)
+      const results = await scoreWorld(world, chainsWorld, wallsWorld, scoreStage0?.params?.vRef ?? 20, scoreStage0?.params?.bonusRate ?? 5)
       bestScore = Math.max(...results.map((r) => r.score))
       routeScores = results.map((r) => r.score)
       results.forEach((r, i) => {
