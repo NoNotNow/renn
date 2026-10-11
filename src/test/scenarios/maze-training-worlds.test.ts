@@ -203,7 +203,7 @@ describe('maze training worlds', () => {
   })
 })
 
-// --- the in-world score stage: the finish freeze (commit 6eb1fd58 follow-up) ---------------------------------------------------------
+// --- the in-world score stage: the high-water mark + the finish freeze (commit 46ce61af follow-up) ------------------------------------
 
 describe('maze training score stage: finish freeze', () => {
   const transform = new Function(`${MAZE_SCORE_STAGE_CODE}\nreturn transform`)() as (
@@ -265,16 +265,36 @@ describe('maze training score stage: finish freeze', () => {
     expect(api.getWatch()['maze.prog']).toBe('50.0 / 50 m')
   })
 
-  it('does not finish early: outside the reach radius the penalties still apply', () => {
+  it('does not finish early: outside the reach radius the penalties still drain the run score', () => {
     const state: Record<string, unknown> = {}
     const api = mkApi()
     stepAt(state, api, 20, false)
     expect(state.done).toBeUndefined()
-    // 2 s of wall contact at 12 pt/s: 25 m progress + ~10 pts speed bonus - 24 pts penalty = 11 pts
+    expect(scoreOf(api)).toBe(20)
+    // 2 s of wall contact at 12 pt/s: 25 m progress + ~10 pts speed bonus - 24 pts penalty = 11 pts of RUN score
     for (let k = 0; k < 2 / DEFAULT_DT; k++) stepAt(state, api, 25, true)
     expect(state.done).toBeUndefined()
-    expect(scoreOf(api)).toBe(11)
+    // the run score still pays (the penalty accumulates), but the SHOWN score is the high-water mark: 24 pts from the
+    // moment the progress jumped to 25 m — it never dropped to the drained run value of 11
+    expect(state.penalty as number).toBeCloseTo(24, 6)
+    expect(scoreOf(api)).toBe(24)
     expect(api.getWatch()['maze.prog']).toBe('25.0 / 50 m')
+  })
+
+  it('the shown score never decreases: a stall against a wall drains the run score, not the high-water mark', () => {
+    const state: Record<string, unknown> = {}
+    const api = mkApi()
+    // drive to 25 m: ~25 pts banked
+    stepAt(state, api, 25, false)
+    const high = scoreOf(api)
+    expect(high).toBeGreaterThanOrEqual(25)
+    // 8 s of standing against the wall: -96 pts of run-score drain would clamp the raw score to 0
+    for (let k = 0; k < 8 / DEFAULT_DT; k++) stepAt(state, api, 25, true)
+    expect(scoreOf(api)).toBe(high)
+    expect(state.best).toBe(high)
+    // the run score itself is drained past the floor (clamped to 0); only the shown / snapshotted value keeps the peak
+    const raw = (state.s as number) + (state.bonus as number) - (state.penalty as number)
+    expect(Math.max(0, Math.floor(raw))).toBe(0)
   })
 })
 

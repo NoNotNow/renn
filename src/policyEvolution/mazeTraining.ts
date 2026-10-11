@@ -368,9 +368,13 @@ export const MAZE_CARROT_COLOR = '#aa44ff'
  * the own tapered chain (1 pt / m, never backwards) plus a speed bonus (up to `bonusRate` pt/s at `vRef`) minus a
  * per-second TOUCH penalty (wall contact via `isTouchingSide` costs `wallPenaltyPerS`, object contact — any contact
  * without a lateral one and without support below the hull, i.e. not merely standing on the ground — costs
- * `objectPenaltyPerS`; walls cost more than objects). FINISH: once the car comes within `MAZE_GOAL_REACH_M` of its
- * chain end the route counts as cleared — progress snaps to the full chain length and the score FREEZES (no further
- * progress, bonus or penalties, the carrot parks on the end point), so the watch score never drops after the finish.
+ * `objectPenaltyPerS`; walls cost more than objects). HIGH-WATER MARK: the run score (progress + bonus - penalties,
+ * floored at 0) keeps draining while the car touches, but the DISPLAYED / snapshotted score is `state.best` = the
+ * maximum of the run score over time — it can never decrease. A car that stalls against a wall drains its run score
+ * to 0 (12 pt/s), but the score it earned on the way stays visible and comparable against a car that gave up at the
+ * start. FINISH: once the car comes within `MAZE_GOAL_REACH_M` of its chain end the route counts as cleared — progress
+ * snaps to the full chain length and the score FREEZES (no further progress, bonus or penalties, the carrot parks on
+ * the end point), a special case of the high-water mark: the frozen value is the final one.
  * DRAWING happens only from car 0's stage (api.visualizeLine renders for the entity named by
  * world.debugTargetLineEntityId): every chain in its color pair (forward green -> orange, reversed blue -> orange,
  * y = 0.35) plus one carrot per car (own from input.position at state.s + 8, the others via api.getWorldPosition,
@@ -396,6 +400,7 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
     state.bonus = 0
     state.penalty = 0
     state.seg = 0
+    state.best = 0
   }
   var total = state.cum[n - 1]
   var px = input.position[0], pz = input.position[2]
@@ -430,8 +435,11 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
   }
   var score = Math.floor(state.s + state.bonus - state.penalty)
   if (score < 0) score = 0
-  if (params.hud) api.setScore(score)
-  api.watch('maze.score', score + ' pts')
+  // high-water mark: the run score above still drains on touches, but the shown / snapshotted score is its maximum
+  // over time — a stall against a wall can no longer zero out the points earned on the way
+  if (score > state.best) state.best = score
+  if (params.hud) api.setScore(state.best)
+  api.watch('maze.score', state.best + ' pts')
   api.watch('maze.prog', state.s.toFixed(1) + ' / ' + total.toFixed(0) + ' m')
   api.watch('maze.speed', v.toFixed(1) + ' m/s')
   api.watch('maze.seg', String(state.seg))

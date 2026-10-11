@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { polyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { buildCourse, COURSE_KINDS, courseKey, parseCourseKey, polylineNearestDist, withVariant, COURSE_LENGTH, FIELD_HALF_WIDTH, holdoutCourseKeys, RouteProgress, trainCourseKeys } from './courses'
 import { CRASH_TOUCH_S, runPolicyEpisode } from './episode'
+import { touchPenaltyNorm } from './es'
 import { pursuitV3 } from './handWired'
 import { GENOME_LENGTH, N_HIDDEN, N_IN, N_OUT, N_RAYS } from './policy'
 
@@ -181,6 +182,15 @@ describe('policy episode', () => {
     expect(m.touchWallFrames).toBeGreaterThan(0)
     expect(m.touchWallFrames).toBeLessThan(Math.round(CRASH_TOUCH_S / (1 / 60)))
     expect(m.outcome).not.toBe('crash')
+  }, 60_000)
+
+  it('exposes peakNorm: the high-water of the score curve (grinding drains the end value, not the peak)', async () => {
+    // the forward-only follower drives deep into the dead-end bay and grinds its end wall: the drained end value
+    // (norm minus the whole-episode touch penalty) sits far below the peak the run reached on the way
+    const m = await runPolicyEpisode(pursuitV3(0.35), 'bay:1#0v3')
+    expect(m.peakNorm).toBeDefined()
+    expect(m.peakNorm!).toBeGreaterThan(0)
+    expect(m.peakNorm!).toBeGreaterThan(m.norm - touchPenaltyNorm(m.touchWallFrames, m.touchObjectFrames))
   }, 60_000)
 
   it('a hand-wired goal follower steers toward the goals', async () => {

@@ -6,6 +6,7 @@ import { createRng } from '@/avEvolution/core/rng'
 import { buildCourse, buildSetupCourse, parseCourseKey, polylineNearestDist, RouteProgress, COURSE_START, type Course } from './courses'
 import { chainOfEpisode, isChainEpisodeKey, polylineLength, type Chain } from './chains'
 import { LegProgress } from './legs'
+import { V3_OBJECT_TOUCH_PENALTY, V3_WALL_TOUCH_PENALTY } from './es'
 import { hiddenOfLength, N_IN_V2, N_IN_V3, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
 import { policyDriveStage, policyInputStage, policyV1Stage, policyV2Stage, POLICY_INPUT_STAGE_ID } from './policyStages'
 
@@ -88,6 +89,13 @@ export interface PolicyEpisodeMetrics {
   touchWallFrames: number
   /** frames with a contact to a non-wall object (touching entity that is neither the ground nor a course box; 0 in the plain course worlds) */
   touchObjectFrames: number
+  /**
+   * v3 fitness metric: the HIGH-WATER of the per-frame score curve — the progress-based norm minus the penalties
+   * accumulated SO FAR at that frame (deviation as a route fraction + touch penalties), never negative. A run that
+   * reaches 60 % and then stalls against a wall keeps its peak and stays distinguishable from one that gives up
+   * immediately, where the drained end value (`norm` minus whole-episode penalties, floored at 0) saturates both to 0.
+   */
+  peakNorm?: number
 }
 
 /** Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world). */
@@ -263,6 +271,8 @@ export async function runPolicyEpisode(
     let touchWallFrames = 0
     let touchObjectFrames = 0
     let wallTouchT = 0
+    let touchPenalty = 0
+    let peakNorm = 0
     for (let frame = 0; frame < frames; frame++) {
       sim.runFrames(1)
       det.advance(DEFAULT_DT)
@@ -310,15 +320,26 @@ export async function runPolicyEpisode(
       if (wallTouch) {
         // touches are SURVIVED: only a sustained continuous contact still ends the episode (the 'crash' fallback)
         touchWallFrames++
+        touchPenalty += V3_WALL_TOUCH_PENALTY
         wallTouchT += DEFAULT_DT
-        if (wallTouchT >= CRASH_TOUCH_S) {
-          outcome = 'crash'
-          break
-        }
       } else {
         wallTouchT = 0
         // object contact: a touching entity that is neither the ground nor a course wall box (none exist in the plain course worlds)
-        if (sim.getTouchingEntityIds(POLICY_CAR_ID).some((id) => id !== 'ground' && !wallIds.has(id))) touchObjectFrames++
+        if (sim.getTouchingEntityIds(POLICY_CAR_ID).some((id) => id !== 'ground' && !wallIds.has(id))) {
+          touchObjectFrames++
+          touchPenalty += V3_OBJECT_TOUCH_PENALTY
+        }
+      }
+      // v3 peak metric: the HIGH-WATER of the score curve — the progress-based norm minus the penalties accumulated
+      // SO FAR (deviation as a route fraction + touch penalties, in norm currency). It is updated BEFORE the outcome
+      // checks so the frame that ends the episode counts too; standing at a wall drains the end value but cannot
+      // erase the best moment, so a 60 %-then-stall run keeps its gradient over an immediate stall.
+      const normNow = (progress * progress) / (Math.max(t, 1) * routeLength * NORM_SPEED)
+      const cand = normNow - (v3 ? maxDevOrig / routeLength : 0) - touchPenalty
+      if (cand > peakNorm) peakNorm = cand
+      if (wallTouch && wallTouchT >= CRASH_TOUCH_S) {
+        outcome = 'crash'
+        break
       }
       if (route.lastDist > offCourseM) {
         outcome = 'offcourse'
@@ -354,6 +375,7 @@ export async function runPolicyEpisode(
       length: routeLength,
       touchWallFrames,
       touchObjectFrames,
+      peakNorm,
       ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevOrigM: maxDevOrig } : {}),
     }
   } finally {

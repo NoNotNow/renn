@@ -131,15 +131,23 @@ export function capNorm(norm: number, meanSpeed: number | undefined, speedCap?: 
 }
 
 export function aggregateKindEvenness(
-  metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number }>,
+  metrics: Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number; peakNorm?: number }>,
   speedCap?: number,
 ): number {
   if (!metrics.length) return 0
   const byKind = new Map<string, Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'>>>()
   for (const raw of metrics) {
     const failed = raw.outcome !== undefined && raw.outcome !== 'finish' && raw.outcome !== 'timeout'
-    const norm = Math.max(0, capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length) - touchPenaltyNorm(raw.touchWallFrames, raw.touchObjectFrames))
-    const m = failed ? { key: raw.key, norm: norm * V3_FAIL_FACTOR } : norm === raw.norm ? raw : { key: raw.key, norm }
+    // peak semantics: `peakNorm` (episode.ts) is the HIGH-WATER of the per-frame score curve, already minus the
+    // penalties accumulated up to that frame (deviation + touches) — the fitness ranks it, not the drained end value,
+    // so a run that reaches 60 % and then stalls at a wall keeps its edge over an immediate stall (both end values
+    // saturate to 0 under the old formula). Fallback for metrics without `peakNorm` (hand-built fixtures, pre-peak
+    // run files): the old end-value formula with its floor at 0, unchanged.
+    const norm =
+      raw.peakNorm !== undefined
+        ? capNorm(raw.peakNorm, raw.meanSpeed, speedCap)
+        : Math.max(0, capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length) - touchPenaltyNorm(raw.touchWallFrames, raw.touchObjectFrames))
+    const m = failed ? { key: raw.key, norm: norm * V3_FAIL_FACTOR } : { key: raw.key, norm }
     const kind = parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind
     const list = byKind.get(kind)
     if (list) list.push(m)
