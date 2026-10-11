@@ -8,6 +8,11 @@ import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, PolicyEs, type EsC
  * the two best islands or by a brand new random network ("immigrant"). Crossover works on hidden NEURONS (incoming weights + bias +
  * outgoing weights): the second parent's neurons are first aligned to the first parent's (permutation and sign symmetry of tanh units),
  * otherwise the child would be a broken mixture of unrelated feature orders.
+ *
+ * Adaptive mutation strength: an island whose epoch-rank score has not improved by more than STAGNATION_EPSILON for more than
+ * STAGNATION_EPOCHS consecutive epochs is stagnating; its mutation sigma is boosted (per island, or globally when the best island
+ * score stalls) by SIGMA_BOOST_STEP per further stagnant epoch, capped at SIGMA_BOOST_MAX. The first real improvement resets the
+ * counter and the sigma to the base level — the boost only ever exists while the stagnation persists.
  */
 
 /** Genome layout of a net with `nIn` inputs (v1: N_IN = 22, v2: 24, v3: 26) and H hidden units; every helper below derives both from the genome length (any H). */
@@ -189,18 +194,41 @@ export interface IslandsConfig {
 
 export const DEFAULT_ISLANDS: IslandsConfig = { islands: 3, epoch: 25, mature: 75, pCross: 0.5 }
 
+/**
+ * Stagnation-driven sigma boost. An epoch counter `stagn` grows by 1 for every epoch whose rank score does not beat the island's
+ * (resp. the global) best by more than STAGNATION_EPSILON; the first improvement by more than that resets it to 0.
+ */
+export const STAGNATION_EPOCHS = 3
+export const STAGNATION_EPSILON = 1e-3
+/** sigma multiplier per stagnant epoch beyond STAGNATION_EPOCHS, capped at SIGMA_BOOST_MAX */
+export const SIGMA_BOOST_STEP = 1.5
+export const SIGMA_BOOST_MAX = 4
+
+/** sigma multiplier for `stagn` consecutive stagnant epochs: 1 at or below the threshold, then SIGMA_BOOST_STEP^(stagn - STAGNATION_EPOCHS), capped at SIGMA_BOOST_MAX. */
+export function sigmaBoost(stagn: number | undefined): number {
+  const s = (stagn ?? 0) - STAGNATION_EPOCHS
+  return s <= 0 ? 1 : Math.min(SIGMA_BOOST_MAX, SIGMA_BOOST_STEP ** s)
+}
+
 export interface IslandState {
   es: EsState
   /** generations since this island was (re)started */
   age: number
   /** how it started: 'random' | 'cross' */
   origin: string
+  /** best epoch-rank score seen by this island (stagnation tracking; undefined until its first epoch) */
+  bestScore?: number
+  /** consecutive epochs without a > STAGNATION_EPSILON improvement of bestScore (sigma boost; optional: pre-boost state files) */
+  stagn?: number
 }
 
 export interface IslandsState {
   gen: number
   islands: IslandState[]
   rngState: number
+  /** best epoch-rank score seen by any island, and consecutive epochs without improvement (global stagnation boost) */
+  globalBest?: number
+  globalStagn?: number
   /** log of replacements: {gen, replaced, with, scores} */
   events: Array<{ gen: number; replaced: number; with: string; scores: number[] }>
 }
@@ -212,30 +240,44 @@ export function initialIslands(esCfg: EsConfig, cfg: IslandsConfig, warm?: Array
   for (let k = 0; k < cfg.islands; k++) {
     const es = initialEsState({ ...esCfg, seed: esCfg.seed * 1000 + k })
     es.theta = warm ? Array.from(warm) : freshGenome(createRng(esCfg.seed * 1000 + k), esCfg.initStd, genomeShape(esCfg.dim).nIn, genomeShape(esCfg.dim).hidden)
-    islands.push({ es, age: 0, origin: 'random' })
+    islands.push({ es, age: 0, origin: 'random', stagn: 0 })
   }
-  return { gen: 0, islands, rngState: rng.getState(), events: [] }
+  return { gen: 0, islands, rngState: rng.getState(), globalStagn: 0, events: [] }
 }
 
 export interface IslandsStepReport {
   gen: number
   /** per-island report of this generation */
   reports: GenerationReport[]
+  /** effective sigma multipliers applied in this generation (per island) */
+  boosts: number[]
 }
 
 /** The island model driver. `esCfg.pairs` is the number of antithetic pairs PER island. */
 export class IslandEs {
   readonly engines: PolicyEs[]
   private readonly rng: Rng
+  /** one mutable EsConfig per island (the engines' own objects): only `sigma` is rewritten, from the base sigma and the boost */
+  private readonly engineCfgs: EsConfig[]
 
   constructor(readonly esCfg: EsConfig, readonly cfg: IslandsConfig, public state: IslandsState, private readonly fitness: FitnessFn = aggregateFitness) {
-    this.engines = state.islands.map((isl, k) => new PolicyEs({ ...esCfg, seed: esCfg.seed * 1000 + k }, isl.es, fitness))
+    this.engineCfgs = state.islands.map((_, k) => ({ ...esCfg, seed: esCfg.seed * 1000 + k }))
+    this.engines = state.islands.map((isl, k) => new PolicyEs(this.engineCfgs[k]!, isl.es, fitness))
     this.rng = createRng(0)
     this.rng.setState(state.rngState)
   }
 
-  /** One generation: every island takes its ES step on the same course batch. */
+  /** Effective sigma multiplier of island k: its own stagnation, or the global one, whichever boosts more. */
+  boost(k: number): number {
+    return Math.max(sigmaBoost(this.state.islands[k]?.stagn), sigmaBoost(this.state.globalStagn))
+  }
+
+  /** One generation: every island takes its ES step on the same course batch (with its current sigma boost applied). */
   async step(evaluate: EvaluateGenome, keys: string[]): Promise<IslandsStepReport> {
+    const boosts = this.state.islands.map((_, k) => this.boost(k))
+    this.state.islands.forEach((_, k) => {
+      this.engineCfgs[k]!.sigma = this.esCfg.sigma * boosts[k]!
+    })
     const reports = await Promise.all(this.engines.map((e) => e.step(evaluate, keys)))
     this.state.gen++
     this.state.islands.forEach((isl, k) => {
@@ -243,7 +285,7 @@ export class IslandEs {
       isl.age++
     })
     this.state.rngState = this.rng.getState()
-    return { gen: this.state.gen, reports }
+    return { gen: this.state.gen, reports, boosts }
   }
 
   isEpochEnd(): boolean {
@@ -253,8 +295,20 @@ export class IslandEs {
   /**
    * Rank the islands by `scores` (higher = better) and, if a mature island exists besides the two best, replace the worst mature one
    * by a crossover child or a random immigrant. Returns the index of the best island and the event (if any).
+   *
+   * Also updates the stagnation bookkeeping (per island and global) from `scores` — at every epoch end, even when no island is replaced.
    */
   reproduce(scores: number[]): { best: number; event?: IslandsState['events'][number] } {
+    for (let i = 0; i < this.state.islands.length; i++) {
+      const isl = this.state.islands[i]!
+      if (isl.bestScore === undefined || scores[i]! > isl.bestScore + STAGNATION_EPSILON) isl.stagn = 0
+      else isl.stagn = (isl.stagn ?? 0) + 1
+      isl.bestScore = Math.max(scores[i]!, isl.bestScore ?? -Infinity)
+    }
+    const top = Math.max(...scores)
+    if (top > (this.state.globalBest ?? -Infinity) + STAGNATION_EPSILON) this.state.globalStagn = 0
+    else this.state.globalStagn = (this.state.globalStagn ?? 0) + 1
+    this.state.globalBest = Math.max(top, this.state.globalBest ?? -Infinity)
     const order = scores.map((s, i) => [s, i] as const).sort((a, b) => b[0] - a[0]).map((x) => x[1])
     const best = order[0]!
     const candidates = order.slice(2).filter((i) => this.state.islands[i]!.age >= this.cfg.mature)
@@ -266,8 +320,10 @@ export class IslandEs {
       : freshGenome(this.rng, this.esCfg.initStd, genomeShape(this.esCfg.dim).nIn, genomeShape(this.esCfg.dim).hidden)
     const es = initialEsState({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen })
     es.theta = genome
-    this.state.islands[worst] = { es, age: 0, origin: cross ? 'cross' : 'random' }
-    this.engines[worst] = new PolicyEs({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen }, es, this.fitness)
+    this.state.islands[worst] = { es, age: 0, origin: cross ? 'cross' : 'random', stagn: 0 }
+    this.engineCfgs[worst] = { ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen }
+    this.engineCfgs[worst].sigma = this.esCfg.sigma * this.boost(worst)
+    this.engines[worst] = new PolicyEs(this.engineCfgs[worst], es, this.fitness)
     this.state.rngState = this.rng.getState()
     const event = { gen: this.state.gen, replaced: worst, with: cross ? 'crossover' : 'immigrant', scores: scores.map((s) => Math.round(s * 1000) / 1000) }
     this.state.events.push(event)

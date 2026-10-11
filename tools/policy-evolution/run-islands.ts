@@ -40,7 +40,7 @@ import { CHAIN_KINDS, COURSE_KINDS, COURSE_LENGTH, holdoutCourseKeys, parseCours
 import { parseChainEpisodeKey } from '@/policyEvolution/chains'
 import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculum, type CurriculumState } from '@/policyEvolution/curriculum'
 import { aggregateEvenness, aggregateFitness, DEFAULT_ES_CONFIG, type EsConfig, type FitnessFn } from '@/policyEvolution/es'
-import { DEFAULT_ISLANDS, initialIslands, IslandEs, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
+import { DEFAULT_ISLANDS, initialIslands, IslandEs, sigmaBoost, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
 import { createRng } from '@/avEvolution/core/rng'
 import { GENOME_LENGTH, genomeLength, genomeShape, hiddenOfLength, N_HIDDEN, N_IN_V2, N_IN_V3, padV2Genome, widenHidden } from '@/policyEvolution/policy'
 import { PolicyPool } from './pool'
@@ -221,7 +221,14 @@ async function main() {
           gen: isl.state.gen,
           updatedAt: new Date().toISOString(),
           elapsedSec: Math.round((Date.now() - t0) / 1000),
-          islands: { centers, ages: isl.state.islands.map((x) => x.age) },
+          islands: {
+            centers,
+            ages: isl.state.islands.map((x) => x.age),
+            stagns: isl.state.islands.map((x) => x.stagn ?? 0),
+            boosts: isl.state.islands.map((_, k) => Math.round(isl.boost(k) * 100) / 100),
+            globalStagn: isl.state.globalStagn ?? 0,
+            globalBoost: Math.round(sigmaBoost(isl.state.globalStagn) * 100) / 100,
+          },
           ...(file.stage ? { stage: { share: file.stage.share, ema: file.stage.ema } } : {}),
           ...(file.curriculum ? { curriculum: { difficulty: file.curriculum.difficulty, ema: file.curriculum.ema } } : {}),
           epoch: lastEpoch,
@@ -248,8 +255,10 @@ async function main() {
       }
       const { reports } = await isl.step(evaluate, keys)
       centers = reports.map((r) => Math.round(r.center * 1000) / 1000)
+      const boosts = isl.state.islands.map((_, k) => Math.round(isl.boost(k) * 100) / 100)
       const entry: Record<string, unknown> = { gen: isl.state.gen, centers, difficulty: file.curriculum?.difficulty }
       let line = `gen ${isl.state.gen}  centers [${reports.map((r) => r.center.toFixed(2)).join(' ')}] ages [${isl.state.islands.map((x) => x.age).join(' ')}]`
+      if (boosts.some((b) => b > 1)) line += `  sigma-boost [${boosts.map((b) => b.toFixed(2)).join(' ')}] (stagns [${isl.state.islands.map((x) => x.stagn ?? 0).join(' ')}] global ${isl.state.globalStagn ?? 0})`
       if (v3 && file.stage) {
         const freeRuns = reports.flatMap((r) => (r.centerMetrics ?? []).filter((m) => parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind === 'free'))
         if (freeRuns.length) file.stage = updateStage(file.stage, freeRuns.filter((m) => m.outcome === 'finish').length / freeRuns.length)

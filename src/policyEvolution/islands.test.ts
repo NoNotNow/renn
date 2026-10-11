@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createRng } from '@/avEvolution/core/rng'
 import { aggregateFitness, DEFAULT_ES_CONFIG, type EvaluateGenome } from './es'
-import { alignNeurons, crossoverNeurons, DEFAULT_ISLANDS, freshGenome, initialIslands, IslandEs, neuronBlock, sampleInputs, setNeuronBlock } from './islands'
+import { alignNeurons, crossoverNeurons, DEFAULT_ISLANDS, freshGenome, initialIslands, IslandEs, neuronBlock, sampleInputs, setNeuronBlock, SIGMA_BOOST_MAX, SIGMA_BOOST_STEP, sigmaBoost, STAGNATION_EPOCHS } from './islands'
 import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculum } from './curriculum'
 import { buildCourse, courseKey, parseCourseKey } from './courses'
 import { genomeLengthV2, GENOME_LENGTH, N_HIDDEN, N_IN_V2, policyForward, policyForwardV2 } from './policy'
@@ -118,6 +118,79 @@ describe('IslandEs', () => {
     // no replacement before the islands are mature (age >= 20 at the first epoch end where gen = 20)
     expect(isl.state.events[0]!.gen).toBeGreaterThanOrEqual(20)
     expect(bestScore).toBeGreaterThan(-5)
+  })
+})
+
+describe('stagnation-driven sigma boost', () => {
+  // mature = 1000: no island is ever replaced here, so the boost logic is observed in isolation
+  const esCfg = { ...DEFAULT_ES_CONFIG, dim: GENOME_LENGTH, pairs: 2, seed: 3 }
+  const cfg = { ...DEFAULT_ISLANDS, epoch: 5, mature: 1000, pCross: 0 }
+  const evaluate: EvaluateGenome = async () => [{ norm: 0 } as never]
+
+  it('sigmaBoost stays 1 up to STAGNATION_EPOCHS, then grows by SIGMA_BOOST_STEP per stagnant epoch, capped at SIGMA_BOOST_MAX', () => {
+    expect(sigmaBoost(undefined)).toBe(1)
+    expect(sigmaBoost(0)).toBe(1)
+    expect(sigmaBoost(STAGNATION_EPOCHS)).toBe(1)
+    expect(sigmaBoost(STAGNATION_EPOCHS + 1)).toBeCloseTo(SIGMA_BOOST_STEP, 12)
+    expect(sigmaBoost(STAGNATION_EPOCHS + 2)).toBeCloseTo(SIGMA_BOOST_STEP ** 2, 12)
+    expect(sigmaBoost(50)).toBe(SIGMA_BOOST_MAX)
+  })
+
+  it('no boost while every island improves: counters stay 0, step applies the base sigma', async () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    for (let e = 0; e < STAGNATION_EPOCHS + 2; e++) {
+      isl.reproduce([1 + e, 0.9 + e, 0.8 + e])
+      expect(isl.state.islands.every((x) => x.stagn === 0)).toBe(true)
+      expect(isl.state.islands.map((_, k) => isl.boost(k))).toEqual([1, 1, 1])
+    }
+    await isl.step(evaluate, ['k'])
+    isl.engines.forEach((e) => expect(e.cfg.sigma).toBe(esCfg.sigma))
+  })
+
+  it('a stagnating island boosts its sigma; the first improvement resets it to the base level', async () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    isl.reproduce([1, 0.5, 0.4])
+    for (let e = 0; e < STAGNATION_EPOCHS; e++) isl.reproduce([1 + 0.1 * (e + 1), 0.5, 0.4])
+    expect(isl.boost(1)).toBe(1) // exactly at the threshold: not yet
+    isl.reproduce([2, 0.5, 0.4])
+    expect(isl.boost(1)).toBeCloseTo(SIGMA_BOOST_STEP, 12)
+    expect(isl.boost(2)).toBeCloseTo(SIGMA_BOOST_STEP, 12)
+    expect(isl.boost(0)).toBe(1)
+    await isl.step(evaluate, ['k'])
+    expect(isl.engines[1]!.cfg.sigma).toBeCloseTo(esCfg.sigma * SIGMA_BOOST_STEP, 12)
+    expect(isl.engines[0]!.cfg.sigma).toBe(esCfg.sigma)
+    // island 1 finds an improvement: boost immediately back to normal (no slow decay that could stay stuck high)
+    isl.reproduce([2, 0.9, 0.4])
+    expect(isl.state.islands[1]!.stagn).toBe(0)
+    expect(isl.boost(1)).toBe(1)
+    await isl.step(evaluate, ['k'])
+    expect(isl.engines[1]!.cfg.sigma).toBe(esCfg.sigma)
+  })
+
+  it('the boost is capped at SIGMA_BOOST_MAX during long stagnation', () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    isl.reproduce([1, 0.5, 0.4])
+    for (let e = 0; e < 20; e++) isl.reproduce([1, 0.5, 0.4])
+    expect(isl.boost(1)).toBe(SIGMA_BOOST_MAX)
+    expect(isl.boost(2)).toBe(SIGMA_BOOST_MAX)
+  })
+
+  it('global stagnation boosts even improving islands while the global best stalls', () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    isl.reproduce([1, 0.5, 0.4])
+    for (let e = 0; e < STAGNATION_EPOCHS + 1; e++) isl.reproduce([0.9, 0.6 + 0.1 * e, 0.3])
+    // island 1 improves every epoch, but the GLOBAL best (1.0) never moves: every island gets the boost
+    expect(isl.state.islands[1]!.stagn).toBe(0)
+    expect(isl.state.globalStagn).toBe(STAGNATION_EPOCHS + 1)
+    isl.state.islands.forEach((_, k) => expect(isl.boost(k)).toBeCloseTo(SIGMA_BOOST_STEP, 12))
+  })
+
+  it('state files from before the boost (no stagn fields) behave as never stagnant', () => {
+    const state = initialIslands(esCfg, cfg)
+    state.islands.forEach((x) => delete x.stagn)
+    delete state.globalStagn
+    const isl = new IslandEs(esCfg, cfg, state)
+    isl.state.islands.forEach((_, k) => expect(isl.boost(k)).toBe(1))
   })
 })
 

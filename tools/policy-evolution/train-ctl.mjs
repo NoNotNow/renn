@@ -94,7 +94,12 @@ function latestStatsLines() {
     const centers = (islands.centers ?? []).map((c) => Number(c).toFixed(2)).join(' ')
     const ages = (islands.ages ?? []).join(' ')
     const stage = typeof st.stage?.share === 'number' ? `  stage share ${st.stage.share.toFixed(1)} (free finish ema ${(st.stage.ema ?? 0).toFixed(2)})` : ''
-    const lines = [`  stats:  gen ${st.gen ?? '?'}  centers [${centers}]  ages [${ages}]${stage}  (${st.elapsedSec != null ? `${st.elapsedSec} s, ` : ''}${st.why ?? '?'} at ${st.updatedAt ?? '?'})`]
+    // adaptive sigma boost (run-islands stagnation tracking): shown once any island (or the global best) is stagnant
+    const boosts = islands.boosts ?? []
+    const boostPart = boosts.some((b) => Number(b) > 1)
+      ? `  sigma-boost [${boosts.map((b) => Number(b).toFixed(2)).join(' ')}] (stagns [${(islands.stagns ?? []).join(' ')}] global ${islands.globalStagn ?? 0})`
+      : ''
+    const lines = [`  stats:  gen ${st.gen ?? '?'}  centers [${centers}]  ages [${ages}]${boostPart}${stage}  (${st.elapsedSec != null ? `${st.elapsedSec} s, ` : ''}${st.why ?? '?'} at ${st.updatedAt ?? '?'})`]
     const e = st.epoch
     if (e) {
       const tr = e.train ?? {}
