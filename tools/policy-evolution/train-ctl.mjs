@@ -99,7 +99,13 @@ function latestStatsLines() {
     const boostPart = boosts.some((b) => Number(b) > 1)
       ? `  sigma-boost [${boosts.map((b) => Number(b).toFixed(2)).join(' ')}] (stagns [${(islands.stagns ?? []).join(' ')}] global ${islands.globalStagn ?? 0})`
       : ''
-    const lines = [`  stats:  gen ${st.gen ?? '?'}  centers [${centers}]  ages [${ages}]${boostPart}${stage}  (${st.elapsedSec != null ? `${st.elapsedSec} s, ` : ''}${st.why ?? '?'} at ${st.updatedAt ?? '?'})`]
+    // focus mode (run-islands): the stagnant / weak islands step alone, the others are paused
+    const f = islands.focus
+    const focusPart =
+      f && Array.isArray(f.set) && f.set.length
+        ? `  mode FOCUS islands [${f.set.join(' ')}] (epoch ${Number(f.epochs ?? 0) + 1}/${f.max ?? '?'} since gen ${f.sinceGen ?? '?'})`
+        : '  mode normal'
+    const lines = [`  stats:  gen ${st.gen ?? '?'}  centers [${centers}]  ages [${ages}]${boostPart}${focusPart}${stage}  (${st.elapsedSec != null ? `${st.elapsedSec} s, ` : ''}${st.why ?? '?'} at ${st.updatedAt ?? '?'})`]
     const e = st.epoch
     if (e) {
       const tr = e.train ?? {}

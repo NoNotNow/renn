@@ -13,6 +13,11 @@ import { aggregateFitness, DEFAULT_ES_CONFIG, initialEsState, lexCompare, lexGre
  * improved by more than STAGNATION_EPSILON for more than STAGNATION_EPOCHS consecutive epochs is stagnating; its mutation sigma is boosted (per
  * island, or globally when the best island score stalls) by SIGMA_BOOST_STEP per further stagnant epoch, capped at SIGMA_BOOST_MAX. The first real
  * improvement resets the counter and the sigma to the base level — the boost only ever exists while the stagnation persists.
+ *
+ * FOCUS mode: while the run stagnates, only the stagnant / weak islands keep stepping (concentrated search); the others
+ * pause completely — frozen center, age and bookkeeping, but still ranked on the fresh epoch courses with their last center.
+ * A focused island returns to normal operation once it lexicographically improves over its pre-focus best ("over the hump");
+ * when all of them do (or FOCUS_MAX_EPOCHS pass), the whole run resumes normally. See `reproduce` for the exact rules.
  */
 
 /** Genome layout of a net with `nIn` inputs (v1: N_IN = 22, v2: 24, v3: 26) and H hidden units; every helper below derives both from the genome length (any H). */
@@ -210,6 +215,15 @@ export function sigmaBoost(stagn: number | undefined): number {
   return s <= 0 ? 1 : Math.min(SIGMA_BOOST_MAX, SIGMA_BOOST_STEP ** s)
 }
 
+/**
+ * FOCUS mode safety net: an active focus ends at the latest after this many epoch ends, back to normal operation
+ * with the stagn counters reset (a still-elevated counter would re-enter focus at the very next epoch end). 4 epochs
+ * (~100 gens at epoch 25): long enough that the sigma boost — which first fires after STAGNATION_EPOCHS + 1 stagnant
+ * epochs — can act inside the focus window, short enough that a badly chosen focus set does not burn a long plateau
+ * while the paused islands and the normal replacement / crossover machinery are starved.
+ */
+export const FOCUS_MAX_EPOCHS = 4
+
 export interface IslandState {
   es: EsState
   /** generations since this island was (re)started */
@@ -222,6 +236,8 @@ export interface IslandState {
   bestScoreVec?: number[]
   /** consecutive epochs without a > STAGNATION_EPSILON improvement of bestScore (sigma boost; optional: pre-boost state files) */
   stagn?: number
+  /** center fitness of the last STEPPED generation (display of a paused island during focus; optional: pre-focus state files) */
+  lastCenter?: number
 }
 
 export interface IslandsState {
@@ -233,6 +249,12 @@ export interface IslandsState {
   /** best epoch-rank score VECTOR of any island (lexicographic global stagnation tracking; optional: pre-lex state files) */
   globalBestVec?: number[]
   globalStagn?: number
+  /**
+   * FOCUS mode (optional: pre-focus state files = normal mode): while set, only the `set` islands step their ES each
+   * generation; the others pause untouched (frozen center, age, stagn bookkeeping) until every focused island has
+   * lexicographically improved over its pre-focus best ("over the hump") or FOCUS_MAX_EPOCHS ends the focus.
+   */
+  focus?: { set: number[]; epochs: number; sinceGen: number }
   /** log of replacements: {gen, replaced, with, scores} */
   events: Array<{ gen: number; replaced: number; with: string; scores: number[] }>
 }
@@ -251,10 +273,12 @@ export function initialIslands(esCfg: EsConfig, cfg: IslandsConfig, warm?: Array
 
 export interface IslandsStepReport {
   gen: number
-  /** per-island report of this generation */
+  /** per-island report of this generation (a paused island repeats its `lastCenter`, no centerMetrics) */
   reports: GenerationReport[]
   /** effective sigma multipliers applied in this generation (per island) */
   boosts: number[]
+  /** islands that did NOT step this generation (paused by focus mode) */
+  paused: number[]
 }
 
 /** The island model driver. `esCfg.pairs` is the number of antithetic pairs PER island. */
@@ -276,20 +300,44 @@ export class IslandEs {
     return Math.max(sigmaBoost(this.state.islands[k]?.stagn), sigmaBoost(this.state.globalStagn))
   }
 
-  /** One generation: every island takes its ES step on the same course batch (with its current sigma boost applied). */
+  /** Indices paused by an active focus; `k` steps unless it is paused. */
+  paused(): number[] {
+    const f = this.state.focus
+    return f ? this.state.islands.map((_, k) => k).filter((k) => !f.set.includes(k)) : []
+  }
+
+  /**
+   * One generation: every island takes its ES step on the same course batch (with its current sigma boost applied).
+   * During an active focus only the focused islands step; the paused ones are no-ops — center, age and ES state stay
+   * exactly as they were (their `lastCenter` repeats in the report so the log keeps showing the frozen center, and
+   * their `centerMetrics` stay empty so the curriculum / stage EMAs do not re-count stale runs).
+   */
   async step(evaluate: EvaluateGenome, keys: string[]): Promise<IslandsStepReport> {
+    const paused = new Set(this.paused())
     const boosts = this.state.islands.map((_, k) => this.boost(k))
     this.state.islands.forEach((_, k) => {
       this.engineCfgs[k]!.sigma = this.esCfg.sigma * boosts[k]!
     })
-    const reports = await Promise.all(this.engines.map((e) => e.step(evaluate, keys)))
+    const frozenReport = (k: number): GenerationReport => ({
+      gen: this.state.gen + 1,
+      keys,
+      center: this.state.islands[k]!.lastCenter ?? Number.NaN,
+      best: Number.NaN,
+      mean: Number.NaN,
+      worst: Number.NaN,
+      sigma: this.engineCfgs[k]!.sigma,
+      episodes: 0,
+    })
+    const reports = await Promise.all(this.engines.map((e, k) => (paused.has(k) ? Promise.resolve(frozenReport(k)) : e.step(evaluate, keys))))
     this.state.gen++
     this.state.islands.forEach((isl, k) => {
+      if (paused.has(k)) return
       isl.es = this.engines[k]!.state
       isl.age++
+      isl.lastCenter = reports[k]!.center
     })
     this.state.rngState = this.rng.getState()
-    return { gen: this.state.gen, reports, boosts }
+    return { gen: this.state.gen, reports, boosts, paused: [...paused] }
   }
 
   isEpochEnd(): boolean {
@@ -305,11 +353,24 @@ export class IslandEs {
    * Also updates the stagnation bookkeeping (per island and global) from `scoreVecs` — at every epoch end, even when
    * no island is replaced. An improvement is a LEXICOGRAPHIC one by more than STAGNATION_EPSILON: positions that
    * differ by at most the epsilon count as equal, the first position beyond it decides. State files without vectors
-   * (pre-lex) have no stored baseline: the first epoch anchors it and behaves as never stagnant.
+   * (pre-lex) have no stored baseline: the first epoch anchors it and behaves as never stagnant. PAUSED islands
+   * (focus mode) skip their per-island bookkeeping: their center is frozen, so a fresh-course "improvement" would be
+   * course noise, not learning — they keep taking part in the ranking / replacement with their last center.
+   *
+   * FOCUS mode transitions (epoch end only): entry when any island or the global best stagnates — the focus set is
+   * every STAGNANT island (stagn > 0; "at least those that stagnate"), or when only the global best stagnates the
+   * single WORST-RANKED island; a proper subset only (all islands stagnant = nothing to pause = normal operation,
+   * the global sigma boost covers that). A focused island LEAVES the focus when its fresh-course vector
+   * lexicographically improves over its best (the stagn reset above — the best cannot have moved during focus
+   * without the island leaving first, so this is the pre-focus best) or when it is replaced (fresh lineage, nothing
+   * to get over). When the set empties the focus ends; at FOCUS_MAX_EPOCHS it ends with all stagn counters reset
+   * (else the boost re-enters focus at the very next epoch end).
    */
   reproduce(scoreVecs: number[][]): { best: number; event?: IslandsState['events'][number] } {
+    const focus = this.state.focus
     const scores = scoreVecs.map((v) => v[0] ?? 0)
     for (let i = 0; i < this.state.islands.length; i++) {
+      if (focus && !focus.set.includes(i)) continue // paused: bookkeeping frozen
       const isl = this.state.islands[i]!
       const vec = scoreVecs[i]!
       if (isl.bestScoreVec === undefined || lexGreater(vec, isl.bestScoreVec, STAGNATION_EPSILON)) isl.stagn = 0
@@ -324,22 +385,42 @@ export class IslandEs {
     else this.state.globalStagn = (this.state.globalStagn ?? 0) + 1
     if (this.state.globalBestVec === undefined || lexCompare(top, this.state.globalBestVec) > 0) this.state.globalBestVec = top
     this.state.globalBest = Math.max(...scores, this.state.globalBest ?? -Infinity)
+    let event: IslandsState['events'][number] | undefined
     const candidates = order.slice(2).filter((i) => this.state.islands[i]!.age >= this.cfg.mature)
-    if (this.cfg.islands < 3 || candidates.length === 0) return { best }
-    const worst = candidates[candidates.length - 1]!
-    const cross = this.rng.next() < this.cfg.pCross
-    const genome = cross
-      ? crossoverNeurons(this.state.islands[order[0]!]!.es.theta, this.state.islands[order[1]!]!.es.theta, this.rng)
-      : freshGenome(this.rng, this.esCfg.initStd, genomeShape(this.esCfg.dim).nIn, genomeShape(this.esCfg.dim).hidden)
-    const es = initialEsState({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen })
-    es.theta = genome
-    this.state.islands[worst] = { es, age: 0, origin: cross ? 'cross' : 'random', stagn: 0 }
-    this.engineCfgs[worst] = { ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen }
-    this.engineCfgs[worst].sigma = this.esCfg.sigma * this.boost(worst)
-    this.engines[worst] = new PolicyEs(this.engineCfgs[worst], es, this.fitness, this.fitnessVec)
-    this.state.rngState = this.rng.getState()
-    const event = { gen: this.state.gen, replaced: worst, with: cross ? 'crossover' : 'immigrant', scores: scores.map((s) => Math.round(s * 1000) / 1000) }
-    this.state.events.push(event)
+    if (this.cfg.islands >= 3 && candidates.length > 0) {
+      const worst = candidates[candidates.length - 1]!
+      const cross = this.rng.next() < this.cfg.pCross
+      const genome = cross
+        ? crossoverNeurons(this.state.islands[order[0]!]!.es.theta, this.state.islands[order[1]!]!.es.theta, this.rng)
+        : freshGenome(this.rng, this.esCfg.initStd, genomeShape(this.esCfg.dim).nIn, genomeShape(this.esCfg.dim).hidden)
+      const es = initialEsState({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen })
+      es.theta = genome
+      this.state.islands[worst] = { es, age: 0, origin: cross ? 'cross' : 'random', stagn: 0 }
+      this.engineCfgs[worst] = { ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen }
+      this.engineCfgs[worst].sigma = this.esCfg.sigma * this.boost(worst)
+      this.engines[worst] = new PolicyEs(this.engineCfgs[worst], es, this.fitness, this.fitnessVec)
+      this.state.rngState = this.rng.getState()
+      event = { gen: this.state.gen, replaced: worst, with: cross ? 'crossover' : 'immigrant', scores: scores.map((s) => Math.round(s * 1000) / 1000) }
+      this.state.events.push(event)
+    }
+    if (focus) {
+      focus.epochs++
+      // a focused island stays while it still stagnates; the stagn reset (lex improvement over its pre-focus
+      // best) or a replacement (fresh lineage) lets it out
+      focus.set = focus.set.filter((i) => i !== event?.replaced && (this.state.islands[i]!.stagn ?? 0) > 0)
+      if (focus.set.length === 0) this.state.focus = undefined
+      else if (focus.epochs >= FOCUS_MAX_EPOCHS) {
+        focus.set.forEach((i) => (this.state.islands[i]!.stagn = 0))
+        this.state.globalStagn = 0
+        this.state.focus = undefined
+      }
+    } else {
+      const stagnant = this.state.islands.map((x, i) => ((x.stagn ?? 0) > 0 ? i : -1)).filter((i) => i >= 0)
+      const set = stagnant.length > 0 ? stagnant : (this.state.globalStagn ?? 0) > 0 ? [order[order.length - 1]!] : []
+      // focus needs someone to pause: when EVERY island stagnates there is nothing to concentrate on — the global
+      // sigma boost already covers that case (and the focus cap would reset its counters every FOCUS_MAX_EPOCHS)
+      if (set.length > 0 && set.length < this.state.islands.length) this.state.focus = { set, epochs: 0, sinceGen: this.state.gen }
+    }
     return { best, event }
   }
 }

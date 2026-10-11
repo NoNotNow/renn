@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createRng } from '@/avEvolution/core/rng'
 import { aggregateFitness, DEFAULT_ES_CONFIG, type EvaluateGenome } from './es'
-import { alignNeurons, crossoverNeurons, DEFAULT_ISLANDS, freshGenome, initialIslands, IslandEs, neuronBlock, sampleInputs, setNeuronBlock, SIGMA_BOOST_MAX, SIGMA_BOOST_STEP, sigmaBoost, STAGNATION_EPOCHS } from './islands'
+import { alignNeurons, crossoverNeurons, DEFAULT_ISLANDS, FOCUS_MAX_EPOCHS, freshGenome, initialIslands, IslandEs, neuronBlock, sampleInputs, setNeuronBlock, SIGMA_BOOST_MAX, SIGMA_BOOST_STEP, sigmaBoost, STAGNATION_EPOCHS } from './islands'
 import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculum } from './curriculum'
 import { buildCourse, courseKey, parseCourseKey } from './courses'
 import { genomeLengthV2, GENOME_LENGTH, N_HIDDEN, N_IN_V2, policyForward, policyForwardV2 } from './policy'
@@ -206,15 +206,17 @@ describe('stagnation-driven sigma boost', () => {
 
   it('stagnation resets only on a lexicographic improvement beyond STAGNATION_EPSILON (task iv)', () => {
     const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    // islands 1+2 move in step with island 0 (improve when it improves): otherwise the focus mode below would enter
+    // (they stagnate while 0 improves) and freeze island 0's bookkeeping — this test is about island 0's epsilon bound
     isl.reproduce([[0, 0.5], [0.1], [0.05]])
     expect(isl.state.islands[0]!.bestScoreVec).toEqual([0, 0.5])
     isl.reproduce([[0, 0.5005], [0.1], [0.05]]) // second-worst +0.0005 <= STAGNATION_EPSILON: not an improvement
     expect(isl.state.islands[0]!.stagn).toBe(1)
-    isl.reproduce([[0, 0.51], [0.1], [0.05]]) // second-worst +0.01 > STAGNATION_EPSILON: improvement -> reset
+    isl.reproduce([[0, 0.51], [0.11], [0.06]]) // second-worst +0.01 > STAGNATION_EPSILON: improvement -> reset
     expect(isl.state.islands[0]!.stagn).toBe(0)
-    isl.reproduce([[0, 0.51], [0.1], [0.05]]) // identical vector: stagnant again
+    isl.reproduce([[0, 0.51], [0.11], [0.06]]) // identical vectors: stagnant again
     expect(isl.state.islands[0]!.stagn).toBe(1)
-    isl.reproduce([[0.02, 0.01], [0.1], [0.05]]) // a better MIN (worse rest) is still a lex improvement
+    isl.reproduce([[0.02, 0.01], [0.12], [0.07]]) // a better MIN (worse rest) is still a lex improvement
     expect(isl.state.islands[0]!.stagn).toBe(0)
     expect(isl.state.islands[0]!.bestScoreVec).toEqual([0.02, 0.01])
   })
@@ -232,6 +234,107 @@ describe('stagnation-driven sigma boost', () => {
     expect(isl.state.islands.every((x) => x.bestScoreVec?.[0] === 1)).toBe(true)
     expect(isl.state.globalBestVec).toEqual([1])
     expect(isl.state.islands.every((x) => x.bestScore === 5)).toBe(true) // the scalar fields are left untouched
+  })
+})
+
+describe('focus mode', () => {
+  // mature = 1000: no island is ever replaced here, so the focus logic is observed in isolation
+  const esCfg = { ...DEFAULT_ES_CONFIG, dim: GENOME_LENGTH, pairs: 2, seed: 3 }
+  const cfg = { ...DEFAULT_ISLANDS, epoch: 5, mature: 1000, pCross: 0 }
+  const evaluate: EvaluateGenome = async () => [{ norm: 0 } as never]
+  const vecs = (...s: number[]) => s.map((x) => [x])
+
+  it('focuses the stagnant islands, the others pause with their state untouched (i)', async () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    isl.reproduce(vecs(1, 0.5, 0.4)) // anchor epoch: nothing stagnates
+    expect(isl.state.focus).toBeUndefined()
+    await isl.step(evaluate, ['k']) // one NORMAL-mode step: sets every island's lastCenter
+    isl.reproduce(vecs(2, 0.5, 0.4)) // island 0 improves, islands 1+2 stagnate
+    expect(isl.state.focus).toEqual({ set: [1, 2], epochs: 0, sinceGen: 1 })
+    const before = JSON.parse(JSON.stringify(isl.state.islands[0]))
+    const age1 = isl.state.islands[1]!.age
+    const r1 = await isl.step(evaluate, ['k'])
+    expect(r1.paused).toEqual([0])
+    expect(isl.state.islands[0]).toEqual(before) // frozen: es, age, stagn, lastCenter all untouched
+    expect(r1.reports[0]!.center).toBe(before.lastCenter) // the frozen center repeats in the report
+    expect(r1.reports[0]!.centerMetrics).toBeUndefined()
+    expect(r1.reports[0]!.episodes).toBe(0)
+    expect(isl.state.islands[1]!.age).toBe(age1 + 1) // the focused island steps
+    expect(r1.reports[1]!.episodes).toBeGreaterThan(0)
+  })
+
+  it('a focused island leaves on a lexicographic improvement; all over the hump -> normal (ii)', () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    isl.reproduce(vecs(1, 0.5, 0.4))
+    isl.reproduce(vecs(2, 0.5, 0.4))
+    expect(isl.state.focus?.set).toEqual([1, 2])
+    isl.reproduce(vecs(3, 0.9, 0.4)) // island 1 improves, island 2 does not
+    expect(isl.state.focus?.set).toEqual([2])
+    expect(isl.state.islands[1]!.stagn).toBe(0)
+    expect(isl.state.islands[2]!.stagn).toBe(2)
+    isl.reproduce(vecs(4, 0.9, 0.8)) // island 2 improves too: the focus ends completely
+    expect(isl.state.focus).toBeUndefined()
+    expect(isl.state.islands[2]!.stagn).toBe(0)
+  })
+
+  it('FOCUS_MAX_EPOCHS ends the focus and resets the stagn counters (iii)', () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    isl.reproduce(vecs(1, 0.5, 0.4))
+    isl.reproduce(vecs(2, 0.5, 0.4))
+    expect(isl.state.focus?.set).toEqual([1, 2])
+    for (let e = 0; e < FOCUS_MAX_EPOCHS - 1; e++) isl.reproduce(vecs(3 + e, 0.5, 0.4))
+    expect(isl.state.focus).toBeDefined() // still inside the cap
+    expect(isl.state.islands[2]!.stagn).toBe(FOCUS_MAX_EPOCHS)
+    isl.reproduce(vecs(10, 0.5, 0.4)) // the cap epoch: back to normal, counters reset
+    expect(isl.state.focus).toBeUndefined()
+    expect(isl.state.islands[1]!.stagn).toBe(0)
+    expect(isl.state.islands[2]!.stagn).toBe(0)
+    isl.reproduce(vecs(11, 0.5, 0.4)) // hysteresis: fresh stagnation re-enters focus from zero
+    expect(isl.state.focus?.set).toEqual([1, 2])
+    expect(isl.state.focus?.epochs).toBe(0)
+  })
+
+  it('no focus while everything improves (iv)', () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    for (let e = 0; e < STAGNATION_EPOCHS + 2; e++) isl.reproduce(vecs(1 + e, 0.9 + e, 0.8 + e))
+    expect(isl.state.islands.every((x) => x.stagn === 0)).toBe(true)
+    expect(isl.state.focus).toBeUndefined()
+    // all islands stagnant = nobody to pause = normal operation (the global boost covers it)
+    isl.reproduce(vecs(1, 1, 1))
+    expect(isl.state.focus).toBeUndefined()
+  })
+
+  it('pre-focus state files run in normal mode; a saved focus resumes paused (v)', async () => {
+    const state = initialIslands(esCfg, cfg)
+    delete state.focus // pre-focus state files have no focus field
+    const isl = new IslandEs(esCfg, cfg, state)
+    const r = await isl.step(evaluate, ['k'])
+    expect(r.paused).toEqual([]) // no focus in the file: every island steps
+    expect(isl.state.islands.every((x) => x.age === 1)).toBe(true)
+    const state2 = initialIslands(esCfg, cfg)
+    state2.focus = { set: [1], epochs: 1, sinceGen: 5 }
+    const isl2 = new IslandEs(esCfg, cfg, state2)
+    const r2 = await isl2.step(evaluate, ['k'])
+    expect(r2.paused).toEqual([0, 2])
+    expect(isl2.state.islands[0]!.age).toBe(0) // paused islands do not age
+    expect(isl2.state.islands[1]!.age).toBe(1)
+  })
+
+  it('global stagnation without individual stagnation focuses the worst-ranked island; paused bookkeeping is frozen', () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg))
+    // a historical global best from a dead lineage: no island ever beats it, but each improves on its OWN best
+    isl.state.globalBestVec = [10]
+    isl.reproduce(vecs(1, 0.9, 0.8)) // anchor: all islands individually fresh, global best stale
+    expect(isl.state.globalStagn).toBe(1)
+    expect(isl.state.focus?.set).toEqual([2]) // the worst-ranked island is focused
+    isl.reproduce(vecs(0.5, 0.4, 0.5)) // paused 0+1 score worse: FROZEN (a frozen center cannot "improve" or "stagnate")
+    expect(isl.state.islands[0]!.stagn).toBe(0)
+    expect(isl.state.islands[0]!.bestScoreVec).toEqual([1])
+    expect(isl.state.islands[2]!.stagn).toBe(1) // the focused island keeps its bookkeeping
+    expect(isl.state.focus?.set).toEqual([2])
+    isl.reproduce(vecs(0.5, 0.4, 1.8)) // the focused island improves over its pre-focus best: over the hump
+    expect(isl.state.focus).toBeUndefined()
+    expect(isl.state.islands[2]!.stagn).toBe(0)
   })
 })
 

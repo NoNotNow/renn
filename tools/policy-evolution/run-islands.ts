@@ -40,7 +40,7 @@ import { CHAIN_KINDS, COURSE_KINDS, COURSE_LENGTH, holdoutCourseKeys, parseCours
 import { parseChainEpisodeKey } from '@/policyEvolution/chains'
 import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculum, type CurriculumState } from '@/policyEvolution/curriculum'
 import { aggregateEvenness, aggregateFitness, aggregateKindMin, beatsBest, DEFAULT_ES_CONFIG, episodeValues, type EsConfig, type FitnessFn, type FitnessVecFn } from '@/policyEvolution/es'
-import { DEFAULT_ISLANDS, initialIslands, IslandEs, sigmaBoost, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
+import { DEFAULT_ISLANDS, FOCUS_MAX_EPOCHS, initialIslands, IslandEs, sigmaBoost, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
 import { createRng } from '@/avEvolution/core/rng'
 import { GENOME_LENGTH, genomeLength, genomeShape, hiddenOfLength, N_HIDDEN, N_IN_V2, N_IN_V3, padV2Genome, widenHidden } from '@/policyEvolution/policy'
 import { PolicyPool } from './pool'
@@ -232,6 +232,10 @@ async function main() {
             boosts: isl.state.islands.map((_, k) => Math.round(isl.boost(k) * 100) / 100),
             globalStagn: isl.state.globalStagn ?? 0,
             globalBoost: Math.round(sigmaBoost(isl.state.globalStagn) * 100) / 100,
+            // focus mode: null = normal operation; else the focused islands, epoch-ends spent in focus and the cap
+            focus: isl.state.focus
+              ? { set: [...isl.state.focus.set], epochs: isl.state.focus.epochs, sinceGen: isl.state.focus.sinceGen, max: FOCUS_MAX_EPOCHS }
+              : null,
           },
           ...(file.stage ? { stage: { share: file.stage.share, ema: file.stage.ema } } : {}),
           ...(file.curriculum ? { curriculum: { difficulty: file.curriculum.difficulty, ema: file.curriculum.ema } } : {}),
@@ -257,12 +261,17 @@ async function main() {
         if (!args['no-variants']) keys = keys.map((k) => withVariant(k, g + 1))
         if (file.curriculum) keys = applyCurriculum(keys, file.curriculum, g)
       }
-      const { reports } = await isl.step(evaluate, keys)
+      const { reports, paused } = await isl.step(evaluate, keys)
       centers = reports.map((r) => Math.round(r.center * 1000) / 1000)
       const boosts = isl.state.islands.map((_, k) => Math.round(isl.boost(k) * 100) / 100)
       const entry: Record<string, unknown> = { gen: isl.state.gen, centers, difficulty: file.curriculum?.difficulty }
       let line = `gen ${isl.state.gen}  centers [${reports.map((r) => r.center.toFixed(2)).join(' ')}] ages [${isl.state.islands.map((x) => x.age).join(' ')}]`
       if (boosts.some((b) => b > 1)) line += `  sigma-boost [${boosts.map((b) => b.toFixed(2)).join(' ')}] (stagns [${isl.state.islands.map((x) => x.stagn ?? 0).join(' ')}] global ${isl.state.globalStagn ?? 0})`
+      // focus mode: the stagnant / weak islands step alone, the others are paused (frozen center, frozen age)
+      if (isl.state.focus) {
+        const f = isl.state.focus
+        line += `  FOCUS islands [${f.set.join(' ')}] (epoch ${f.epochs + 1}/${FOCUS_MAX_EPOCHS} since gen ${f.sinceGen}, paused [${paused.join(' ')}])`
+      }
       if (v3 && file.stage) {
         const freeRuns = reports.flatMap((r) => (r.centerMetrics ?? []).filter((m) => parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind === 'free'))
         if (freeRuns.length) file.stage = updateStage(file.stage, freeRuns.filter((m) => m.outcome === 'finish').length / freeRuns.length)
@@ -288,7 +297,14 @@ async function main() {
           }),
         )
         const scores = scoreVecs.map((v) => v[0] ?? 0)
+        const focusBefore = isl.state.focus
         const { best, event } = isl.reproduce(scoreVecs)
+        // focus transitions of this epoch end: entered (stagnation), ended (all over the hump) or capped
+        if (isl.state.focus && !focusBefore) line += `\n  FOCUS entered: islands [${isl.state.focus.set.join(' ')}] step alone until over the hump (cap ${FOCUS_MAX_EPOCHS} epochs)`
+        else if (!isl.state.focus && focusBefore) {
+          const done = focusBefore.set.every((i) => (isl.state.islands[i]!.stagn ?? 0) === 0)
+          line += `\n  FOCUS ended: ${done ? `islands [${focusBefore.set.join(' ')}] over the hump` : `capped at ${FOCUS_MAX_EPOCHS} epochs (stagn counters reset)`}`
+        }
         const theta = isl.state.islands[best]!.es.theta.slice()
         const [tr, ho] = await Promise.all([evaluate(theta, train), evaluate(theta, holdout)])
         const trainFit = fitness(tr)
