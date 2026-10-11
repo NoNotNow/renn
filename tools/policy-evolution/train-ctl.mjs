@@ -24,9 +24,9 @@ const TRAIN = {
   log: resolve(root, 'training-data/policy-evolution/v3mg6.log'),
   nohupLog: resolve(root, 'training-data/policy-evolution/v3mg6.nohup.log'),
   targetGen: 3000,
-  why: 'policy evolution: v3mg6 maze+grid FRESH run (no warm start, no v3mg5 carry-over: its gen-1900 best REGRESSED vs the shipped gen-1000 on grid/maze) on the 26-input net (two touch inputs); touches SURVIVED and punished per frame; deviation penalty kept; NOW with the failure-mined adversarial TRAIN setups (grid:4001~2 tight mid-hairpin, grid:4002~2 endgame past the last hairpin, maze:4011~2 corner-exit chain end, maze:4008~2 lateral ~90-deg start leg) from the T4 diagnosis',
+  why: 'policy evolution: v3mg6 maze+grid run with speedCap 10 (sät. the speed part of the reward at NORM_SPEED: every FINISH scores 1.0, any FAIL stays below frac² x cap/20 - under the cap a fast offcourse could no longer beat a slow finish, which is exactly why the corner routes never learned braking; switched on at gen 1220, stored best/baselines reset to the new scale); adversarial TRAIN setups from the T4 diagnosis included',
   // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself)
-  start: 'V3_OUT=training-data/policy-evolution/v3mg6.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg6.nohup.log 2>&1 &',
+  start: 'V3_OUT=training-data/policy-evolution/v3mg6.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6 --speed-cap 10" nohup bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg6.nohup.log 2>&1 &',
 }
 const WATCH = {
   why: 'auto-trial watcher: deploys the newest candidate into the maze training worlds every 2 min (skips cycles without a new best)',
