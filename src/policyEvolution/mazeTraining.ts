@@ -15,6 +15,7 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { buildCourse, KIND_SALT, type Course, type CourseBox } from './courses'
 import { POLICY_CAR_ID, POLICY_GROUND, policyCourseParts, type CmdConfig } from './episode'
+import { POLICY_ESCAPE_HOLD_S } from './policyStages'
 
 export interface MazeTrainingWorldSpec {
   /** example world id (= folder name under public/exampleWorlds/, also the File-menu/dialog key) */
@@ -356,6 +357,8 @@ export const MAZE_GOAL_REACH_M = 8
 export const MAZE_GOAL_Y = 9
 /** Color of the guidance carrot line (car -> ~8 m ahead on its chain). */
 export const MAZE_CARROT_COLOR = '#aa44ff'
+/** Color of the touch-escape vector (car -> the escape aim while the escape stage overrides input.av.cmd). */
+export const MAZE_ESCAPE_COLOR = '#ff3344'
 
 /**
  * Custom-transformer code of the per-car score stage (same code string on every car, params differ: `chain` = the own
@@ -365,9 +368,16 @@ export const MAZE_CARROT_COLOR = '#aa44ff'
  * DRAWING happens only from car 0's stage (api.visualizeLine renders for the entity named by
  * world.debugTargetLineEntityId): every chain in its color pair (forward green -> orange, reversed blue -> orange,
  * y = 0.35) plus one carrot per car (own from input.position at state.s + 8, the others via api.getWorldPosition,
- * nearest chain point + 8 m ahead).
+ * nearest chain point + 8 m ahead). While the touch-escape stage OWNS the command (lateral touch, POLICY_ESCAPE_HOLD_S
+ * hold — same window as policyStages.ts, tracked with the stage's own clock) the own carrot is REPLACED by the
+ * overridden aim (input.av.cmd.aim, still set at this priority) drawn in MAZE_ESCAPE_COLOR.
  */
 export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, state, api) {
+  if (state.t === undefined) state.t = 0
+  state.t += dt
+  if (input.environment && input.environment.isTouchingSide) state.escUntil = state.t + ${POLICY_ESCAPE_HOLD_S}
+  var escAim = null
+  if (state.escUntil !== undefined && state.t < state.escUntil && input.av && input.av.cmd && input.av.cmd.aim) escAim = input.av.cmd.aim
   var ch = params.chain
   var n = ch.length
   if (!state.cum) {
@@ -440,6 +450,10 @@ export const MAZE_SCORE_STAGE_CODE = `function transform(input, dt, params, stat
     for (var k3 = 0; k3 < params.cars.length; k3++) {
       var fx = px, fz = pz, arc = 0
       if (k3 === params.idx) {
+        if (escAim) {
+          api.visualizeLine([fx, 0.35, fz], [escAim[0], 0.35, escAim[1]], '${MAZE_ESCAPE_COLOR}')
+          continue
+        }
         arc = Math.min(state.s + 8, total)
       } else {
         var w = api.getWorldPosition(params.cars[k3])
