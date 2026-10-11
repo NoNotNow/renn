@@ -466,6 +466,19 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
 
   if (!isOpen) return null
 
+  // header totals across the runs (weakest link at a glance): the SUM of every run's best score and the SUM of
+  // every run's worst route score. Unmeasured values (null, not-yet-fetched) are skipped; nothing renders while
+  // no meta has loaded at all. The worst sum is the dialog-side weakest-link aggregate: it only grows when the
+  // stuck routes improve.
+  const metas = MAZE_TRAINING_WORLDS.map((spec) => cardStates[spec.id]?.meta).filter((m): m is MazeTrainingMeta => m != null)
+  const sumBest = metas.length && metas.some((m) => m.bestScore != null) ? metas.reduce((a, m) => a + (m.bestScore ?? 0), 0) : null
+  const worsts = metas.map((m) => worstRouteScore(m)).filter((w): w is { score: number; way: number } => w != null)
+  const sumWorst = worsts.length ? worsts.reduce((a, w) => a + w.score, 0) : null
+  const totalsLine =
+    sumBest != null || sumWorst != null
+      ? `${sumBest != null ? `Σ Best: ${sumBest} pts` : 'Σ Best: —'} · ${sumWorst != null ? `Σ Worst: ${sumWorst} pts` : 'Σ Worst: —'}`
+      : null
+
   const panelHeight = expanded ? size.height : STRIP_HEIGHT
 
   return createPortal(
@@ -536,6 +549,15 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
         <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
           {MAZE_TRAINING_WORLDS.length} runs
         </span>
+        {totalsLine ? (
+          <span
+            data-testid="maze-training-header-totals"
+            title="Totals across the runs: sum of each run's best score and sum of its worst route score (the stuck routes)"
+            style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}
+          >
+            {totalsLine}
+          </span>
+        ) : null}
         <div style={{ flex: 1 }} />
         <button
           type="button"

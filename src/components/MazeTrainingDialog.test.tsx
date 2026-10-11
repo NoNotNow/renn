@@ -101,6 +101,8 @@ describe('MazeTrainingDialog', () => {
     expect(header).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByText('Training Mazes')).toBeInTheDocument()
     expect(screen.getByText(`${MAZE_TRAINING_WORLDS.length} runs`)).toBeInTheDocument()
+    // offline: no meta loaded -> no totals in the header strip
+    expect(screen.queryByTestId('maze-training-header-totals')).not.toBeInTheDocument()
     expect(screen.queryAllByTestId(/^maze-training-card-/)).toHaveLength(0)
     expect(screen.queryByTestId('maze-training-resize-handle')).not.toBeInTheDocument()
   })
@@ -123,6 +125,8 @@ describe('MazeTrainingDialog', () => {
     // (TILE_SCORES min is 140 at route index 3 -> way 4)
     expect(screen.getAllByText('Worst: 140 pts · way 4')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     expect(screen.getAllByText('3 ways · 1 reversed')).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    // header totals: sum of the bests (4x123, one world null) and of the worsts (5x140)
+    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 492 pts · Σ Worst: 700 pts')
     expect(screen.getByTestId('maze-training-resize-handle')).toBeInTheDocument()
   })
 
@@ -263,6 +267,8 @@ describe('MazeTrainingDialog', () => {
     expect(screen.queryByText(/reversed/)).not.toBeInTheDocument()
     // no per-route scores -> no worst score either
     expect(screen.getAllByText('Worst: —')).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    // header totals: bests sum (5x77), no worst data at all
+    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 385 pts · Σ Worst: —')
     for (const spec of MAZE_TRAINING_WORLDS) {
       expect(screen.getByTestId(`maze-training-card-${spec.id}`)).toBeInTheDocument()
     }
