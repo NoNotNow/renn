@@ -4,8 +4,8 @@
   "name": "Maze Training 5",
   "candidate": {
     "policy": "v3",
-    "label": "v3mg5 trial (gen 200)",
-    "gen": 200,
+    "label": "v3mg5 trial (gen 225)",
+    "gen": 225,
     "source": "training-data/policy-evolution/.trial-snapshot-pinned.json"
   },
   "bestScore": 210,
@@ -68,7 +68,7 @@
             10
           ]
         ],
-        "score": 0
+        "score": 121
       },
       {
         "pts": [
@@ -174,7 +174,7 @@
             193.7
           ]
         ],
-        "score": 0
+        "score": 19
       },
       {
         "pts": [
@@ -231,7 +231,7 @@
             193.7
           ]
         ],
-        "score": 210
+        "score": 208
       }
     ]
   }
