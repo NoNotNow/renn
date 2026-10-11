@@ -17,6 +17,13 @@ export interface EsConfig {
   seed: number
   /** L2 pull toward 0 per step (keeps weights from drifting into tanh saturation) */
   weightDecay: number
+  /**
+   * Rank-tie tolerance for the lex vector ranks (v3): vector positions that differ by at most this much count as
+   * equal, so near-identical candidates share their average rank instead of getting opposite ranks off evaluation
+   * noise. 0 (default / absent) = strict, bit-identical to the old behavior (only exactly-identical vectors tie).
+   * Only used in the fitnessVec branch; the scalar centredRanks path never sees it.
+   */
+  lexEps?: number
 }
 
 export const DEFAULT_ES_CONFIG: Omit<EsConfig, 'dim'> = { pairs: 24, sigma: 0.1, lr: 0.03, initStd: 0.3, seed: 1, weightDecay: 0.005 }
@@ -44,6 +51,12 @@ export interface GenerationReport {
   episodes: number
   /** per-course metrics of the mean policy on this generation's batch (not persisted) */
   centerMetrics?: PolicyEpisodeMetrics[]
+  /**
+   * Share of candidate PAIRS that share a lex rank under `lexEps` (v3 calibration: how much of the batch the eps
+   * effectively ties). Only set in the fitnessVec branch; absent for scalar runs. Optional so existing consumers
+   * that construct or pass reports through stay untouched.
+   */
+  lexTieFrac?: number
 }
 
 /** Robust fitness of one genome over a set of courses: half mean, half the mean of the worst quarter (normalised scores). */
@@ -198,20 +211,61 @@ export function lexGreater(a: number[], b: number[], eps = 0): boolean {
 }
 
 /**
- * Centred ranks in [-0.5, 0.5] from the LEXICOGRAPHIC order of ascending episode-value vectors: the candidates are
- * sorted by `lexCompare` and the rank positions are centred; identical vectors share their average rank (a tie).
- * Replaces the scalar `centredRanks(fit)` in the ES step — only the u_i assignment changes, the Adam/gradient path
- * is untouched.
+ * Eps-equality of two ascending episode-value vectors — the exact analogue of `lexGreater`'s eps semantics: positions
+ * that differ by at most `eps` count as equal, and the first position that differs by MORE than `eps` breaks the tie.
+ * With `eps = 0` only identical vectors (padding included) are equal, which is exactly `lexCompare === 0`, so the
+ * strict default stays bit-identical to the old grouping.
  */
-export function lexCentredRanks(vectors: number[][]): number[] {
+function lexEpsEqual(a: number[], b: number[], eps: number): boolean {
+  const n = Math.max(a.length, b.length)
+  for (let i = 0; i < n; i++) {
+    if (Math.abs((a[i] ?? 0) - (b[i] ?? 0)) > eps) return false
+  }
+  return true
+}
+
+/**
+ * Rank keys of the eps-grouped LEXICOGRAPHIC order: the candidates are still sorted by the STRICT `lexCompare`
+ * (unchanged), then ADJACENT sorted candidates share a key while they are eps-equal — a noise-level difference no
+ * longer splits two otherwise identical runs into opposite-centred ranks. `eps = 0` keeps only exactly-identical
+ * vectors tied, bit-identical to the old key assignment. Shared by `lexCentredRanks` (rank values) and
+ * `lexTieFraction` (tie share) so both always agree on what a tie is.
+ */
+function lexRankKeys(vectors: number[][], eps: number): number[] {
   const order = vectors.map((v, i) => [v, i] as const).sort((x, y) => lexCompare(x[0], y[0]))
   const keys = new Array<number>(vectors.length)
   let k = 0
   for (let j = 0; j < order.length; j++) {
-    if (j > 0 && lexCompare(order[j]![0], order[j - 1]![0]) !== 0) k++
+    if (j > 0 && !lexEpsEqual(order[j]![0], order[j - 1]![0], eps)) k++
     keys[order[j]![1]] = k
   }
-  return centredRanks(keys)
+  return keys
+}
+
+/**
+ * Centred ranks in [-0.5, 0.5] from the LEXICOGRAPHIC order of ascending episode-value vectors: the candidates are
+ * sorted by `lexCompare` and the rank positions are centred; eps-equal vectors (identical vectors at `eps = 0`) share
+ * their average rank (a tie). Replaces the scalar `centredRanks(fit)` in the ES step — only the u_i assignment
+ * changes, the Adam/gradient path is untouched.
+ */
+export function lexCentredRanks(vectors: number[][], eps = 0): number[] {
+  return centredRanks(lexRankKeys(vectors, eps))
+}
+
+/**
+ * Calibration instrumentation for `lexEps`: the share of candidate PAIRS that share a rank key under the eps grouping
+ * (`0` = all distinct, `1` = the whole batch is one tie). An eps that ties almost nothing is wasted (still paying
+ * the noise it was meant to absorb); an eps that ties almost everything erases the ranking signal. N < 2 -> 0
+ * (no pairs).
+ */
+export function lexTieFraction(vectors: number[][], eps = 0): number {
+  const n = vectors.length
+  if (n < 2) return 0
+  const counts = new Map<number, number>()
+  for (const k of lexRankKeys(vectors, eps)) counts.set(k, (counts.get(k) ?? 0) + 1)
+  let ties = 0
+  for (const c of counts.values()) ties += (c * (c - 1)) / 2
+  return ties / ((n * (n - 1)) / 2)
 }
 
 /**
@@ -272,11 +326,12 @@ export class PolicyEs {
     }
     const [centerMetrics, ...results] = await Promise.all([evaluate(s.theta, keys), ...cands.map((c) => evaluate(c, keys))])
     const fit = results.map((r) => this.fitness(r))
-    // v3 weakest link: ranks from the LEXICOGRAPHIC order of the candidates' episode-value vectors (ties only for
-    // identical vectors) — the scalar min saturates at 0 for one immediate stall and would leave all early candidates
-    // unrankable. Only the u_i assignment changes; the Adam/gradient path below is untouched.
+    // v3 weakest link: ranks from the LEXICOGRAPHIC order of the candidates' episode-value vectors (ties for identical
+    // vectors, or within lexEps) — the scalar min saturates at 0 for one immediate stall and would leave all early
+    // candidates unrankable. Only the u_i assignment changes; the Adam/gradient path below is untouched.
     const fv = this.fitnessVec
-    const u = fv ? lexCentredRanks(results.map((r) => fv(r))) : centredRanks(fit)
+    const lexVecs = fv ? results.map((r) => fv(r)) : undefined
+    const u = lexVecs ? lexCentredRanks(lexVecs, this.cfg.lexEps ?? 0) : centredRanks(fit)
     const grad = new Array<number>(dim).fill(0)
     for (let i = 0; i < pairs; i++) {
       const w = u[2 * i]! - u[2 * i + 1]!
@@ -306,6 +361,8 @@ export class PolicyEs {
       sigma,
       episodes: (cands.length + 1) * keys.length,
       centerMetrics: centerMetrics!,
+      // tie share under the same eps as the ranks above (fitnessVec branch only; absent for scalar runs)
+      ...(lexVecs ? { lexTieFrac: lexTieFraction(lexVecs, this.cfg.lexEps ?? 0) } : {}),
     }
   }
 }

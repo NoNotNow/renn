@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
 import { createRng } from '@/avEvolution/core/rng'
 import { aggregateFitness, DEFAULT_ES_CONFIG, type EvaluateGenome } from './es'
 import { alignNeurons, crossoverNeurons, DEFAULT_ISLANDS, FOCUS_MAX_EPOCHS, freshGenome, initialIslands, IslandEs, neuronBlock, sampleInputs, setNeuronBlock, SIGMA_BOOST_MAX, SIGMA_BOOST_STEP, sigmaBoost, STAGNATION_EPOCHS } from './islands'
@@ -234,6 +235,126 @@ describe('stagnation-driven sigma boost', () => {
     expect(isl.state.islands.every((x) => x.bestScoreVec?.[0] === 1)).toBe(true)
     expect(isl.state.globalBestVec).toEqual([1])
     expect(isl.state.islands.every((x) => x.bestScore === 5)).toBe(true) // the scalar fields are left untouched
+  })
+})
+
+describe('cumulative step-size adaptation (CSA)', () => {
+  // mature = 1000: no island is ever replaced here, so the CSA logic is observed in isolation
+  const esCfg = { ...DEFAULT_ES_CONFIG, dim: GENOME_LENGTH, pairs: 4, seed: 3 }
+  const cfg = { ...DEFAULT_ISLANDS, epoch: 5, mature: 1000, pCross: 0 }
+  /** fitness = the total of the weights: every dimension is under consistent pressure in ONE direction */
+  const dirEvaluate: EvaluateGenome = async (g) => [{ norm: g.reduce((a, x) => a + x, 0) / 1000 } as never]
+  const vecs = (...s: number[]) => s.map((x) => [x])
+  const lo = esCfg.sigma / SIGMA_BOOST_MAX
+  const hi = esCfg.sigma * SIGMA_BOOST_MAX
+
+  it('csa off (default): the trajectory is bit-identical to the pre-CSA code and writes no sigma/csaPath', async () => {
+    const esCfgS = { ...DEFAULT_ES_CONFIG, dim: genomeLengthV2(2), pairs: 2, seed: 3 }
+    const cfgS = { ...DEFAULT_ISLANDS, epoch: 2, mature: 1000, pCross: 0 }
+    const target = freshGenome(createRng(77), 0.4, N_IN_V2, 2)
+    const evaluate = async (g: number[]) => [{ norm: -g.reduce((a, x, i) => a + (x - target[i]!) ** 2, 0) / 50 } as never]
+    const run = async (csa?: boolean) => {
+      const isl = new IslandEs(esCfgS, cfgS, initialIslands(esCfgS, cfgS), undefined, undefined, csa)
+      for (let g = 1; g <= 11; g++) {
+        await isl.step(evaluate, ['k'])
+        if (isl.isEpochEnd()) isl.reproduce(vecs(1, 0.5, 0.4))
+      }
+      return isl.state
+    }
+    const state = await run()
+    // sha256 of the IslandsState JSON, generated with the pre-CSA islands.ts (same loop, default constructor):
+    // the default run must reproduce the old behavior bit for bit — regenerate the hash only if the ES itself changes
+    expect(createHash('sha256').update(JSON.stringify(state)).digest('hex')).toBe('c8423101127824e0a0ff71e64a594a075af817c204e00113b3f1de3d88160b75')
+    expect(state.islands.every((x) => x.sigma === undefined && x.csaPath === undefined)).toBe(true)
+    // an explicit csa = false takes exactly the same off-path as the default
+    expect(JSON.stringify(await run(false))).toBe(JSON.stringify(state))
+  })
+
+  it('csa on: consistent displacement grows the path, the base sigma rises to the upper clamp', async () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg), undefined, undefined, true)
+    const sigmas: number[][] = []
+    for (let g = 0; g < 20; g++) {
+      await isl.step(dirEvaluate, ['k'])
+      sigmas.push(isl.state.islands.map((x) => x.sigma!))
+    }
+    sigmas.flat().forEach((s) => {
+      expect(s).toBeGreaterThanOrEqual(lo)
+      expect(s).toBeLessThanOrEqual(hi)
+    })
+    expect(isl.state.islands.every((x) => (x.sigma ?? 0) > esCfg.sigma)).toBe(true) // the base sigma grew
+    expect(Math.max(...sigmas.flat())).toBe(hi) // and it pinned at the clamp
+    expect(isl.state.islands.every((x) => x.csaPath !== undefined)).toBe(true)
+  })
+
+  it('csa on: sign-flipping displacement cancels in the path, the base sigma shrinks to the lower clamp', async () => {
+    // small lr: Adam's momentum sustains each (noisy, per-dim) displacement direction for a few generations, so
+    // the dithering step must stay short of chiN or the path rides its own transient past the random-walk length
+    const esCfgA = { ...esCfg, lr: 0.01 }
+    const isl = new IslandEs(esCfgA, cfg, initialIslands(esCfgA, cfg), undefined, undefined, true)
+    // the reward direction flips every generation (state.gen is constant within one step): the ES dithers around
+    // its center instead of travelling, so the path stays short against chiN
+    const evaluate: EvaluateGenome = async (g) => [{ norm: (isl.state.gen % 2 ? -1 : 1) * (g.reduce((a, x) => a + x, 0) / 1000) } as never]
+    const sigmas: number[][] = []
+    for (let g = 0; g < 15; g++) {
+      await isl.step(evaluate, ['k'])
+      sigmas.push(isl.state.islands.map((x) => x.sigma!))
+    }
+    sigmas.flat().forEach((s) => {
+      expect(s).toBeGreaterThanOrEqual(lo)
+      expect(s).toBeLessThanOrEqual(hi)
+    })
+    expect(isl.state.islands.every((x) => (x.sigma ?? Infinity) < esCfg.sigma)).toBe(true) // the base sigma shrank
+    expect(Math.min(...sigmas.flat())).toBe(lo) // and it pinned at the clamp
+  })
+
+  it('the stagnation boost multiplies on top of the CSA base sigma', async () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg), undefined, undefined, true)
+    isl.state.islands[0]!.sigma = esCfg.sigma * 2 // a CSA-adapted base (persisted mid-run)
+    isl.state.islands[0]!.stagn = STAGNATION_EPOCHS + 2 // stagnant: boost = SIGMA_BOOST_STEP^2
+    const r = await isl.step(dirEvaluate, ['k'])
+    expect(isl.boost(0)).toBeCloseTo(SIGMA_BOOST_STEP ** 2, 12)
+    expect(isl.engines[0]!.cfg.sigma).toBeCloseTo(esCfg.sigma * 2 * isl.boost(0), 12)
+    expect(r.reports[0]!.sigma).toBeCloseTo(esCfg.sigma * 2 * isl.boost(0), 12)
+  })
+
+  it('pre-CSA state files (no sigma/csaPath) start at the base sigma and adapt from the first step', async () => {
+    const state = initialIslands(esCfg, cfg)
+    expect(state.islands.every((x) => x.sigma === undefined && x.csaPath === undefined)).toBe(true)
+    const isl = new IslandEs(esCfg, cfg, state, undefined, undefined, true)
+    const r = await isl.step(dirEvaluate, ['k'])
+    expect(r.reports.every((x) => x.sigma === esCfg.sigma)).toBe(true) // nothing stored yet: the base sigma, boost 1
+    expect(isl.state.islands.every((x) => x.sigma !== undefined && x.csaPath !== undefined)).toBe(true)
+    await isl.step(dirEvaluate, ['k'])
+    // the consistent reward direction has moved the base sigma off its start already
+    expect(isl.state.islands.every((x) => x.sigma! !== esCfg.sigma)).toBe(true)
+  })
+
+  it('paused islands (focus mode) keep their sigma/csaPath frozen while the focused ones adapt', async () => {
+    const isl = new IslandEs(esCfg, cfg, initialIslands(esCfg, cfg), undefined, undefined, true)
+    const evaluate: EvaluateGenome = async () => [{ norm: 0 } as never]
+    isl.reproduce(vecs(1, 0.5, 0.4))
+    await isl.step(evaluate, ['k']) // one NORMAL-mode step: writes sigma/csaPath on every island
+    isl.reproduce(vecs(2, 0.5, 0.4)) // islands 1+2 stagnate -> focus
+    expect(isl.state.focus?.set).toEqual([1, 2])
+    const before = JSON.parse(JSON.stringify(isl.state.islands[0]))
+    const r = await isl.step(evaluate, ['k'])
+    expect(r.paused).toEqual([0])
+    expect(isl.state.islands[0]).toEqual(before) // frozen: sigma, csaPath, es, age, all untouched
+    expect(isl.state.islands[1]!.sigma).toBeDefined() // the focused island keeps adapting
+    expect(isl.state.islands[1]!.csaPath).toBeDefined()
+  })
+
+  it('a replaced island restarts CSA at the base sigma with an empty path', async () => {
+    const esCfgR = { ...DEFAULT_ES_CONFIG, dim: GENOME_LENGTH, pairs: 2, seed: 3 }
+    const cfgR = { ...DEFAULT_ISLANDS, epoch: 5, mature: 1000, pCross: 0 }
+    const isl = new IslandEs(esCfgR, cfgR, initialIslands(esCfgR, cfgR), undefined, undefined, true)
+    for (let g = 0; g < 3; g++) await isl.step(dirEvaluate, ['k'])
+    isl.state.islands.forEach((x) => (x.age = 1000)) // force island 2 (worst rank below) to be replaceable
+    const { event } = isl.reproduce(vecs(1, 0.9, 0.8))
+    expect(event).toBeDefined()
+    const fresh = isl.state.islands[event!.replaced]!
+    expect(fresh.sigma).toBeUndefined()
+    expect(fresh.csaPath).toBeUndefined()
   })
 })
 

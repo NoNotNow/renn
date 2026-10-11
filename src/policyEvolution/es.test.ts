@@ -9,6 +9,7 @@ import {
   lexCentredRanks,
   lexCompare,
   lexGreater,
+  lexTieFraction,
   PolicyEs,
   touchPenaltyNorm,
   V3_FAIL_FACTOR,
@@ -102,6 +103,71 @@ describe('v3 lexicographic weakest link (candidates compared as ascending episod
     const rep = await es.step(evaluate, ['k'])
     expect(rep.best).toBe(0) // scalar mins are all 0 ...
     expect(es.state.theta[0]!).toBeGreaterThan(before) // ... yet the lex ranks pull theta toward the better second-worst
+  })
+})
+
+describe('v3 lex eps (near-identical vectors share their rank; eps = 0 stays strict)', () => {
+  it('lexCentredRanks without eps: only exactly-identical vectors tie (the old behavior, bit-identical)', () => {
+    const a = [0, 0.3, 0.9]
+    expect(lexCentredRanks([a, [0, 0.31, 0.9]])).toEqual([-0.5, 0.5]) // any difference decides, however small
+    expect(lexCentredRanks([a, [...a]])).toEqual([0, 0]) // identical vectors still share their average rank
+    expect(lexCentredRanks([a, [0, 0.31, 0.9]], 0)).toEqual([-0.5, 0.5]) // explicit eps: 0 = the strict default
+  })
+
+  it('near-ties share their average rank at eps and stay distinct at eps = 0', () => {
+    const a = [0, 0.3, 0.9]
+    const b = [0, 0.32, 0.9]
+    expect(lexCentredRanks([a, b, [0.5, 0.5, 0.5]], 0.05)).toEqual([-0.25, -0.25, 0.5]) // a and b share one average rank
+    expect(lexCentredRanks([a, b, [0.5, 0.5, 0.5]])).toEqual([-0.5, 0, 0.5]) // strict: every difference decides
+    expect(lexCentredRanks([a, b], 0.01)).toEqual([-0.5, 0.5]) // below the threshold: no tie
+    // the grouping is over ADJACENT sorted candidates: a chain of eps-links forms one shared rank even when the
+    // ends differ by more than eps
+    expect(lexCentredRanks([[0, 0.3], [0, 0.35], [0, 0.4]], 0.06)).toEqual([0, 0, 0])
+  })
+
+  it('eps decides only above the threshold: the first position differing by more than eps decides', () => {
+    const a = [0.1, 0.2, 0.3]
+    const b = [0.12, 0.9, 0.99]
+    // the first positions differ within eps, so the later position beyond eps decides the improvement
+    expect(lexGreater(b, a, 0.05)).toBe(true)
+    expect(lexGreater(a, b, 0.05)).toBe(false)
+    // and a beyond-eps difference does not merge into a shared rank
+    expect(lexCentredRanks([a, b], 0.05)).toEqual([-0.5, 0.5])
+    expect(lexCentredRanks([b, a], 0.05)).toEqual([0.5, -0.5])
+    // a worse min beyond eps loses whatever the remaining values do
+    expect(lexCentredRanks([[0.1, 0.9, 0.99], [0.2, 0.2, 0.2]], 0.05)).toEqual([-0.5, 0.5])
+  })
+
+  it('lexTieFraction: 0 for all-distinct, 1 for all-equal, the exact share for a mix; respects eps', () => {
+    const x = [0, 0.1]
+    const y = [0, 0.12]
+    const z = [0.5, 0.5]
+    expect(lexTieFraction([x, y, z])).toBe(0)
+    expect(lexTieFraction([x, x, x])).toBe(1)
+    expect(lexTieFraction([x, x, y])).toBeCloseTo(1 / 3, 12) // 1 tied pair out of 3
+    expect(lexTieFraction([x, y, z], 0.05)).toBeCloseTo(1 / 3, 12) // x and y become eps-equal
+    expect(lexTieFraction([x, y, z], 0.01)).toBe(0) // ... but only above the threshold
+    expect(lexTieFraction([x])).toBe(0) // N < 2: no pairs
+    expect(lexTieFraction([])).toBe(0)
+  })
+
+  it('EsConfig without lexEps is bit-identical to explicit lexEps: 0 (the whole trajectory, not just the direction)', async () => {
+    const fitness: FitnessFn = (m) => Math.min(...m.map((x) => x.norm))
+    const fitnessVec: FitnessVecFn = (m) => m.map((x) => x.norm).sort((a, b) => a - b)
+    // one stall (value 0) plus values tracking the genome: ranks come from the lex order, not the saturated min
+    const evaluate: EvaluateGenome = async (g) => [{ norm: 0 }, { norm: 1 + g[0]! }, { norm: 0.05 * g[1]! }] as never
+    const run = async (lexEps?: number) => {
+      const es = new PolicyEs({ ...DEFAULT_ES_CONFIG, dim: 2, pairs: 6, seed: 11, lexEps }, undefined, fitness, fitnessVec)
+      const reports = []
+      for (let i = 0; i < 5; i++) reports.push(await es.step(evaluate, ['k']))
+      return { theta: es.state.theta, reports }
+    }
+    const implicit = await run()
+    const explicit = await run(0)
+    expect(explicit.theta).toEqual(implicit.theta)
+    expect(explicit.reports).toEqual(implicit.reports)
+    // the report carries the tie share in the fitnessVec branch, computed with the same eps
+    expect(typeof implicit.reports[0]!.lexTieFrac).toBe('number')
   })
 })
 

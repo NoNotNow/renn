@@ -238,6 +238,10 @@ export interface IslandState {
   stagn?: number
   /** center fitness of the last STEPPED generation (display of a paused island during focus; optional: pre-focus state files) */
   lastCenter?: number
+  /** CSA-adapted BASE sigma of this island, WITHOUT the stagnation boost (optional: written only with `csa` on — older state files have none and start at `esCfg.sigma`) */
+  sigma?: number
+  /** CSA evolution path, dim-length (optional: written only with `csa` on; a fresh / replaced island starts at path zero) */
+  csaPath?: number[]
 }
 
 export interface IslandsState {
@@ -281,14 +285,22 @@ export interface IslandsStepReport {
   paused: number[]
 }
 
-/** The island model driver. `esCfg.pairs` is the number of antithetic pairs PER island. */
+/**
+ * The island model driver. `esCfg.pairs` is the number of antithetic pairs PER island.
+ *
+ * CSA (opt-in, final constructor flag; the runner persists it): per island, Hansen cumulative step-size
+ * adaptation — the island's BASE sigma is adapted from the length of its conjugate evolution path, so a consistently
+ * directed search widens its steps and directionless dithering narrows them. The stagnation boost keeps multiplying
+ * on TOP of that base, and with the flag off nothing is written and the trajectories are bit-identical to the
+ * pre-CSA code.
+ */
 export class IslandEs {
   readonly engines: PolicyEs[]
   private readonly rng: Rng
   /** one mutable EsConfig per island (the engines' own objects): only `sigma` is rewritten, from the base sigma and the boost */
   private readonly engineCfgs: EsConfig[]
 
-  constructor(readonly esCfg: EsConfig, readonly cfg: IslandsConfig, public state: IslandsState, private readonly fitness: FitnessFn = aggregateFitness, private readonly fitnessVec?: FitnessVecFn) {
+  constructor(readonly esCfg: EsConfig, readonly cfg: IslandsConfig, public state: IslandsState, private readonly fitness: FitnessFn = aggregateFitness, private readonly fitnessVec?: FitnessVecFn, private readonly csa = false) {
     this.engineCfgs = state.islands.map((_, k) => ({ ...esCfg, seed: esCfg.seed * 1000 + k }))
     this.engines = state.islands.map((isl, k) => new PolicyEs(this.engineCfgs[k]!, isl.es, fitness, fitnessVec))
     this.rng = createRng(0)
@@ -315,9 +327,14 @@ export class IslandEs {
   async step(evaluate: EvaluateGenome, keys: string[]): Promise<IslandsStepReport> {
     const paused = new Set(this.paused())
     const boosts = this.state.islands.map((_, k) => this.boost(k))
-    this.state.islands.forEach((_, k) => {
-      this.engineCfgs[k]!.sigma = this.esCfg.sigma * boosts[k]!
+    this.state.islands.forEach((isl, k) => {
+      // CSA adapts the island's BASE sigma, the stagnation boost multiplies on top of it; without csa (or a
+      // stored sigma) this is exactly the old `this.esCfg.sigma * boosts[k]` — the off-path stays bit-identical
+      const base = this.csa && isl.sigma !== undefined ? isl.sigma : this.esCfg.sigma
+      this.engineCfgs[k]!.sigma = base * boosts[k]!
     })
+    // with csa on only: the center before the step, to measure this generation's displacement (no allocation off-path)
+    const thetaBefore = this.csa ? this.state.islands.map((isl, k) => (paused.has(k) ? undefined : isl.es.theta.slice())) : undefined
     const frozenReport = (k: number): GenerationReport => ({
       gen: this.state.gen + 1,
       keys,
@@ -336,6 +353,34 @@ export class IslandEs {
       isl.age++
       isl.lastCenter = reports[k]!.center
     })
+    if (this.csa) {
+      // Hansen cumulative step-size adaptation (textbook CMA-ES constants, per island that STEPPED — paused islands
+      // keep their sigma / path frozen): compare ||p||, the length of the conjugate evolution path, against chiN, the
+      // length a pure random walk of the same step size would have. A consistently directed displacement lets p
+      // accumulate and ||p|| pass chiN -> the base sigma grows; directionless dithering cancels in p -> it shrinks.
+      const dim = this.esCfg.dim
+      const muEff = this.esCfg.pairs // antithetic pairs per island
+      const c = (muEff + 2) / (dim + muEff + 3) // c_sigma: path accumulates over ~1/c generations
+      const damp = 1 + 2 * Math.max(0, Math.sqrt((muEff - 1) / (dim + 1)) - 1) + c // d_sigma
+      const chiN = Math.sqrt(dim) * (1 - 1 / (4 * dim) + 1 / (21 * dim ** 2)) // E||N(0, I_dim)||
+      const scale = Math.sqrt(c * (2 - c) * muEff)
+      this.state.islands.forEach((isl, k) => {
+        const before = thetaBefore![k]
+        if (before === undefined) return
+        const s = this.engineCfgs[k]!.sigma // the sigma actually used this generation: base * boost
+        const p = new Array<number>(dim)
+        let norm = 0
+        for (let i = 0; i < dim; i++) {
+          p[i] = (1 - c) * (isl.csaPath?.[i] ?? 0) + scale * ((isl.es.theta[i]! - before[i]!) / s)
+          norm += p[i]! * p[i]!
+        }
+        // the base sigma never leaves a factor SIGMA_BOOST_MAX around esCfg.sigma, whatever the path does
+        const lo = this.esCfg.sigma / SIGMA_BOOST_MAX
+        const hi = this.esCfg.sigma * SIGMA_BOOST_MAX
+        isl.sigma = Math.min(hi, Math.max(lo, (isl.sigma ?? this.esCfg.sigma) * Math.exp((Math.sqrt(norm) / chiN - 1) / damp)))
+        isl.csaPath = p
+      })
+    }
     this.state.rngState = this.rng.getState()
     return { gen: this.state.gen, reports, boosts, paused: [...paused] }
   }
@@ -395,6 +440,7 @@ export class IslandEs {
         : freshGenome(this.rng, this.esCfg.initStd, genomeShape(this.esCfg.dim).nIn, genomeShape(this.esCfg.dim).hidden)
       const es = initialEsState({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen })
       es.theta = genome
+      // the fresh island carries no sigma / csaPath: a new lineage restarts CSA at the base sigma, path zero
       this.state.islands[worst] = { es, age: 0, origin: cross ? 'cross' : 'random', stagn: 0 }
       this.engineCfgs[worst] = { ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen }
       this.engineCfgs[worst].sigma = this.esCfg.sigma * this.boost(worst)

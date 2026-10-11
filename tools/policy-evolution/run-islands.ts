@@ -26,7 +26,12 @@
  *
  * Options: --islands N (default 3) --pairs N (antithetic pairs PER island, default 8) --epoch N (25) --mature N (75) --p-cross P (0.5)
  *   --sigma --lr --seed --batch N (18) --train-per-kind N (30) --holdout-per-kind N (20) --workers N --out FILE --resume
- *   --no-variants --no-curriculum --curriculum-start D (0)
+ *   --no-variants --no-curriculum --curriculum-start D (0) --lex-eps E --csa
+ * --lex-eps E (v3, creation only - persisted in config like speedCap): rank-tie tolerance for the lex vector ranks; near-tie
+ *   candidates share their rank instead of getting opposite ranks off evaluation noise. 0/absent = strict (old behaviour).
+ *   Calibration: the per-gen log prints `lex ties F`, the share of candidate pairs sharing a rank (starves the gradient when high).
+ * --csa (creation only - persisted like speedCap): Hansen cumulative step-size adaptation per island - the island's BASE sigma
+ *   adapts to its evolution path every generation, the stagnation boost keeps multiplying on top. Off (default) = bit-identical.
  * The best mean policy by TRAIN score (checked at every epoch end) is stored as `best.genome` (same layout as run.ts; ship.ts reads it).
  * Agent exports (next to --out): latest-best.json on every best change + resume (trial via RENN_V3_GENOME_FILE), and
  *   latest-stats.json every --stats-every gens (default 20) + every epoch end + resume (--latest-best/--latest-stats override the paths).
@@ -72,6 +77,8 @@ interface RunFile {
   v3?: boolean
   /** opt-in v3 training speed cap (m/s), persisted so --resume keeps it; absent = uncapped */
   speedCap?: number
+  /** opt-in per-island cumulative step-size adaptation (Hansen CSA), persisted so --resume keeps it; absent = off */
+  csa?: boolean
   stage?: StageState | null
   config: EsConfig
   islands: IslandsConfig
@@ -137,8 +144,9 @@ async function main() {
   }
   const train = v2 ? flattenChainKeys(trainGroups) : trainCourseKeys(num(args['train-per-kind'], 30), kinds)
   const holdout = v2 ? flattenChainKeys(holdoutGroups) : holdoutCourseKeys(num(args['holdout-per-kind'], 20), kinds)
-  // --speed-cap only at creation (persisted); a resume uses the stored value, so a resume without the flag behaves as before
+  // --speed-cap / --csa only at creation (persisted); a resume uses the stored value, so a resume without the flag behaves as before
   const speedCap = resumed ? file!.speedCap : args['speed-cap'] !== undefined ? num(args['speed-cap'], 0) || undefined : undefined
+  const csa = resumed ? !!file!.csa : !!args.csa
   const fitness: FitnessFn = v3 ? (m) => aggregateKindMin(m, speedCap) : v2 ? aggregateEvenness : aggregateFitness
   // v3 weakest link as a VECTOR (ascending episode values): its LEXICOGRAPHIC order ranks candidates (ES step),
   // islands (reproduce) and the stored best — one immediate stall saturates the scalar min to 0 and would make all
@@ -154,6 +162,8 @@ async function main() {
       sigma: num(args.sigma, DEFAULT_ES_CONFIG.sigma),
       lr: num(args.lr, DEFAULT_ES_CONFIG.lr),
       seed: num(args.seed, 1),
+      // --lex-eps only at creation; persisted here, a resume reuses the stored config (0 / absent = strict, old behaviour)
+      ...(num(args['lex-eps'], 0) > 0 ? { lexEps: num(args['lex-eps'], 0) } : {}),
     }
     const islands: IslandsConfig = {
       islands: num(args.islands, DEFAULT_ISLANDS.islands),
@@ -168,13 +178,14 @@ async function main() {
       v2,
       v3,
       ...(speedCap ? { speedCap } : {}),
+      ...(csa ? { csa: true } : {}),
       stage: v3 && !args['no-stage'] ? initialStage({ ...DEFAULT_STAGE, start: num(args['stage-start'], DEFAULT_STAGE.start) }) : null,
       curriculum: v3 || args['no-curriculum'] ? null : initialCurriculum({ ...DEFAULT_CURRICULUM, start: num(args['curriculum-start'], DEFAULT_CURRICULUM.start) }),
       state: initialIslands(config, islands, warm),
       history: [],
     }
   }
-  const isl = new IslandEs(file!.config, file!.islands, file!.state, fitness, fitnessVec)
+  const isl = new IslandEs(file!.config, file!.islands, file!.state, fitness, fitnessVec, csa)
   const pool = new PolicyPool(workers)
   const evaluate = pool.evaluator()
   fs.mkdirSync(path.dirname(out), { recursive: true })
@@ -230,6 +241,8 @@ async function main() {
             ages: isl.state.islands.map((x) => x.age),
             stagns: isl.state.islands.map((x) => x.stagn ?? 0),
             boosts: isl.state.islands.map((_, k) => Math.round(isl.boost(k) * 100) / 100),
+            // CSA base sigmas (only present with --csa): the adapted per-island sigma WITHOUT the stagnation boost
+            ...(isl.state.islands.some((x) => x.sigma !== undefined) ? { csaSigmas: isl.state.islands.map((x) => (x.sigma === undefined ? null : Math.round(x.sigma * 10000) / 10000)) } : {}),
             globalStagn: isl.state.globalStagn ?? 0,
             globalBoost: Math.round(sigmaBoost(isl.state.globalStagn) * 100) / 100,
             // focus mode: null = normal operation; else the focused islands, epoch-ends spent in focus and the cap
@@ -264,8 +277,13 @@ async function main() {
       const { reports, paused } = await isl.step(evaluate, keys)
       centers = reports.map((r) => Math.round(r.center * 1000) / 1000)
       const boosts = isl.state.islands.map((_, k) => Math.round(isl.boost(k) * 100) / 100)
-      const entry: Record<string, unknown> = { gen: isl.state.gen, centers, difficulty: file.curriculum?.difficulty }
+      // lexEps calibration: the share of candidate pairs sharing a rank under the eps grouping (mean over the
+      // stepping islands). High (> ~0.5) = the gradient starves on ties -> raise eps; near 0 = eps does nothing.
+      const tieFracs = reports.map((r) => r.lexTieFrac).filter((x): x is number => x !== undefined)
+      const lexTies = tieFracs.length ? tieFracs.reduce((a, b) => a + b, 0) / tieFracs.length : undefined
+      const entry: Record<string, unknown> = { gen: isl.state.gen, centers, difficulty: file.curriculum?.difficulty, ...(lexTies !== undefined ? { lexTies: Math.round(lexTies * 1000) / 1000 } : {}) }
       let line = `gen ${isl.state.gen}  centers [${reports.map((r) => r.center.toFixed(2)).join(' ')}] ages [${isl.state.islands.map((x) => x.age).join(' ')}]`
+      if (lexTies !== undefined) line += `  lex ties ${lexTies.toFixed(2)}`
       if (boosts.some((b) => b > 1)) line += `  sigma-boost [${boosts.map((b) => b.toFixed(2)).join(' ')}] (stagns [${isl.state.islands.map((x) => x.stagn ?? 0).join(' ')}] global ${isl.state.globalStagn ?? 0})`
       // focus mode: the stagnant / weak islands step alone, the others are paused (frozen center, frozen age)
       if (isl.state.focus) {
