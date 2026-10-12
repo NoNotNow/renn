@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { polyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
+import { rectPoly, pointPolyGap, type V2 } from '@/avEvolution/eval/geometry'
 import {
   acceptedSetupKeys,
   chainClearance,
@@ -16,25 +16,27 @@ import {
   v3EpisodeKeys,
   type Chain,
 } from './chains'
-import { buildSetupCourse, CRUX_CLASSES, cruxClass, CRUX_GATE_M, parseCourseKey } from './courses'
+import { buildSetupCourse, CRUX_CLASSES, cruxClass, cruxDir, cruxEmb, CRUX_GATE_M, parseCourseKey } from './courses'
 import { CRUX_CHAINS_PER_SETUP, CRUX_JITTER_M, CRUX_LATERAL_OFF_M, CRUX_PURSUIT_SPEED, CRUX_VARIANT_GAP_M, cruxPursuitOutcomeSync, generateCruxChains, warmCruxGate } from './cruxChains'
 import { runPolicyEpisode } from './episode'
 import { pursuitV3 } from './handWired'
 import { WallLos } from './wallLos'
 
 /**
- * The crux curriculum (2026-10-12 decision): MANY TINY worlds, one crux class each (C1..C5 of the stall analysis), and
- * MANY MORE-OR-LESS GOOD ROUTES (jittered chain variants) through each crux. The tests pin the class band, the
- * signature geometry of every class, the chain gates (clearance / detour / distinctness) and the core invariant:
- * NO DEAD ZEROS - the pure-pursuit baseline finishes EVERY accepted chain, because the acceptance gate ran it.
+ * The crux curriculum, 2nd generation (2026-10-12, the v3nose failure analysis): MANY TINY worlds, one crux class each -
+ * NC1 fast corner (the dominant maze failure: leg-0 offcourse at speed, the car does not brake / steer enough for the
+ * first 90 deg turn; OCCLUDED and OPEN embodiments) and NC2 start swing (the M1/M2 slide family; LATERAL and CORNER-EXIT
+ * embodiments) - and MANY MORE-OR-LESS GOOD ROUTES (jittered chain variants) through each crux. The tests pin the class
+ * band (both classes, both embodiments, both turn directions), the signature geometry of every class + embodiment, the
+ * chain gates (clearance / detour / distinctness) and the core invariant: NO DEAD ZEROS - the pure-pursuit baseline
+ * finishes EVERY accepted chain, because the acceptance gate ran it.
  */
 
-// the deterministic enumeration results under the NOSE-anchored pursuit gate (v3 command anchor = center + fwd * NOSE_M):
-// train seeds scanned from 1 (3 per class mostly), holdout seeds from 1002 with the random start variant (2 per class).
-// crux:6/7/11/15 and crux:1002/1006/1011~1 no longer pass the gate (their jittered variants all fail the baseline), so
-// the band moved on; the holdout band now misses class 0 (C1) - no seed of the scan window passes any more.
-const TRAIN15: string[] = ['crux:1', 'crux:2', 'crux:3', 'crux:4', 'crux:5', 'crux:8', 'crux:9', 'crux:10', 'crux:12', 'crux:13', 'crux:14', 'crux:17', 'crux:18', 'crux:19', 'crux:20']
-const HOLDOUT10: string[] = ['crux:1003~1', 'crux:1004~1', 'crux:1005~1', 'crux:1007~1', 'crux:1008~1', 'crux:1009~1', 'crux:1010~1', 'crux:1012~1', 'crux:1013~1', 'crux:1014~1']
+// the deterministic enumeration results under the pursuit gate (all embodiments mirrored in x): train seeds scanned from 1,
+// holdout seeds from 1001 with the random start variant. The band holds EVERY (class, embodiment, turn direction)
+// combination of NC1/NC2 at least once (train) and every class + embodiment in the holdout.
+const TRAIN15: string[] = ['crux:1', 'crux:2', 'crux:3', 'crux:5', 'crux:6', 'crux:7', 'crux:9', 'crux:10', 'crux:11', 'crux:12', 'crux:13', 'crux:14', 'crux:15', 'crux:16', 'crux:17']
+const HOLDOUT10: string[] = ['crux:1001~1', 'crux:1002~1', 'crux:1003~1', 'crux:1005~1', 'crux:1006~1', 'crux:1007~1', 'crux:1008~1', 'crux:1009~1', 'crux:1010~1', 'crux:1011~1']
 
 // --- helpers (independent of cruxChains.ts) -----------------------------------------------------------------------------------------
 
@@ -67,19 +69,40 @@ const signedTurnDeg = (a: number, b: number) => {
   return d
 }
 const wallLosOf = (course: ReturnType<typeof buildSetupCourse>) => new WallLos(course.boxes.map((b) => rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])))
+const insideSomeBox = (course: ReturnType<typeof buildSetupCourse>, p: V2): boolean =>
+  course.boxes.some((b) => pointPolyGap(p[0], p[1], rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])) <= 0)
 
 // the chain enumeration runs the SYNC pursuit gate, which builds simulators through WorldSimulator.createSync: the
 // physics engine must be warm before any crux chain is generated (Rapier wasm cannot load synchronously)
 beforeAll(() => warmCruxGate())
 
 describe('crux class band', () => {
-  it('the class of a seed is (seed - 1) % CRUX_CLASSES; the accepted bands are the pinned ones (train covers every class)', { timeout: 120_000 }, () => {
-    for (let i = 0; i < 3 * CRUX_CLASSES; i++) expect(cruxClass(i + 1)).toBe(i % CRUX_CLASSES)
+  it('class = (seed - 1) % CRUX_CLASSES, embodiment and turn direction alternate by seed; the accepted bands are the pinned ones', { timeout: 120_000 }, () => {
+    for (let i = 0; i < 4 * CRUX_CLASSES; i++) {
+      expect(cruxClass(i + 1)).toBe(i % CRUX_CLASSES)
+      expect(cruxEmb(i + 1)).toBe(Math.floor(i / CRUX_CLASSES) % 2)
+      expect(cruxDir(i + 1)).toBe(Math.floor(i / (2 * CRUX_CLASSES)) % 2 === 0 ? -1 : 1)
+    }
     expect(acceptedSetupKeys(15, ['crux'], 1)).toEqual([...TRAIN15])
     expect(acceptedSetupKeys(10, ['crux'], 1001, 1)).toEqual([...HOLDOUT10])
-    const classes = (keys: readonly string[]) => keys.map((k) => cruxClass(parseCourseKey(k).seed)).sort((a, b) => a - b).join('')
-    expect(classes(TRAIN15)).toBe('011122223333444')
-    expect(classes(HOLDOUT10)).toBe('1122233344')
+    // every class + embodiment is in BOTH bands, and the train band holds every (class, embodiment, direction) combo
+    const combo = (k: string) => {
+      const { seed } = parseCourseKey(k)
+      return `${cruxClass(seed)}${cruxEmb(seed)}${cruxDir(seed)}`
+    }
+    const trainCombos = TRAIN15.map(combo)
+    const holdCombos = HOLDOUT10.map(combo)
+    for (const cls of [0, 1])
+      for (const emb of [0, 1]) {
+        expect(trainCombos.filter((c) => c === `${cls}${emb}-1`).length, `train cls${cls} emb${emb} west`).toBeGreaterThanOrEqual(1)
+        expect(trainCombos.filter((c) => c === `${cls}${emb}1`).length, `train cls${cls} emb${emb} east`).toBeGreaterThanOrEqual(1)
+        expect(holdCombos.filter((c) => c.startsWith(`${cls}${emb}`)).length, `holdout cls${cls} emb${emb}`).toBeGreaterThanOrEqual(1)
+      }
+    // the v3nose bearing-error sign bias cannot survive: both turn directions are in both bands
+    for (const keys of [TRAIN15, HOLDOUT10]) {
+      expect(keys.some((k) => cruxDir(parseCourseKey(k).seed) === -1)).toBe(true)
+      expect(keys.some((k) => cruxDir(parseCourseKey(k).seed) === 1)).toBe(true)
+    }
   })
 
   it('train / holdout episodes are disjoint, v3-flagged and grouped by setup', { timeout: 120_000 }, () => {
@@ -96,8 +119,8 @@ describe('crux class band', () => {
 })
 
 describe('crux chain gates', () => {
-  it('is deterministic (every class)', { timeout: 300_000 }, () => {
-    for (const seed of [1, 2, 3, 4, 5, 11]) {
+  it('is deterministic (every class + embodiment)', { timeout: 300_000 }, () => {
+    for (const seed of [1, 2, 3, 5, 12, 17]) {
       const k = `crux:${seed}`
       expect(JSON.stringify(chainsForSetup(k)), k).toBe(JSON.stringify(chainsForSetup(k)))
     }
@@ -120,8 +143,8 @@ describe('crux chain gates', () => {
         expect(c.points[0], `${k}#${i} start`).toEqual(course.startAt ?? [0, 0])
         expect(chainClearance(course.boxes, c.points), `${k}#${i}`).toBeGreaterThanOrEqual(CLEARANCE.crux.min - 1e-6)
         expect(c.length, `${k}#${i} detour`).toBeLessThanOrEqual(MAX_DETOUR * baseLen)
-        // the variants jitter the waypoints of the same base route (<= CRUX_JITTER_M per axis): they stay NEAR the
-        // base path - the polyline distance is a bit above the raw offsets where adjacent fillets compound (C3's S)
+        // the variants jitter the waypoints of the same base route (<= CRUX_JITTER_M per axis): they stay NEAR
+        // the base path - the polyline distance is a bit above the raw offsets where adjacent fillets compound
         const d = hausdorff(c.points, base)
         expect(d, `${k}#${i} jitter bound`).toBeLessThanOrEqual(CRUX_JITTER_M + 4)
         if (i > 0) expect(d, `${k}#${i} distinct`).toBeGreaterThanOrEqual(CRUX_VARIANT_GAP_M)
@@ -148,8 +171,8 @@ describe('crux chain gates', () => {
   })
 
   it('sync gate == async machinery: the same chain, same episode key, same baseline - same verdict (incl. chains the gate must reject)', { timeout: 300_000 }, async () => {
-    // one setup per class, every accepted chain of it: the sync driver and runPolicyEpisode must agree
-    for (const setup of ['crux:1', 'crux:2', 'crux:3', 'crux:4', 'crux:5']) {
+    // one setup per class + embodiment, every accepted chain of it: the sync driver and runPolicyEpisode must agree
+    for (const setup of ['crux:1', 'crux:3', 'crux:2', 'crux:12', 'crux:16']) {
       for (const [i] of chainsForSetup(setup).entries()) {
         const sync = cruxPursuitOutcomeSync(setup, i)
         const async = await runPolicyEpisode(pursuitV3(CRUX_PURSUIT_SPEED), chainEpisodeKey(setup, i, true))
@@ -159,7 +182,7 @@ describe('crux chain gates', () => {
     // negative cases the gate must reject identically: the goal moved into the end wall (the baseline cannot finish)
     for (const [setup, chain] of [
       ['crux:1', chainsForSetup('crux:1')[0]!],
-      ['crux:5', chainsForSetup('crux:5')[0]!],
+      ['crux:12', chainsForSetup('crux:12')[0]!],
     ] as Array<[string, Chain]>) {
       const broken: Chain = { ...chain, points: chain.points.map((p, i) => (i === chain.points.length - 1 ? [p[0] * 2.5, p[1]] : p)) }
       const sync = cruxPursuitOutcomeSync(setup, 0, broken)
@@ -171,21 +194,45 @@ describe('crux chain gates', () => {
 })
 
 describe('crux class signatures', () => {
-  it('C1 occluded fast corner: long narrow approach, and the carrot of a fast approach is occluded by the corner wall', { timeout: 120_000 }, () => {
-    for (const k of ['crux:1', 'crux:6', 'crux:11']) {
+  it('NC1 fast corner: 20-45 m straight approach into a 90 deg turn, and the overshoot space past the corner is OPEN (offcourse, not crash)', { timeout: 120_000 }, () => {
+    for (const k of ['crux:1', 'crux:3', 'crux:5', 'crux:7', 'crux:9', 'crux:11', 'crux:13', 'crux:15', 'crux:17']) {
       const course = buildSetupCourse(k)
       const L = course.layout!
       expect(L.cls).toBe(0)
-      expect(L.approach).toBeGreaterThanOrEqual(32)
-      expect(L.approach).toBeLessThanOrEqual(50)
+      expect(L.emb).toBe(cruxEmb(parseCourseKey(k).seed))
+      expect(L.approach).toBeGreaterThanOrEqual(20)
+      expect(L.approach).toBeLessThanOrEqual(45)
       expect(L.w).toBeGreaterThanOrEqual(10)
-      expect(L.w).toBeLessThanOrEqual(11)
+      expect(L.w).toBeLessThanOrEqual(L.emb === 0 ? 12 : 14)
+      expect(L.w2).toBeGreaterThanOrEqual(9)
+      expect(L.w2).toBeLessThanOrEqual(L.emb === 0 ? 10 : 12)
+      const pts = [course.startAt ?? [0, 0], ...course.waypoints] as V2[]
+      expect(pts.length).toBe(3)
+      expect(angleBetweenDeg(headingDeg(pts[0]!, pts[1]!), course.startYawDeg ?? 0), `${k} straight approach`).toBeLessThanOrEqual(5)
+      const turn = signedTurnDeg(headingDeg(pts[0]!, pts[1]!), headingDeg(pts[1]!, pts[2]!))
+      expect(Math.abs(turn), `${k} corner`).toBeGreaterThanOrEqual(85)
+      expect(Math.abs(turn), `${k} corner`).toBeLessThanOrEqual(95)
+      // the maze failure signature: the car does not brake / steer enough and SHOOTS OUT of the corridor - the space
+      // past the corner must be free of walls (fwd ray inf, no contact), so the failure is offcourse AT SPEED
+      for (let z = -(L.approach + L.w2 / 2 + 1); z >= -(L.approach + 18); z -= 1) {
+        for (const b of course.boxes)
+          expect(pointPolyGap(0, z, rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])), `${k} overshoot space at z ${z.toFixed(0)}`).toBeGreaterThan(3)
+      }
+    }
+  })
+
+  it('NC1 OCCLUDED: the exit hides until the car is close (a fast approach carrot is occluded by the corner wall)', { timeout: 120_000 }, () => {
+    for (const k of ['crux:1', 'crux:5', 'crux:9', 'crux:13', 'crux:17']) {
+      const course = buildSetupCourse(k)
+      const L = course.layout!
+      expect(L.cls).toBe(0)
+      expect(L.emb).toBe(0)
       const los = wallLosOf(course)
       const base = [course.startAt ?? [0, 0], ...course.waypoints] as V2[]
       const cum = cumLen(base)
       const cornerArc = cum[1]!
       // sample approach positions (on the chain, before the corner): the carrot at look-ahead 8 + 0.6 v of a FAST
-      // approach (v = 25, the stall-analysis speeds) must be occluded for some of them
+      // approach (v = 25, the failure-analysis speeds) must be occluded for some of them
       let blocked = 0
       for (let s = 4; s < cornerArc - 2; s += 2) {
         const p = pointAt(base, cum, s)
@@ -202,54 +249,41 @@ describe('crux class signatures', () => {
     }
   })
 
-  it('C2 confined corner pocket: narrowed mouth, and 10+ m of free backing room behind the corner', { timeout: 120_000 }, () => {
-    for (const k of ['crux:2', 'crux:7', 'crux:12']) {
+  it('NC1 OPEN: the corner is fully visible - a fast approach carrot is never occluded', { timeout: 120_000 }, () => {
+    for (const k of ['crux:3', 'crux:7', 'crux:11', 'crux:15']) {
+      const course = buildSetupCourse(k)
+      const L = course.layout!
+      expect(L.cls).toBe(0)
+      expect(L.emb).toBe(1)
+      const los = wallLosOf(course)
+      const base = [course.startAt ?? [0, 0], ...course.waypoints] as V2[]
+      const cum = cumLen(base)
+      const cornerArc = cum[1]!
+      let blocked = 0
+      for (let s = 4; s < cornerArc - 2; s += 2) {
+        const p = pointAt(base, cum, s)
+        const carrot = pointAt(base, cum, s + 8 + 0.6 * 25)
+        if (los.blocked(p[0], p[1], carrot[0], carrot[1])) blocked++
+      }
+      expect(blocked, `${k} fully visible corner`).toBe(0)
+    }
+  })
+
+  it('NC2 LATERAL start: first leg ~90 deg off the start heading, gate at CRUX_GATE_M, every chain carries offM 16', { timeout: 120_000 }, () => {
+    for (const k of ['crux:2', 'crux:6', 'crux:10', 'crux:14']) {
       const course = buildSetupCourse(k)
       const L = course.layout!
       expect(L.cls).toBe(1)
-      expect(L.gap).toBeGreaterThanOrEqual(8.5)
-      expect(L.gap).toBeLessThanOrEqual(9.5)
-      expect(L.gap!).toBeLessThan(L.w2) // the stub narrows the mouth below the corridor width
-      // the backing room: the approach behind the corner mouth is a free 10 m (+2 margin off the walls)
-      const z0 = -L.approach + L.w2 + 1
-      const room = rectPoly((L.dir * 0), z0 + 5, 0, L.w - 4, 10)
-      for (const b of course.boxes) expect(polyGap(room, rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])), `${k} backing room vs box ${b.at}`).toBeGreaterThan(0)
-    }
-  })
-
-  it('C3 S-bend: two adjacent opposite 90 deg turns around the central block', { timeout: 120_000 }, () => {
-    for (const k of ['crux:3', 'crux:8', 'crux:13']) {
-      const course = buildSetupCourse(k)
-      const L = course.layout!
-      expect(L.cls).toBe(2)
-      const pts = [course.startAt ?? [0, 0], ...course.waypoints] as V2[]
-      expect(pts.length).toBe(4)
-      const h = [headingDeg(pts[0]!, pts[1]!), headingDeg(pts[1]!, pts[2]!), headingDeg(pts[2]!, pts[3]!)]
-      const t1 = signedTurnDeg(h[0]!, h[1]!)
-      const t2 = signedTurnDeg(h[1]!, h[2]!)
-      expect(Math.abs(t1), `${k} first turn`).toBeGreaterThanOrEqual(80)
-      expect(Math.abs(t1), `${k} first turn`).toBeLessThanOrEqual(100)
-      expect(Math.abs(t2), `${k} second turn`).toBeGreaterThanOrEqual(80)
-      expect(Math.abs(t2), `${k} second turn`).toBeLessThanOrEqual(100)
-      expect(t1 * t2, `${k} opposite turns`).toBeLessThan(0)
-      // the two turns are adjacent: the crossing between them is the minimum the ~10 m turning circle allows
-      const cross = Math.hypot(pts[2]![0] - pts[1]![0], pts[2]![1] - pts[1]![1])
-      expect(cross, `${k} crossing`).toBeGreaterThanOrEqual(L.w + L.bw)
-      expect(cross, `${k} crossing`).toBeLessThanOrEqual(L.w + L.bw + 2)
-    }
-  })
-
-  it('C4 lateral gate entry: first leg ~90 deg off the start heading, gate at 16 m, every chain carries offM 16', { timeout: 120_000 }, () => {
-    for (const k of ['crux:4', 'crux:9', 'crux:14']) {
-      const course = buildSetupCourse(k)
-      const L = course.layout!
-      expect(L.cls).toBe(3)
+      expect(L.emb).toBe(0)
       expect(L.gate).toBe(CRUX_GATE_M)
       const start = course.startAt ?? [0, 0]
       const first = course.waypoints[0]!
       const angle = angleBetweenDeg(headingDeg(start, first), course.startYawDeg ?? 0)
       expect(angle, `${k} first leg vs start heading`).toBeGreaterThanOrEqual(70)
       expect(angle, `${k} first leg vs start heading`).toBeLessThanOrEqual(110)
+      // the first leg sits ~8-16 m off the start heading (the M2 lateral start)
+      expect(Math.abs(first[0] - start[0]), `${k} lateral offset`).toBeGreaterThanOrEqual(8)
+      expect(Math.abs(first[0] - start[0]), `${k} lateral offset`).toBeLessThanOrEqual(16)
       // wall stubs flank the entry gap on the gate line
       const gapTop = L.zg + L.gw / 2
       const gapBottom = L.zg - L.gw / 2
@@ -260,31 +294,49 @@ describe('crux class signatures', () => {
     }
   })
 
-  it('C5 final corner + goal: the goal sits right after the last corner, 3.5 m before the end wall', { timeout: 120_000 }, () => {
-    for (const k of ['crux:5', 'crux:10', 'crux:15']) {
+  it('NC2 CORNER-EXIT start: aimed at the dead-end wall of a tight pocket, the only exit the mouth beside it, chains carry offM 16', { timeout: 120_000 }, () => {
+    for (const k of ['crux:12', 'crux:16', 'crux:1008~1']) {
       const course = buildSetupCourse(k)
       const L = course.layout!
-      expect(L.cls).toBe(4)
-      expect(L.approach).toBeGreaterThanOrEqual(26)
-      expect(L.approach).toBeLessThanOrEqual(34)
+      expect(L.cls).toBe(1)
+      expect(L.emb).toBe(1)
+      expect(L.pw).toBeGreaterThanOrEqual(12)
+      expect(L.pw).toBeLessThanOrEqual(16)
+      expect(L.run).toBeGreaterThanOrEqual(16)
+      expect(L.run).toBeLessThanOrEqual(24)
+      expect(L.mw).toBeGreaterThanOrEqual(6.5)
+      expect(L.mw).toBeLessThanOrEqual(8)
+      expect(L.under).toBeGreaterThanOrEqual(0.5)
+      expect(L.under).toBeLessThanOrEqual(1.5)
+      const dead = -(L.run + L.mw / 2 + L.under) // the dead-end wall's inner face
+      const dir = L.dir as -1 | 1
+      // the car starts aimed straight at the dead-end wall (it spans the pocket) and the pocket before it is open
+      expect(insideSomeBox(course, [0, dead - 1]), `${k} dead-end wall ahead`).toBe(true)
+      expect(insideSomeBox(course, [0, dead + 0.5]), `${k} pocket open before the wall`).toBe(false)
+      // the ONLY exit is the mouth in one side wall at the end of the run-up: open at the corridor line, walled above,
+      // and the dead-end wall extends west under the exit (a sliding swing drops straight into it)
+      const mouthX = dir * (L.pw / 2 + 1) // built exit-west, mirrored by x -> dir: dir -1 = west exit, +1 = east
+      expect(insideSomeBox(course, [mouthX, -L.run]), `${k} mouth open`).toBe(false)
+      expect(insideSomeBox(course, [mouthX, -L.run + L.mw / 2 + 1]), `${k} side wall above the mouth`).toBe(true)
+      expect(insideSomeBox(course, [mouthX, dead - 1]), `${k} dead-end extends west under the exit`).toBe(true)
+      // the route: straight down the pocket to the swing point, then the ~90 deg swing into the exit
       const pts = [course.startAt ?? [0, 0], ...course.waypoints] as V2[]
-      const lastLeg = Math.hypot(pts[2]![0] - pts[1]![0], pts[2]![1] - pts[1]![1])
-      expect(lastLeg, `${k} final stub`).toBeGreaterThanOrEqual(6.5)
-      expect(lastLeg, `${k} final stub`).toBeLessThanOrEqual(12.5)
-      const turn = angleBetweenDeg(headingDeg(pts[0]!, pts[1]!), headingDeg(pts[1]!, pts[2]!))
-      expect(turn, `${k} final corner`).toBeGreaterThanOrEqual(80)
-      expect(turn, `${k} final corner`).toBeLessThanOrEqual(100)
-      // the end wall seals the exit just past the goal: overshooting the goal means the wall
-      const goal = pts[pts.length - 1]!
-      const endWall = rectPoly(L.dir * (L.exit + 1), -L.approach + L.w2 / 2, 0, 2, L.w2 + 4)
-      expect(course.boxes.some((b) => polyGap(endWall, rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])) < 1e-6), `${k} end wall past the goal ${goal}`).toBe(true)
+      expect(pts.length).toBe(3)
+      if (!k.includes('~')) {
+        // the canonical start faces straight down the run-up (holdout setups jitter the start pose)
+        expect(angleBetweenDeg(headingDeg(pts[0]!, pts[1]!), course.startYawDeg ?? 0), `${k} straight run-up`).toBeLessThanOrEqual(5)
+        const turn = signedTurnDeg(headingDeg(pts[0]!, pts[1]!), headingDeg(pts[1]!, pts[2]!))
+        expect(Math.abs(turn), `${k} swing`).toBeGreaterThanOrEqual(85)
+        expect(Math.abs(turn), `${k} swing`).toBeLessThanOrEqual(95)
+      }
+      for (const c of chainsForSetup(k)) expect(c.offM, `${k} offM (the start swing leaves the chain by up to ~12 m)`).toBe(CRUX_LATERAL_OFF_M)
     }
   })
 })
 
 describe('crux acceptance gate plumbing', () => {
   it('generateCruxChains is the crux branch of chainsForSetup (same cache content, [] only when the gates reject)', { timeout: 120_000 }, () => {
-    // a hand-made setup key far outside the standard bands, built only for this check
+    // hand-made setup keys far outside the standard bands, built only for this check
     expect(generateCruxChains('crux:51')).toEqual(chainsForSetup('crux:51'))
     expect(chainsForSetup('crux:52').length).toBeGreaterThanOrEqual(MIN_CHAINS)
   })

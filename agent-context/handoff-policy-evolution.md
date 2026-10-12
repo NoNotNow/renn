@@ -62,6 +62,12 @@ npx tsx tools/policy-evolution/ship.ts training-data/policy-evolution/v3cap.json
 The ship gate measures uncapped episodes; the finish-count gate is fair for capped nets (finishing is what counts, not speed).
 Commit `v3.json` / `v3cap.json` regularly so runs can move between machines.
 
+## Crux curriculum, 2nd generation (2026-10-12) - the next training band
+The v3nose maze-only run failed; its gen-675 best fails mazes exactly two ways (fast-corner leg-0 offcourse at speed without contact; start-swing slide crashes, slip ~76 deg). The old crux band (C1..C5, built for the retired center-anchor stall analysis) is REPLACED by TWO classes, both mirrored in x so the measured bearing-error sign bias cannot survive (`courses.ts`, details in [feature-policy-evolution.md](./feature-policy-evolution.md), section "v3 crux curriculum, 2nd generation"):
+- **NC1 fast corner** (cls 0): 20-45 m approach into a 90 deg turn, overshoot space past the corner OPEN (failure = offcourse at speed, no contact). Embodiments: OCCLUDED (occluder stub, like the old C1) / OPEN.
+- **NC2 start swing** (cls 1): LATERAL start (the old C4/M2, gate at 16 m) / CORNER-EXIT start (the M1 pocket: aimed at a dead-end wall, tight side mouth). All NC2 chains carry offM 16.
+Band: `--kinds crux --train-per-kind 15 --holdout-per-kind 10` (pinned in `crux.test.ts`), class = `(seed - 1) % 2`, embodiment / turn direction fixed by the seed (every class + embodiment + direction in the band), chains = base path + ~5 jittered variants behind the pure-pursuit acceptance gate (no dead zeros). Verified: the v3nose gen-675 best fails the band (train 51 % / holdout 43 %, the failure signatures match), the shipped v3 handles more (62 % / 56 %), the pursuit baseline finishes 100 %. The planned run (`tools/policy-evolution/train-ctl.mjs`, job `v3cruxnose`): `--kinds crux --batch 6 --speed-cap 10` (fitness normalizer only).
+
 ## Next steps (in order)
 1. Let `v3cap` train; ship check every ~1-2 h (stop training briefly, or run with `--workers 2`). If WROTE: re-export worlds, vitest, commit, push, deploy.
 2. Compare v3cap vs uncapped on field/crowd (crash counts, `diagnose-v3.ts`). Uncapped v3 regressed after gen 1000 on field/slalom/crowd holdout,

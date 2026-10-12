@@ -18,6 +18,7 @@ import { pursuitV2 } from '@/policyEvolution/handWired'
 import { LegProgress } from '@/policyEvolution/legs'
 import { NOSE_M } from '@/policyEvolution/policy'
 import { parseKinds } from '@/policyEvolution/chainReport'
+import { warmCruxGate } from '@/policyEvolution/cruxChains'
 import { V3_KINDS } from '@/policyEvolution/courses'
 import { polyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 
@@ -267,6 +268,8 @@ const median = (v: number[]) => (v.length ? [...v].sort((p, q) => p - q)[Math.fl
 const pct = (n: number, d: number) => (d ? `${((100 * n) / d).toFixed(0)}%` : '-')
 
 async function main() {
+  // the crux kind's chain enumeration runs the SYNC pursuit gate: the physics engine must be warm first (no-op otherwise)
+  await warmCruxGate()
   const recs: Rec[] = []
   const t0 = Date.now()
   for (const split of ['train', 'holdout'] as const) {

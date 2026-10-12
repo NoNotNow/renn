@@ -25,13 +25,13 @@ import { LegProgress } from './legs'
 import { WallLos } from './wallLos'
 
 /**
- * Crux chains (the 2026-10-12 curriculum decision): instead of many big mazes, MANY TINY worlds that each hold exactly
- * ONE crux class of the stall analysis - and instead of many mazes, MANY MORE-OR-LESS GOOD ROUTES through each crux.
- * `generateCruxChains` lays the course's own route (the base path) plus seeded JITTERED variants (~5): the waypoints are
- * perturbed by ~1-2.5 m, every candidate runs the SAME acceptance gates as the other kinds (corner fillets of
- * CORNER_RADII, exact clearance >= CLEARANCE.crux.min, detour <= MAX_DETOUR) - except the >= 10 m Hausdorff
- * alternative-route rule, which crux deliberately drops: the variants are meant to be near the base path, they only have
- * to be DISTINCT (>= CRUX_VARIANT_GAP_M from every accepted chain).
+ * Crux chains (the 2026-10-12 curriculum decision, 2nd crux generation): instead of many big mazes, MANY TINY worlds that
+ * each hold exactly ONE crux of the v3nose failure analysis (NC1 fast corner / NC2 start swing, courses.ts) - and instead of
+ * many mazes, MANY MORE-OR-LESS GOOD ROUTES through each crux. `generateCruxChains` lays the course's own route (the base
+ * path) plus seeded JITTERED variants (~5): the waypoints are perturbed by ~1-2.5 m, every candidate runs the SAME
+ * acceptance gates as the other kinds (corner fillets of CORNER_RADII, exact clearance >= CLEARANCE.crux.min, detour <=
+ * MAX_DETOUR) - except the >= 10 m Hausdorff alternative-route rule, which crux deliberately drops: the variants are meant
+ * to be near the base path, they only have to be DISTINCT (>= CRUX_VARIANT_GAP_M from every accepted chain).
  *
  * NO DEAD ZEROS, EVER: on top of the geometric gates every candidate chain must be FINISHED by the repo's pure-pursuit
  * baseline (the same handWired pursuit + episode machinery that gated grid with "pure pursuit 100 % finish") before it is
@@ -52,9 +52,10 @@ export const CRUX_JITTER_ATTEMPTS = 24
 export const CRUX_VARIANT_GAP_M = 0.5
 /** the pure-pursuit baseline of the gate: the same handWired pursuit (speed target 0.35 x 30 m/s) that gated grid with
  * "pure pursuit 100 % finish". No `slow` variant: it brakes toward crawl at ~90 deg-off aims and then cannot even start
- * moving (measured: the C4 start swing stalls at 0 m at slow >= 0.3); the plain baseline finishes all five classes. */
+ * moving (measured: the NC2 lateral start swing stalls at 0 m at slow >= 0.3); the plain baseline finishes both classes. */
 export const CRUX_PURSUIT_SPEED = 0.35
-/** C4 chains carry offM 16 (the M2 lesson: the ~90 deg start swing leaves the chain by up to ~12 m) */
+/** NC2 chains (BOTH embodiments) carry offM 16 (the M2 lesson: the ~90 deg start swing leaves the chain by up to ~12 m -
+ * with the default 6 m not even the pure-pursuit baseline stays on it) */
 export const CRUX_LATERAL_OFF_M = 16
 
 /** Initializes the physics engine so the sync pursuit gate can build simulators (no-op when already warm). */
@@ -158,6 +159,8 @@ export function generateCruxChains(setupKey: string): Chain[] {
   const { seed } = parseCourseKey(setupKey)
   const cls = cruxClass(seed)
   const course = buildSetupCourse(setupKey)
+  // NC2 chains (cls 1, BOTH embodiments): the ~90 deg start swing leaves the chain by up to ~12 m
+  const startSwing = cls === 1
   const base = [course.startAt ?? COURSE_START, ...course.waypoints]
   const baseLength = polylineLength(base)
   // jitter rng from the kind salt + the setup key (variant-aware: every start variant draws its own variants)
@@ -178,7 +181,7 @@ export function generateCruxChains(setupKey: string): Chain[] {
     if (!cand) return false
     if (polylineLength(cand) > MAX_DETOUR * baseLength) return false
     if (accepted.some((a) => hausdorff(a.points, cand!) < CRUX_VARIANT_GAP_M)) return false
-    const chain: Chain = { points: cand, length: polylineLength(cand), endIndex: accepted.length, ...(cls === 3 ? { offM: CRUX_LATERAL_OFF_M } : {}) }
+    const chain: Chain = { points: cand, length: polylineLength(cand), endIndex: accepted.length, ...(startSwing ? { offM: CRUX_LATERAL_OFF_M } : {}) }
     // NO DEAD ZEROS: the pure-pursuit baseline must finish the chain, or it is never accepted
     if (pursuitOutcome(setupKey, accepted.length, chain) !== 'finish') return false
     accepted.push(chain)
