@@ -1,5 +1,6 @@
 /* worker_threads entry: runs one policy episode at a time (determinism patches globals => strictly serial per worker). */
 import { parentPort } from 'node:worker_threads'
+import { initRapier } from '@/physics/rapierPhysics'
 import { runPolicyEpisode } from '@/policyEvolution/episode'
 
 export interface WorkerJob {
@@ -9,7 +10,9 @@ export interface WorkerJob {
   seconds?: number
 }
 
-let queue: Promise<void> = Promise.resolve()
+// the first job waits for the physics engine: crux chain lookups run the SYNC pursuit gate before the episode starts,
+// which needs a warm engine (initRapier is what every episode would await anyway)
+let queue: Promise<void> = initRapier()
 
 parentPort!.on('message', (job: WorkerJob) => {
   queue = queue.then(async () => {

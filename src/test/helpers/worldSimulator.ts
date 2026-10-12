@@ -14,14 +14,18 @@
  */
 
 import * as THREE from 'three'
-import { initRapier, createPhysicsWorld, PhysicsWorld } from '@/physics/rapierPhysics'
+import { initRapier, createPhysicsWorld, PhysicsWorld, rapierReady } from '@/physics/rapierPhysics'
 import { RenderItemRegistry } from '@/runtime/renderItemRegistry'
 import { createTransformerChain } from '@/transformers/transformerRegistry'
+import { TransformerChain } from '@/transformers/transformer'
+import { CustomCodeTransformer } from '@/transformers/customCodeTransformer'
+import { CarTransformer2 } from '@/transformers/presets/car2Transformer'
 import { resolveMergedTransformerConfigsForEntitySync } from '@/utils/pipeStageResolve'
 import { migrateEntityTransformersToRegistry, migrateCustomTransformerNames } from '@/scripts/migrateWorld'
+import { DEFAULT_GRAVITY } from '@/types/world'
 import type { RennWorld, Entity } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import type { RawInput, RawKeyboardState } from '@/types/transformer'
+import type { RawInput, RawKeyboardState, Transformer } from '@/types/transformer'
 import { createMeshForShape } from './three'
 
 export const DEFAULT_DT = 1 / 60
@@ -170,6 +174,73 @@ export class WorldSimulator {
       sim.runFrames(warmupFrames)
     }
 
+    return sim
+  }
+
+  /**
+   * Synchronous twin of `create` for an ALREADY-INITIALIZED engine (throws while Rapier is cold - see rapierReady()).
+   * Every await of `create` is a no-op once `initRapier()` has completed: the physics world construction is plain
+   * synchronous code, and the transformer factories of the policy worlds (`custom` stage code, `car2` actuator) are
+   * synchronous too, so this builds the same simulator without awaiting. Used by the crux chain acceptance gate, which
+   * must run inside the synchronous chain enumeration. No warmup frames (the policy episodes create their worlds with
+   * warmupFrames = 0 as well).
+   */
+  static createSync(world: RennWorld): WorldSimulator {
+    if (!rapierReady()) throw new Error('WorldSimulator.createSync: Rapier is not initialized - await initRapier() first')
+    migrateCustomTransformerNames(world)
+    migrateEntityTransformersToRegistry(world)
+    const entities = buildLoadedEntities(world)
+    const physicsWorld = new PhysicsWorld(world.world.gravity ?? DEFAULT_GRAVITY, world.world.sleeping)
+    for (const { entity, mesh } of entities) {
+      physicsWorld.addEntity(entity, mesh, world.scripts)
+    }
+    const currentKeys: Partial<RawKeyboardState> = {}
+    const rawInputGetter = (): RawInput => buildRawInput(currentKeys)
+    const registry = RenderItemRegistry.create(entities, physicsWorld, rawInputGetter, undefined, world.transformers)
+    for (const { entity } of entities) {
+      if (!entity.transformers || entity.transformers.length === 0) continue
+      const configs =
+        resolveMergedTransformerConfigsForEntitySync(world, entity.id) ??
+        entity.transformers
+          .map((id) => world.transformers?.[id])
+          .filter((c): c is NonNullable<typeof c> => c != null)
+      // the sync factories of the transformer types a policy world uses; anything else is not built sync on purpose
+      const chain = new TransformerChain()
+      for (const [i, config] of configs.entries()) {
+        const transformer: Transformer | null =
+          config.type === 'custom'
+            ? new CustomCodeTransformer(config)
+            : config.type === 'car2'
+              ? new CarTransformer2(config.priority ?? 10, config.params ?? {})
+              : null
+        if (!transformer) throw new Error(`WorldSimulator.createSync: transformer type '${config.type}' has no synchronous factory`)
+        transformer.enabled = config.enabled ?? true
+        transformer.configStackIndex = i
+        if (entity.id) transformer.runtimeEntityId = entity.id
+        chain.add(transformer)
+      }
+      const item = registry.get(entity.id)
+      if (item) {
+        item.transformerChain = chain
+      }
+    }
+    registry.setRawInputGetter(rawInputGetter)
+    const wind = world.world.wind as [number, number, number] | undefined
+    const sim = new WorldSimulator(physicsWorld, registry, entities, wind)
+    sim.currentKeys = currentKeys
+    const simInputGetter = (): RawInput => buildRawInput(sim.currentKeys)
+    registry.setRawInputGetter(simInputGetter)
+    for (const { entity } of entities) {
+      const item = registry.get(entity.id)
+      if (item?.transformerChain) {
+        item.transformerChain.getAll().forEach((t) => {
+          const withRawInput = t as { setRawInputGetter?: (getter: () => RawInput) => void }
+          if (typeof withRawInput.setRawInputGetter === 'function') {
+            withRawInput.setRawInputGetter(simInputGetter)
+          }
+        })
+      }
+    }
     return sim
   }
 

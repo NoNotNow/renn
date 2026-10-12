@@ -41,6 +41,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { capFieldDifficulty, chainEpisodeKeys, CHAIN_FIELD_DIFFICULTY, flattenChainKeys, holdoutChainEpisodes, trainChainEpisodes, type SetupChains } from '@/policyEvolution/chains'
+import { warmCruxGate } from '@/policyEvolution/cruxChains'
 import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile } from '@/policyEvolution/chainReport'
 import { CHAIN_KINDS, COURSE_KINDS, COURSE_LENGTH, holdoutCourseKeys, parseCourseKey, trainCourseKeys, withVariant } from '@/policyEvolution/courses'
 import { parseChainEpisodeKey } from '@/policyEvolution/chains'
@@ -103,6 +104,8 @@ function setupBatch(train: SetupChains[], batch: number, g: number, variant: num
 }
 
 async function main() {
+  // the crux chain enumeration runs the sync pursuit gate, which needs the physics engine warm (no-op otherwise)
+  await warmCruxGate()
   const args = parseArgs(process.argv.slice(2))
   const out = String(args.out ?? 'test-results/policy-evolution/islands.json')
   const gens = num(args.gens, 100)

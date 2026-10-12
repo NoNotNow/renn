@@ -11,8 +11,11 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
  *    on the north side (the policy has no map: the goal vector is its only hint which way the route turns).
  *  - `grid` (v3 setup kind, chains only): a walled 5-lane serpentine whose divider tips are staggered so a U-turn at the end of every lane
  *    is the only way forward; see `gridCourse`.
+ *  - `crux` (v3 setup kind, chains only): a TINY world holding exactly ONE crux geometry of the 2026-10-12 stall analysis (a few hand-placed
+ *    wall segments, chain length ~30-70 m); see `cruxCourse`. The class of a seed is `(seed - 1) % 5` (C1..C5), so the standard seed bands
+ *    cover every class evenly.
  */
-export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid'
+export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid' | 'crux'
 
 /** The v1 kinds (default sets of the v1 tools). `crowd` is a v2 chain setup kind, see CHAIN_KINDS. */
 export const COURSE_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze']
@@ -21,8 +24,8 @@ export const CHAIN_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze', 'c
 /** v3 setup kinds: `free` (big closed arena, direction chains with reversals), `bay` (dead-end bays), `corridor` (too narrow to U-turn); see spec-command-chains.md, section v3. */
 export const REVERSAL_KINDS: readonly CourseKind[] = ['bay', 'corridor']
 export const V3_NEW_KINDS: readonly CourseKind[] = ['free', ...REVERSAL_KINDS]
-/** all v3 kinds in report order: the new free-track / reversal kinds, the v2 obstacle kinds and the grid serpentine */
-export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'grid']
+/** all v3 kinds in report order: the new free-track / reversal kinds, the v2 obstacle kinds, the grid serpentine and the crux worlds */
+export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'grid', 'crux']
 export const isV3NewKind = (k: CourseKind) => V3_NEW_KINDS.includes(k)
 
 /**
@@ -82,7 +85,7 @@ export interface Course {
 export const COURSE_LENGTH = 400
 export const COURSE_START: V2 = [0, 0]
 
-export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967, grid: 86028121 }
+export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967, grid: 86028121, crux: 86028157 }
 
 /**
  * `kind:seed` = canonical start; `kind:seed~n` = the same course with the n-th seeded random start pose (offset + heading);
@@ -470,6 +473,155 @@ function mazeCourse(seed: number, rng: Rng, advStyle: 0 | 1 | undefined): Pick<C
   return { boxes, waypoints, startYawDeg: startYaw }
 }
 
+// --- crux (2026-10-12 stall analysis: many tiny worlds, one crux each) --------------------------------------------------------------------------
+
+/** number of crux failure classes (C1..C5); the class of a crux seed is `(seed - 1) % CRUX_CLASSES` */
+export const CRUX_CLASSES = 5
+/**
+ * Failure class of a crux seed, fixed by `(seed - 1) % CRUX_CLASSES` (the standard bands start at seeds 1 / 1001, so every
+ * class is covered evenly): 0 = C1 occluded fast corner, 1 = C2 confined corner pocket, 2 = C3 S-bend,
+ * 3 = C4 lateral gate entry, 4 = C5 final corner + goal. `layout.cls` carries the same number.
+ */
+export const cruxClass = (seed: number): number => (seed - 1) % CRUX_CLASSES
+/** wall thickness of the crux worlds (m) */
+const CRUX_T = 2
+/**
+ * C4 start-lateral offset (m): the entry gate stands this far off the start. Same lesson as the adversarial M2 setup
+ * (maze:4008): the standard maze band's lateral start legs at offM 6 are structurally unsolvable (the ~90 deg start
+ * swing needs up to ~12 m of lateral room), so the crux C4 chains carry offM 16 (cruxChains.ts) AND the gate keeps
+ * its distance so the swing fits geometrically.
+ */
+export const CRUX_GATE_M = 16
+
+/** axis-aligned wall box given by its full outer extent (x0..x1 across, z0..z1 along) */
+const cruxWall = (x0: number, x1: number, z0: number, z1: number): CourseBox => ({
+  at: [(x0 + x1) / 2, (z0 + z1) / 2],
+  size: [Math.abs(x1 - x0), Math.abs(z1 - z0)],
+  yawDeg: 0,
+})
+
+/**
+ * The corner-cell skeleton shared by C1 / C2 / C5: a straight approach into a dead-end wall across its end, with the only
+ * way out a perpendicular exit corridor hugging the dead-end wall - the maze corner geometry (the wall across the cell is
+ * what stalls the car, the side opening is the turn). `gap` (C2) narrows the mouth with a stub that juts out of the
+ * dead-end wall, so the pocket must be taken slow or with a reverse swing; the approach behind the corner is the backing
+ * room. Built with the exit toward -X; mirrored in x for `dir = 1`.
+ */
+function cruxCornerCourse(rng: Rng, cls: number, w: number, approach: number, w2: number, exit: number, gap?: number): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const t = CRUX_T
+  const dir: -1 | 1 = rng.next() < 0.5 ? -1 : 1
+  const zCorner = -approach + w2 / 2 // the exit corridor's centre line
+  const boxes: CourseBox[] = [
+    cruxWall(-w / 2 - t, w / 2 + t, 6, 6 + t), // back wall behind the start
+    cruxWall(w / 2, w / 2 + t, -approach - t, 6 + t), // the approach's far side wall
+    cruxWall(-w / 2 - t, -w / 2, zCorner + w2 / 2, 6 + t), // the exit side wall above the mouth (the C1 occluder)
+    cruxWall(-exit - t, w / 2 + t, -approach - t, -approach), // the dead-end wall across the cell
+    cruxWall(-exit - t, -w / 2, zCorner + w2 / 2, zCorner + w2 / 2 + t), // the exit corridor's far-side wall
+    cruxWall(-exit - t, -exit, -approach - t, zCorner + w2 / 2 + t), // the exit's end wall
+  ]
+  if (gap !== undefined && w2 - gap > 0.5) boxes.push(cruxWall(-w / 2 - 3, -w / 2, -approach, -approach + w2 - gap))
+  const waypoints: V2[] = [
+    [0, zCorner],
+    [-(exit - 3.5), zCorner], // the goal keeps CLEARANCE.crux.min of the end wall even under chain jitter
+  ]
+  const flip = (p: V2): V2 => [-dir * p[0], p[1]] // as built the exit runs west; `dir` names the exit side after the mirror
+  return {
+    boxes: boxes.map((b) => ({ ...b, at: [-dir * b.at[0], b.at[1]] })),
+    waypoints: waypoints.map(flip),
+    layout: { cls, w, approach, w2, exit, dir, ...(gap !== undefined ? { gap } : {}) },
+  }
+}
+
+/**
+ * C3 S-bend: a hall whose central block (hanging from the back wall down to a middle channel) forces two ADJACENT
+ * OPPOSITE 90 deg turns - down the east channel, west across the middle channel, south down the west channel. The turns
+ * sit one crossing apart (the minimum the ~10 m turning circle allows), the overshoot trap of the stall analysis. The
+ * pocket east of the west channel below the middle channel is the second turn's swing room (like the maze's open corner
+ * cell); `pw` is its width.
+ */
+function cruxSBendCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const t = CRUX_T
+  const w = range(rng, 12, 14) // channel width
+  const bw = range(rng, 2, 6) // the central block's width (the crossing's length is w + bw + w)
+  const zMid = range(rng, 16, 24) // start -> the middle channel's centre line
+  const leg3 = range(rng, 14, 22) // the middle channel -> the goal (southward)
+  const pw = range(rng, 6, 9) // the pocket's width (the second turn's swing room)
+  const xw = -(w + bw) // the west channel's centre line
+  const zs = -(zMid + leg3 + 4) // the south wall's inner face (4 m past the goal)
+  const xs = xw + w / 2 + pw // the south stub's west face (the pocket's east end)
+  const boxes: CourseBox[] = [
+    cruxWall(xw - w / 2 - t, w / 2 + t, 6, 6 + t), // back wall behind the start
+    cruxWall(w / 2, w / 2 + t, zs - t, 6 + t), // east wall
+    cruxWall(xw - w / 2 - t, xw - w / 2, zs - t, 6 + t), // west wall
+    cruxWall(xw - w / 2 - t, w / 2 + t, zs - t, zs), // south wall
+    cruxWall(-w / 2 - bw, -w / 2, -zMid + w / 2, 6 + t), // the central block, hanging from the back wall
+    cruxWall(xs, w / 2 + t, zs - t, -zMid - w / 2), // the south stub, sealing the middle channel east of the pocket
+  ]
+  const waypoints: V2[] = [
+    [0, -zMid],
+    [xw, -zMid],
+    [xw, -(zMid + leg3)],
+  ]
+  return { boxes, waypoints, layout: { cls: 2, w, bw, zMid, leg3, pw } }
+}
+
+/**
+ * C4 lateral gate entry: the chain's first leg runs ~75-80 deg off the start heading (mostly lateral) toward a gap
+ * flanked by wall stubs at CRUX_GATE_M lateral distance. The gap centre sits 6-10 m SOUTH of the start plane: that is
+ * where the ~90 deg start swing's arc (turning circle ~10 m radius) crosses the gate line, so the baseline can actually
+ * drive it (the M2 lesson: the standard band's lateral start legs at offM 6 are structurally unsolvable; the crux C4
+ * chains carry offM 16 AND the gate keeps its distance). Built with the gate toward +X; mirrored in x for `dir = -1`.
+ */
+function cruxGateCourse(rng: Rng): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const t = CRUX_T
+  const gw = range(rng, 9, 12) // the entry gap's width
+  const zg = range(rng, -13, -9) // the gap's centre z (where the start swing's arc crosses the gate line, ~8-14 m south)
+  const preX = range(rng, 10, 12) // the first leg's end (mostly lateral, ~75-80 deg off the start heading)
+  const preZ = range(rng, -3.5, -1.5)
+  const lenN = range(rng, 8, 14) // the north stub's length above the gap
+  const lenS = range(rng, 10, 18) // the south stub's length below the gap
+  const exit = range(rng, 18, 26) // the goal leg's length past the gate
+  const dir: -1 | 1 = rng.next() < 0.5 ? 1 : -1
+  const gx = CRUX_GATE_M
+  const boxes: CourseBox[] = [
+    cruxWall(gx, gx + t, zg + gw / 2, zg + gw / 2 + lenN), // the north stub flanking the gap
+    cruxWall(gx, gx + t, zg - gw / 2 - lenS, zg - gw / 2), // the south stub flanking the gap
+  ]
+  const waypoints: V2[] = [
+    [preX, preZ],
+    [gx, zg],
+    [gx + exit, zg],
+  ]
+  const flip = (p: V2): V2 => [dir * p[0], p[1]]
+  return {
+    boxes: boxes.map((b) => ({ ...b, at: [dir * b.at[0], b.at[1]] })),
+    waypoints: waypoints.map(flip),
+    layout: { cls: 3, gate: gx, gw, zg, preX, preZ, lenN, lenS, exit, dir },
+  }
+}
+
+/**
+ * `crux` (v3 setup kind): MANY TINY worlds, each holding exactly ONE crux class of the 2026-10-12 stall analysis.
+ * The class is fixed by the seed (`cruxClass`), the parameters within the class are seeded:
+ *  - C1 (cls 0) occluded fast corner: a 32-50 m approach (10-11 m wide) into a 90 deg corner around a dead-end wall -
+ *    the exit-side wall above the mouth OCCLUDES the carrot (look-ahead 8 + 0.6 v) for the last ~8-15 m of a fast
+ *    approach (v >= ~20: the stall analysis speeds); the exit corridor (9-10 m wide) is open after the corner.
+ *  - C2 (cls 1) confined corner pocket: a 20-28 m approach into a corner pocket whose mouth is narrowed by a stub out of
+ *    the dead-end wall (gap 8.5-9.5 m) - taken slow or with a reverse swing; the approach behind it is the backing room.
+ *  - C3 (cls 2): see `cruxSBendCourse`.
+ *  - C4 (cls 3): see `cruxGateCourse` (chains carry offM 16, the M2 lesson).
+ *  - C5 (cls 4) final corner + goal: a 26-34 m approach into a corner whose exit stub is only 10-16 m - the goal sits
+ *    right after the last turn, 2 m before the end wall (the M1 corner-exit overshoot, mirrored: no whipping past).
+ */
+function cruxCourse(rng: Rng, cls: number): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  if (cls === 0) return cruxCornerCourse(rng, 0, range(rng, 10, 11), range(rng, 32, 50), range(rng, 9, 10), range(rng, 16, 24))
+  if (cls === 1) return cruxCornerCourse(rng, 1, range(rng, 11, 13), range(rng, 20, 28), range(rng, 10, 11), range(rng, 14, 20), range(rng, 8.5, 9.5))
+  if (cls === 2) return cruxSBendCourse(rng)
+  if (cls === 3) return cruxGateCourse(rng)
+  return cruxCornerCourse(rng, 4, range(rng, 12, 14), range(rng, 26, 34), range(rng, 10, 12), range(rng, 10, 16))
+}
+
+
 /** Start jitter per kind: lateral (x) and longitudinal (z) offset in m, heading in degrees. Maze corridors are narrow (15 m), so small. */
 const START_JITTER: Record<CourseKind, { x: number; z: number; yawDeg: number }> = {
   field: { x: 6, z: 0, yawDeg: 25 },
@@ -480,6 +632,10 @@ const START_JITTER: Record<CourseKind, { x: number; z: number; yawDeg: number }>
   bay: { x: 3, z: 3, yawDeg: 12 },
   corridor: { x: 2, z: 3, yawDeg: 10 },
   grid: { x: 3, z: 3, yawDeg: 10 },
+  // crux worlds are tiny and their corridors 9-14 m wide: the jitter stays small (the pursuit gate of cruxChains.ts
+  // verifies every jittered start against the baseline; the C4 lateral swing is the most start-yaw-sensitive class,
+  // measured: a bigger yaw jitter rejects most of the C4 holdout band)
+  crux: { x: 1.5, z: 1.5, yawDeg: 8 },
 }
 
 /** Seeded random start pose for variant >= 1; keeps the car clear of every wall / box (falls back to the canonical start). */
@@ -517,7 +673,9 @@ export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficu
                 ? corridorCourse(rng)
                 : kind === 'grid'
                   ? gridCourse(rng, adv)
-                  : mazeCourse(seed, rng, adv)
+                  : kind === 'crux'
+                    ? cruxCourse(rng, cruxClass(seed))
+                    : mazeCourse(seed, rng, adv)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {

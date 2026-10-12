@@ -18,6 +18,7 @@ import {
   trainV3Episodes,
   v3EpisodeKeys,
 } from './chains'
+import { warmCruxGate } from './cruxChains'
 import { ADVERSARIAL_KINDS, ADV_SEED, ADV_VARIANT, buildSetupCourse, parseCourseKey } from './courses'
 import { runPolicyEpisode } from './episode'
 import { pursuitV3 } from './handWired'
@@ -112,7 +113,7 @@ describe('adversarial key bands', () => {
     for (const k of [...HOLDOUT6]) expect(parseCourseKey(k).variant, k).toBe(1)
   })
 
-  it('trainV3Episodes appends the adversarial setups; holdoutV3Episodes stays free of them', { timeout: 300_000 }, () => {
+  it('trainV3Episodes appends the adversarial setups; holdoutV3Episodes stays free of them', { timeout: 300_000 }, async () => {
     const train = trainV3Episodes(8, ['maze', 'grid'])
     expect(train.map((g) => g.setupKey)).toEqual([...TRAIN8, ...ADV_KEYS])
     for (const g of train.slice(TRAIN8.length)) {
@@ -122,7 +123,9 @@ describe('adversarial key bands', () => {
     }
     const hold = holdoutV3Episodes(6, ['maze', 'grid'])
     expect(hold.map((g) => g.setupKey)).toEqual([...HOLDOUT6]) // bit-identical, no adversarial setups
-    // the same holds for the full v3 kind set: adversarial setups are train-only
+    // the same holds for the full v3 kind set: adversarial setups are train-only (the crux kind's chain enumeration
+    // runs the sync pursuit gate, so the physics engine is warmed first)
+    await warmCruxGate()
     const trainAll = trainV3Episodes(2)
     const holdAll = holdoutV3Episodes(2)
     expect(trainAll.filter((g) => parseCourseKey(g.setupKey).variant === ADV_VARIANT).map((g) => g.setupKey)).toEqual([...ADV_KEYS])

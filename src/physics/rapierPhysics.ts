@@ -932,6 +932,10 @@ export class PhysicsWorld {
 let rapierInitialized = false
 let rapierInitPromise: Promise<void> | null = null
 
+/** true once `initRapier()` has completed: from then on `new RAPIER.World()` and `PhysicsWorld` construction work
+ * synchronously (the sync sim factories, e.g. WorldSimulator.createSync, require this). */
+export const rapierReady = (): boolean => rapierInitialized
+
 export async function initRapier(): Promise<void> {
   if (rapierInitialized) return
   if (rapierInitPromise) {

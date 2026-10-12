@@ -18,6 +18,7 @@ import { v3ReportByKind } from './chainReport'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage } from './curriculum'
 import { aggregateKindMin, capNorm, devPenaltyNorm, episodeValues, V3_FAIL_FACTOR } from './es'
 import { runPolicyEpisode, SAFETY_WINDOW_S, STILL_WINDOW_S, v3EpisodeSeconds } from './episode'
+import { warmCruxGate } from './cruxChains'
 import { pursuitV3, reverserV3 } from './handWired'
 import { LegProgress } from './legs'
 import { WallLos } from './wallLos'
@@ -320,7 +321,9 @@ describe('v3 setups', () => {
     }
   })
 
-  it('v3 episode keys cover the free, bay, corridor and the v2 kinds; train / holdout are disjoint', { timeout: 120000 }, () => {
+  it('v3 episode keys cover the free, bay, corridor and the v2 kinds; train / holdout are disjoint', { timeout: 120000 }, async () => {
+    // the crux kind's chain enumeration runs the sync pursuit gate: the physics engine must be warm first
+    await warmCruxGate()
     const train = trainV3Episodes(2)
     const hold = holdoutV3Episodes(2)
     const kinds = new Set(train.map((g) => g.setupKey.split(':')[0]))

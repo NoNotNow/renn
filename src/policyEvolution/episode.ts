@@ -212,6 +212,161 @@ export function buildPolicyWorld(course: Course, genome: ArrayLike<number>, opts
  * from the CURRENT leg, `finish` = all legs reached, stall = stand-still (|speed| < STILL_SPEED for STILL_WINDOW_S) or no progress for SAFETY_WINDOW_S, time limit
  * from the chain length. The metrics carry `reverseShare` / `maxReverseM`.
  */
+/** Everything the synchronous episode core needs besides the simulator; assembled by runPolicyEpisode and by the crux
+ * chain gate's sync driver (cruxChains.ts). `route` is the leg-wise tracker for v3 chains, the whole-chain tracker otherwise. */
+export interface EpisodeDriveCtx {
+  sim: WorldSimulator
+  /** episode key (metrics + diagnostics) */
+  key: string
+  /** sim seconds budget */
+  seconds: number
+  v3: boolean
+  route: RouteProgress | LegProgress
+  /** route / chain length (m) */
+  routeLength: number
+  /** offcourse tolerance of this episode (m) */
+  offCourseM: number
+  /** v3 chains: the original chain polyline (deviation metric); undefined = the whole-course route */
+  chainPoints?: V2[]
+  walls: Array<{ cx: number; cz: number; r: number; poly: ReturnType<typeof rectPoly> }>
+  wallIds: Set<string>
+  /** determinism handle advanced once per frame (legacy stage timers) */
+  det: ReturnType<typeof installDeterminism>
+  onFrame?: (x: number, z: number, t: number, extra?: FrameExtra) => void
+}
+
+/**
+ * The synchronous frame loop of an episode: steps the simulator and applies the flip / touch / offcourse / stall /
+ * finish rules, one metrics record out. Shared by runPolicyEpisode (async sim creation) and the crux chain acceptance
+ * gate (sync sim creation, WorldSimulator.createSync), so the gate's verdict IS the episode machinery's verdict, not
+ * a reimplementation of it.
+ */
+export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
+  const { sim, key, v3, route, routeLength, offCourseM, chainPoints, walls, wallIds, det, onFrame } = o
+  const t0 = performance.now()
+  const frames = Math.round(o.seconds / DEFAULT_DT)
+  const hullR = Math.hypot(CAR_SIZE[0], CAR_SIZE[1]) / 2
+  let outcome: EpisodeOutcome = 'timeout'
+  let t = 0
+  let refProgress = 0
+  let refT = 0
+  let stillT = 0
+  let reverseFrames = 0
+  let reverseRun = 0
+  let maxReverse = 0
+  let maxDevOrig = 0
+  let touchWallFrames = 0
+  let touchObjectFrames = 0
+  let wallTouchT = 0
+  let touchPenalty = 0
+  let peakNorm = 0
+  for (let frame = 0; frame < frames; frame++) {
+    sim.runFrames(1)
+    det.advance(DEFAULT_DT)
+    t = (frame + 1) * DEFAULT_DT
+    const cp = sim.getPosition(POLICY_CAR_ID)
+    const q = sim.getRotation(POLICY_CAR_ID)
+    if (onFrame) {
+      const v = sim.getVelocity(POLICY_CAR_ID)
+      const hx = -(2 * (q.x * q.z + q.w * q.y))
+      const hz = -(1 - 2 * (q.x * q.x + q.y * q.y))
+      onFrame(cp[0], cp[2], t, { yaw: Math.atan2(hx, hz), vx: v[0], vz: v[2], vf: v[0] * hx + v[2] * hz })
+    }
+    const progress = route.update(cp[0], cp[2])
+    if (v3) {
+      // deviation from the ORIGINAL chain (full polyline, not just the current leg): the v3 fitness subtracts
+      // the episode's max deviation from the model's points, so following the path vector is the only free route
+      const devOrig = polylineNearestDist(chainPoints!, cp[0], cp[2])
+      if (devOrig > maxDevOrig) maxDevOrig = devOrig
+      const v = sim.getVelocity(POLICY_CAR_ID)
+      const fvx = -(2 * (q.x * q.z + q.w * q.y))
+      const fvz = -(1 - 2 * (q.x * q.x + q.y * q.y))
+      const vf = v[0] * fvx + v[2] * fvz
+      stillT = Math.hypot(v[0], v[2]) < STILL_SPEED ? stillT + DEFAULT_DT : 0
+      if (vf < -REVERSE_SPEED) {
+        reverseFrames++
+        reverseRun += -vf * DEFAULT_DT
+        if (reverseRun > maxReverse) maxReverse = reverseRun
+      } else if (vf > REVERSE_SPEED) reverseRun = 0
+    }
+    if (upY(q) < 0.2) {
+      outcome = 'flip'
+      break
+    }
+    const fx = -(2 * (q.x * q.z + q.w * q.y))
+    const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
+    const hull = rectPoly(cp[0], cp[2], Math.atan2(fx, fz), CAR_SIZE[0], CAR_SIZE[1])
+    let wallTouch = false
+    for (const w of walls) {
+      if (Math.hypot(w.cx - cp[0], w.cz - cp[2]) - w.r - hullR >= CONTACT_GAP) continue
+      if (polyGap(hull, w.poly) < CONTACT_GAP) {
+        wallTouch = true
+        break
+      }
+    }
+    if (wallTouch) {
+      // touches are SURVIVED: only a sustained continuous contact still ends the episode (the 'crash' fallback)
+      touchWallFrames++
+      touchPenalty += V3_WALL_TOUCH_PENALTY
+      wallTouchT += DEFAULT_DT
+    } else {
+      wallTouchT = 0
+      // object contact: a touching entity that is neither the ground nor a course wall box (none exist in the plain course worlds)
+      if (sim.getTouchingEntityIds(POLICY_CAR_ID).some((id) => id !== 'ground' && !wallIds.has(id))) {
+        touchObjectFrames++
+        touchPenalty += V3_OBJECT_TOUCH_PENALTY
+      }
+    }
+    // v3 peak metric: the HIGH-WATER of the score curve — the progress-based norm minus the penalties accumulated
+    // SO FAR (deviation as a route fraction + touch penalties, in norm currency). It is updated BEFORE the outcome
+    // checks so the frame that ends the episode counts too; standing at a wall drains the end value but cannot
+    // erase the best moment, so a 60 %-then-stall run keeps its gradient over an immediate stall.
+    const normNow = (progress * progress) / (Math.max(t, 1) * routeLength * NORM_SPEED)
+    const cand = normNow - (v3 ? maxDevOrig / routeLength : 0) - touchPenalty
+    if (cand > peakNorm) peakNorm = cand
+    if (wallTouch && wallTouchT >= CRASH_TOUCH_S) {
+      outcome = 'crash'
+      break
+    }
+    if (route.lastDist > offCourseM) {
+      outcome = 'offcourse'
+      break
+    }
+    if (v3 ? (route as LegProgress).done : progress >= routeLength - FINISH_MARGIN) {
+      outcome = 'finish'
+      break
+    }
+    if (progress - refProgress >= STALL_MIN_PROGRESS) {
+      refProgress = progress
+      refT = t
+    } else if (t - refT > (v3 ? SAFETY_WINDOW_S : STALL_WINDOW_S)) {
+      outcome = 'stall'
+      break
+    }
+    if (v3 && stillT > STILL_WINDOW_S) {
+      outcome = 'stall'
+      break
+    }
+  }
+  const progress = v3 ? (route as LegProgress).progress : (route as RouteProgress).best
+  const score = (progress * progress) / Math.max(t, 1)
+  return {
+    key,
+    outcome,
+    progress,
+    timeS: t,
+    meanSpeed: progress / Math.max(t, 1e-3),
+    score,
+    norm: score / (routeLength * NORM_SPEED),
+    wallMs: performance.now() - t0,
+    length: routeLength,
+    touchWallFrames,
+    touchObjectFrames,
+    peakNorm,
+    ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevOrigM: maxDevOrig } : {}),
+  }
+}
+
 export async function runPolicyEpisode(
   genome: ArrayLike<number>,
   key: string,
@@ -250,138 +405,30 @@ export async function runPolicyEpisode(
     return { cx: b.at[0], cz: b.at[1], r: Math.hypot(b.size[0], b.size[1]) / 2, poly: rectPoly(b.at[0], b.at[1], yaw, b.size[0], b.size[1]) }
   })
   const wallIds = new Set(course.boxes.map((_, i) => `box_${i}`))
-  const hullR = Math.hypot(CAR_SIZE[0], CAR_SIZE[1]) / 2
   // v3 line-of-sight gate: the same course walls the touch test uses — progress credit is only given on frames
   // whose car -> projected chain point segment crosses no wall (LegProgress holds the gated credit high-water)
   const los = v3 ? new WallLos(walls.map((w) => w.poly)) : undefined
   const route = v3 ? new LegProgress(chainPoints!, legEnds, offM, los) : new RouteProgress(chainPoints ?? course)
-  const t0 = performance.now()
   const det = installDeterminism(1, 0)
   const prevWarn = console.warn
   console.warn = () => {}
   let sim: WorldSimulator | null = null
   try {
     sim = await WorldSimulator.create(world, 0)
-    const frames = Math.round(seconds / DEFAULT_DT)
-    let outcome: EpisodeOutcome = 'timeout'
-    let t = 0
-    let refProgress = 0
-    let refT = 0
-    let stillT = 0
-    let reverseFrames = 0
-    let reverseRun = 0
-    let maxReverse = 0
-    let maxDevOrig = 0
-    let touchWallFrames = 0
-    let touchObjectFrames = 0
-    let wallTouchT = 0
-    let touchPenalty = 0
-    let peakNorm = 0
-    for (let frame = 0; frame < frames; frame++) {
-      sim.runFrames(1)
-      det.advance(DEFAULT_DT)
-      t = (frame + 1) * DEFAULT_DT
-      const cp = sim.getPosition(POLICY_CAR_ID)
-      const q = sim.getRotation(POLICY_CAR_ID)
-      if (opts.onFrame) {
-        const v = sim.getVelocity(POLICY_CAR_ID)
-        const hx = -(2 * (q.x * q.z + q.w * q.y))
-        const hz = -(1 - 2 * (q.x * q.x + q.y * q.y))
-        opts.onFrame(cp[0], cp[2], t, { yaw: Math.atan2(hx, hz), vx: v[0], vz: v[2], vf: v[0] * hx + v[2] * hz })
-      }
-      const progress = route.update(cp[0], cp[2])
-      if (v3) {
-        // deviation from the ORIGINAL chain (full polyline, not just the current leg): the v3 fitness subtracts
-        // the episode's max deviation from the model's points, so following the path vector is the only free route
-        const devOrig = polylineNearestDist(chainPoints!, cp[0], cp[2])
-        if (devOrig > maxDevOrig) maxDevOrig = devOrig
-        const v = sim.getVelocity(POLICY_CAR_ID)
-        const fvx = -(2 * (q.x * q.z + q.w * q.y))
-        const fvz = -(1 - 2 * (q.x * q.x + q.y * q.y))
-        const vf = v[0] * fvx + v[2] * fvz
-        stillT = Math.hypot(v[0], v[2]) < STILL_SPEED ? stillT + DEFAULT_DT : 0
-        if (vf < -REVERSE_SPEED) {
-          reverseFrames++
-          reverseRun += -vf * DEFAULT_DT
-          if (reverseRun > maxReverse) maxReverse = reverseRun
-        } else if (vf > REVERSE_SPEED) reverseRun = 0
-      }
-      if (upY(q) < 0.2) {
-        outcome = 'flip'
-        break
-      }
-      const fx = -(2 * (q.x * q.z + q.w * q.y))
-      const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
-      const hull = rectPoly(cp[0], cp[2], Math.atan2(fx, fz), CAR_SIZE[0], CAR_SIZE[1])
-      let wallTouch = false
-      for (const w of walls) {
-        if (Math.hypot(w.cx - cp[0], w.cz - cp[2]) - w.r - hullR >= CONTACT_GAP) continue
-        if (polyGap(hull, w.poly) < CONTACT_GAP) {
-          wallTouch = true
-          break
-        }
-      }
-      if (wallTouch) {
-        // touches are SURVIVED: only a sustained continuous contact still ends the episode (the 'crash' fallback)
-        touchWallFrames++
-        touchPenalty += V3_WALL_TOUCH_PENALTY
-        wallTouchT += DEFAULT_DT
-      } else {
-        wallTouchT = 0
-        // object contact: a touching entity that is neither the ground nor a course wall box (none exist in the plain course worlds)
-        if (sim.getTouchingEntityIds(POLICY_CAR_ID).some((id) => id !== 'ground' && !wallIds.has(id))) {
-          touchObjectFrames++
-          touchPenalty += V3_OBJECT_TOUCH_PENALTY
-        }
-      }
-      // v3 peak metric: the HIGH-WATER of the score curve — the progress-based norm minus the penalties accumulated
-      // SO FAR (deviation as a route fraction + touch penalties, in norm currency). It is updated BEFORE the outcome
-      // checks so the frame that ends the episode counts too; standing at a wall drains the end value but cannot
-      // erase the best moment, so a 60 %-then-stall run keeps its gradient over an immediate stall.
-      const normNow = (progress * progress) / (Math.max(t, 1) * routeLength * NORM_SPEED)
-      const cand = normNow - (v3 ? maxDevOrig / routeLength : 0) - touchPenalty
-      if (cand > peakNorm) peakNorm = cand
-      if (wallTouch && wallTouchT >= CRASH_TOUCH_S) {
-        outcome = 'crash'
-        break
-      }
-      if (route.lastDist > offCourseM) {
-        outcome = 'offcourse'
-        break
-      }
-      if (v3 ? (route as LegProgress).done : progress >= routeLength - FINISH_MARGIN) {
-        outcome = 'finish'
-        break
-      }
-      if (progress - refProgress >= STALL_MIN_PROGRESS) {
-        refProgress = progress
-        refT = t
-      } else if (t - refT > (v3 ? SAFETY_WINDOW_S : STALL_WINDOW_S)) {
-        outcome = 'stall'
-        break
-      }
-      if (v3 && stillT > STILL_WINDOW_S) {
-        outcome = 'stall'
-        break
-      }
-    }
-    const progress = v3 ? (route as LegProgress).progress : (route as RouteProgress).best
-    const score = (progress * progress) / Math.max(t, 1)
-    return {
+    return drivePolicyEpisode({
+      sim,
       key,
-      outcome,
-      progress,
-      timeS: t,
-      meanSpeed: progress / Math.max(t, 1e-3),
-      score,
-      norm: score / (routeLength * NORM_SPEED),
-      wallMs: performance.now() - t0,
-      length: routeLength,
-      touchWallFrames,
-      touchObjectFrames,
-      peakNorm,
-      ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevOrigM: maxDevOrig } : {}),
-    }
+      seconds,
+      v3,
+      route,
+      routeLength,
+      offCourseM,
+      chainPoints,
+      walls,
+      wallIds,
+      det,
+      onFrame: opts.onFrame,
+    })
   } finally {
     sim?.dispose()
     det.restore()

@@ -19,8 +19,10 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import { flattenChainKeys, holdoutChainEpisodes, holdoutV3Episodes, trainChainEpisodes, trainV3Episodes } from '@/policyEvolution/chains'
+import { warmCruxGate } from '@/policyEvolution/cruxChains'
 import { formatV3Report, v3ReportByKind } from '@/policyEvolution/chainReport'
 import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile, v2Hidden } from '@/policyEvolution/chainReport'
+import { ensureV3Inputs } from '@/policyEvolution/exampleWorld'
 import { CHAIN_KINDS, COURSE_KINDS, V3_KINDS, holdoutCourseKeys, trainCourseKeys } from '@/policyEvolution/courses'
 import { aggregateEvenness, aggregateFitness, aggregateKindMin, episodeValues, lexGreater } from '@/policyEvolution/es'
 import { PolicyPool } from './pool'
@@ -40,11 +42,16 @@ const opt = (name: string, d: number) => {
 }
 const run = JSON.parse(fs.readFileSync(runFile, 'utf8')) as { best?: { gen: number; genome: number[] } }
 if (!run.best) throw new Error('run file has no best policy yet')
-const genome = (v2 ? v2GenomeFromFile(run) : run.best.genome).map((x) => Math.round(x * 1e5) / 1e5)
+let genome = (v2 ? v2GenomeFromFile(run) : run.best.genome).map((x) => Math.round(x * 1e5) / 1e5)
+// a --v3 gate drives 26-input episodes: LEGACY 24-input genomes (the shipped v3 of gen 1000 is one) are zero-padded
+// onto the two touch inputs, bit-identical behavior (ensureV3Inputs, the same padding the maze worlds use)
+if (v3) genome = ensureV3Inputs(genome)
 const pool = new PolicyPool(opt('workers', Math.max(1, os.cpus().length - 1)))
 const evaluate = pool.evaluator()
 const kindsArg = argv.indexOf('--kinds') > 0 ? argv[argv.indexOf('--kinds') + 1] : undefined
 const kinds = parseKinds(kindsArg, v3 ? V3_KINDS : v2 ? CHAIN_KINDS : COURSE_KINDS)
+// a --v3 run's key enumeration includes the crux chains, whose acceptance gate needs the physics engine warm
+if (v3) await warmCruxGate()
 const trainKeys = v3 ? flattenChainKeys(trainV3Episodes(opt('train-per-kind', 8), kinds)) : v2 ? flattenChainKeys(trainChainEpisodes(opt('train-per-kind', 8), kinds)) : trainCourseKeys(opt('train-per-kind', 6), kinds)
 const holdoutKeys = v3 ? flattenChainKeys(holdoutV3Episodes(opt('holdout-per-kind', 6), kinds)) : v2 ? flattenChainKeys(holdoutChainEpisodes(opt('holdout-per-kind', 6), kinds)) : holdoutCourseKeys(opt('holdout-per-kind', 6), kinds)
 const fitness = v3 ? aggregateKindMin : v2 ? aggregateEvenness : aggregateFitness
@@ -71,7 +78,7 @@ try {
   const candNorms = holdoutNorms
   const V1 = 'src/policyEvolution/shippedPolicy.json'
 const currentFile = fs.existsSync(SHIPPED) ? SHIPPED : v2 && !v3 && fs.existsSync(V1) ? V1 : undefined
-const current = currentFile ? { genome: v2GenomeFromFile(JSON.parse(fs.readFileSync(currentFile, 'utf8'))) } : undefined
+const current = currentFile ? { genome: v3 ? ensureV3Inputs(v2GenomeFromFile(JSON.parse(fs.readFileSync(currentFile, 'utf8')))) : v2GenomeFromFile(JSON.parse(fs.readFileSync(currentFile, 'utf8'))) } : undefined
 if (v2 && currentFile === V1) console.log('no shippedPolicyV2.json yet: comparing with the padded v1 policy')
   if (v2) {
     const hc = v2Hidden(genome)

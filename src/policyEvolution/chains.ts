@@ -1,6 +1,7 @@
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { createRng, type Rng } from '@/avEvolution/core/rng'
 import { adversarialStyle, ADV_SEED, ADV_VARIANT, ADVERSARIAL_KINDS, buildSetupCourse, CHAIN_KINDS, COURSE_LENGTH, COURSE_START, courseKey, isV3NewKind, parseCourseKey, V3_KINDS, type Course, type CourseKind } from './courses'
+import { generateCruxChains } from './cruxChains'
 import { generateV3Chains } from './v3Chains'
 
 /**
@@ -41,6 +42,9 @@ export const CLEARANCE: Record<CourseKind, { margins: number[]; min: number }> =
   maze: { margins: [1.5, 1], min: CAR_HALF_WIDTH + 0.25 },
   // grid: the sealed divider tips (6 m strips) stay impassable at BOTH margins, so the serpentine U-turns are the only lane sequence
   grid: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
+  // crux: the chains are laid by hand from the course's own route (cruxChains.ts, no grid planner); the margins record the
+  // comfort the jittered chain variants keep from the walls, min is the exact clearance every accepted variant must hold
+  crux: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
 }
 /** smallest clearance any chain keeps (all kinds) */
 export const MIN_CLEARANCE = CAR_HALF_WIDTH + 0.25
@@ -820,7 +824,14 @@ export function chainsForSetup(setupKey: string): Chain[] {
   const hit = chainCache.get(setupKey)
   if (hit) return hit
   let chains: Chain[] = []
-  if (isV3NewKind(parseCourseKey(setupKey).kind)) {
+  const { kind } = parseCourseKey(setupKey)
+  if (kind === 'crux') {
+    // crux: the hand-laid base route plus jittered variants, gated by the pure-pursuit baseline (cruxChains.ts)
+    chains = generateCruxChains(setupKey)
+    chainCache.set(setupKey, chains)
+    return chains
+  }
+  if (isV3NewKind(kind)) {
     chains = generateV3Chains(setupKey)
     chainCache.set(setupKey, chains)
     return chains

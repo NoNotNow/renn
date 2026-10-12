@@ -10,7 +10,7 @@
  *   node tools/policy-evolution/train-ctl.mjs trial [FILE]  # deploy the best candidate (default latest-best.json) into the
  *                                                           # maze training worlds (--score export) + on-disk gate, verdict printed
  *
- * Known jobs: the v3mg7 policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
+ * Known jobs: the v3crux policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
  * and the vite dev server. Detection is by command line + repo path, never a blanket pkill pattern.
  */
 import { spawnSync } from 'node:child_process'
@@ -20,16 +20,16 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TRAIN = {
-  state: resolve(root, 'training-data/policy-evolution/v3mg7.json'),
-  log: resolve(root, 'training-data/policy-evolution/v3mg7.log'),
-  nohupLog: resolve(root, 'training-data/policy-evolution/v3mg7.nohup.log'),
-  targetGen: 8000,
-  why: 'policy evolution: v3mg7 maze+grid FRESH run (random nets) with speedCap 10 FROM GEN 0 - no speed entrenchment can form: every finish scores 1.0 regardless of speed, any fail stays below frac^2 x cap/20, so braking into corners finally pays from the first generation. v3mg6 (archived at gen 2220) proved the point: 1220 gens of quadratic speed reward anchored full-throttle weights so deeply that even 1000 capped gens could not grow corner-braking (best frozen since 1425, 4x sigma boost destroyed the centers). Adversarial TRAIN setups from the T4 diagnosis included. 2026-10-12 decision: maze band doubled (train 8->16, holdout 5->10) against per-maze overfitting / perzeptuelles Aliasing on the stuck worst3 routes; grid stays 8/5.',
+  state: resolve(root, 'training-data/policy-evolution/v3crux.json'),
+  log: resolve(root, 'training-data/policy-evolution/v3crux.log'),
+  nohupLog: resolve(root, 'training-data/policy-evolution/v3crux.nohup.log'),
+  targetGen: 3000,
+  why: 'policy evolution: v3crux FRESH run (random nets) on the crux curriculum of the 2026-10-12 decision: the training mazes are too big and diffuse - the car only fails at a few recurring crux geometries, so this run trains essentially only on the crux: MANY TINY worlds, each holding exactly ONE crux class (C1 occluded fast corner, C2 confined corner pocket, C3 S-bend, C4 lateral gate entry at 16 m with offM 16, C5 final corner + goal) from the two-part stall analysis of the v3mg7 candidate, with MANY MORE-OR-LESS GOOD ROUTES through each crux instead of many mazes (~6 noise-jittered chains per setup, every accepted chain proven finishable by the pure-pursuit baseline - NO DEAD ZEROS), fresh random nets, speedCap 10 from gen 0.',
   // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself).
   // caffeinate -is: the run holds its own PreventIdleSleep assertion - the Mac does not idle-sleep while training
   // (the sleep timer is 1 minute; without this the run pauses whenever display/audio/Chrome-wake-lock release).
   // caffeinate exits when its child (run-v3.sh) exits, so a clean stop releases the assertion automatically.
-  start: 'V3_OUT=training-data/policy-evolution/v3mg7.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6 --speed-cap 10 --train-per-kind-maze 16 --holdout-per-kind-maze 10" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 8000 9 > training-data/policy-evolution/v3mg7.nohup.log 2>&1 &',
+  start: 'V3_OUT=training-data/policy-evolution/v3crux.json V3_EXTRA_ARGS="--kinds crux --batch 6 --speed-cap 10 --train-per-kind-crux 15 --holdout-per-kind-crux 10" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3crux.nohup.log 2>&1 &',
 }
 const WATCH = {
   why: 'auto-trial watcher: deploys the newest candidate into the maze training worlds every 2 min (skips cycles without a new best)',
@@ -42,7 +42,7 @@ const ps = () => spawnSync('ps', ['-Ao', 'pid,ppid,pcpu,etime,command'], { encod
 /** All processes belonging to a job; absolute repo path OR the repo-relative launcher paths (bash run-v3.sh / tee are started relative). */
 function findProcs(pattern) {
   const me = String(process.pid)
-  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|tools\/policy-evolution\/auto-trial\.mjs|caffeinate -is bash tools\/policy-evolution\/run-v3|training-data\/policy-evolution\/v3mg7\.log/
+  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|tools\/policy-evolution\/auto-trial\.mjs|caffeinate -is bash tools\/policy-evolution\/run-v3|training-data\/policy-evolution\/v3crux\.log/
   return ps()
     .map((l) => {
       const m = l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\S+)\s+(.*)$/)
@@ -54,7 +54,7 @@ function findProcs(pattern) {
     .filter(Boolean)
 }
 
-const trainProcs = () => findProcs(/run-islands|run-v3\.sh|caffeinate|v3mg7\.log/)
+const trainProcs = () => findProcs(/run-islands|run-v3\.sh|caffeinate|v3crux\.log/)
 const watchProcs = () => findProcs(/auto-trial\.mjs/)
 const viteProcs = () => findProcs(/node_modules\/\.bin\/vite|vite\.js/).filter((p) => /vite/.test(p.cmd) && p.cmd.includes(root))
 
@@ -210,7 +210,7 @@ function start() {
     spawnSync('sleep', ['0.5'])
     up = trainProcs().length > 0
   }
-  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3mg7.nohup.log')
+  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3crux.nohup.log')
   // the auto-trial watcher deploys the newest candidate every 2 min while the run is up (idempotent if one is already up)
   if (up && !watchProcs().length) {
     spawnSync('bash', ['-c', WATCH.start], { cwd: root, stdio: 'ignore' })
@@ -225,7 +225,7 @@ function start() {
 
 function ship() {
   if (trainProcs().length) stop()
-  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3mg7.json', '--v3', '--workers', '9'], {
+  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3crux.json', '--v3', '--workers', '9', '--kinds', 'crux'], {
     cwd: root,
     encoding: 'utf8',
   })
