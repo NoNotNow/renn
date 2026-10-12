@@ -7,19 +7,19 @@
   "grid"
  ],
  "speedCap": 10,
- "gen": 5880,
- "updatedAt": "2026-10-12T08:32:58.905Z",
- "elapsedSec": 1525,
+ "gen": 6160,
+ "updatedAt": "2026-10-12T08:57:09.853Z",
+ "elapsedSec": 2976,
  "islands": {
   "centers": [
-   0,
-   0.009,
-   0
+   null,
+   0.44,
+   0.953
   ],
   "ages": [
-   75,
+   0,
    25,
-   330
+   610
   ],
   "stagns": [
    0,
@@ -38,7 +38,7 @@
     2
    ],
    "epochs": 3,
-   "sinceGen": 5800,
+   "sinceGen": 6075,
    "max": 4
   }
  },
@@ -47,41 +47,41 @@
   "ema": 0.7754431647476836
  },
  "epoch": {
-  "gen": 5875,
+  "gen": 6150,
   "scores": [
-   0.02547423354917688,
-   0.01265341795033295,
-   0.9506167330068547
+   0.9635241311041868,
+   0.9179118562030015,
+   0.9719658353382808
   ],
   "bestIsland": 2,
   "train": {
    "fitness": 0,
-   "finished": 71,
+   "finished": 73,
    "total": 76,
    "worst3": [
     0,
     0,
-    0.13644963294557327
+    0.3640959464285428
    ]
   },
   "holdout": {
    "fitness": 0,
-   "finished": 36,
+   "finished": 37,
    "total": 38
   },
   "perKind": [
    {
     "kind": "maze",
     "chains": 28,
-    "finished": 26,
-    "finishRate": 0.9285714285714286,
+    "finished": 27,
+    "finishRate": 0.9642857142857143,
     "setups": 10,
-    "setupsAllFinished": 8,
-    "allFinishedShare": 0.8,
-    "offcourse": 0,
-    "crashes": 1,
-    "reverseShare": 0.015846140487974298,
-    "maxReverseM": 0.31338451304205084,
+    "setupsAllFinished": 9,
+    "allFinishedShare": 0.9,
+    "offcourse": 1,
+    "crashes": 0,
+    "reverseShare": 0,
+    "maxReverseM": 0,
     "reversedEpisodes": 0
    },
    {
