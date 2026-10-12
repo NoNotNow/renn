@@ -1,0 +1,108 @@
+{
+  "id": "maze_train_9",
+  "seed": 2009,
+  "name": "Maze Training 9",
+  "candidate": {
+    "policy": "v3",
+    "label": "v3mg7 trial (gen 925)",
+    "gen": 925,
+    "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
+  },
+  "bestScore": 136,
+  "chain": {
+    "points": 9,
+    "lengthM": 121.3
+  },
+  "routes": {
+    "forward": 1,
+    "reversed": 1
+  },
+  "tileSvg": {
+    "w": 206,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            179.6,
+            193.7
+          ],
+          [
+            164.3,
+            193.3
+          ],
+          [
+            149.2,
+            189.7
+          ],
+          [
+            149.5,
+            166.6
+          ],
+          [
+            174.5,
+            161.9
+          ],
+          [
+            180.4,
+            129.4
+          ],
+          [
+            176.5,
+            82.6
+          ],
+          [
+            180.4,
+            24.2
+          ],
+          [
+            179.6,
+            10
+          ]
+        ],
+        "score": 136
+      },
+      {
+        "pts": [
+          [
+            179.6,
+            10
+          ],
+          [
+            179.9,
+            25.3
+          ],
+          [
+            180.2,
+            44.4
+          ],
+          [
+            179.8,
+            68.4
+          ],
+          [
+            181.9,
+            98.3
+          ],
+          [
+            177.6,
+            135.1
+          ],
+          [
+            156,
+            162.1
+          ],
+          [
+            168.2,
+            191.9
+          ],
+          [
+            179.6,
+            193.7
+          ]
+        ],
+        "score": 118
+      }
+    ]
+  }
+}

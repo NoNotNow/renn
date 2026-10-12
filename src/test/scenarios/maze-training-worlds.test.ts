@@ -33,7 +33,7 @@ import { getTransformerWatchEntries, setAgentObservationWatchActive } from '@/ru
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 
 /**
- * The five maze training worlds: one maze copy per training route (several routes through the maze, some driven in
+ * The ten maze training worlds: one maze copy per training route (several routes through the maze, some driven in
  * reverse direction — bias removal), the shipped v3 policy driving every copy on its own tapered guidance chain.
  * Regenerate after any change to src/policyEvolution/mazeTraining.ts or a policy ship:
  *   npx tsx tools/renn-mcp/export-maze-training-worlds.ts --score
@@ -80,7 +80,8 @@ describe('maze training worlds', () => {
       for (const r of routes) {
         expect(r.route[0]).toEqual(r.startAt)
         expect(r.route.length).toBeGreaterThanOrEqual(3)
-        expect(r.route.length).toBeLessThanOrEqual(26)
+        // longest genuine route across seeds 2001-2010 (maze_train_8 primary: 31 points)
+        expect(r.route.length).toBeLessThanOrEqual(31)
         if (!r.reversed) {
           expect(r.route[r.route.length - 1]).toEqual(gate)
           expect(r.startAt).toEqual([0, 0])
@@ -444,7 +445,7 @@ describe('maze training worlds: route tiles and focusMazeRoute', () => {
 // This gate doubles as the maze-training progress gate: with the shipped v3 (gen 1000) maze_train_3 stalls at the first
 // junction on the primary route (reached false, score ~47) while 1/2/4/5 clear in ~5 s — the v3maze run
 // (training-data/policy-evolution/v3maze.json, --kinds maze, warm from the shipped v3) exists to close exactly that
-// gap, now measured on every route (forward AND reversed). The gate goes green for all five when a maze-trained
+// gap, now measured on every route (forward AND reversed). The gate goes green for all ten when a maze-trained
 // candidate clears every route; re-export + re-measure then:
 //   npx tsx tools/renn-mcp/export-maze-training-worlds.ts --score
 // Trialing a candidate (the run always writes its latest best to training-data/policy-evolution/latest-best.json):

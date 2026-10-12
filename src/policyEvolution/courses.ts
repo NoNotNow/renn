@@ -33,7 +33,7 @@ export const isV3NewKind = (k: CourseKind) => V3_NEW_KINDS.includes(k)
  * variant 1, so an enumerated adversarial key can never appear in either band for ANY perKind or seed (the variant suffix alone
  * distinguishes the strings). ADV_SEED also sits far above the seed range the standard bands can ever scan: acceptedSetupKeys counts
  * seeds up from firstSeed (1 / 1001) inside a hard guard of firstSeed + 20 * perKind + 50 (<= 251 / 1251 for the perKind <= 10 every
- * caller uses), and the dialog worlds use seeds 2001-2005 - so no standard course ever builds with an adversarial seed either.
+ * caller uses), and the dialog worlds use seeds 2001-2010 - so no standard course ever builds with an adversarial seed either.
  * Collision-free: variant 2 vs variant 0 / 1 (enumerated keys), seed >= 4001 vs scanned seed ranges (course geometry).
  */
 export const ADV_SEED = 4001

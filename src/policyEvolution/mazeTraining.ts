@@ -1,5 +1,5 @@
 /**
- * Maze training worlds: five playable maze worlds that train and showcase the evolved v3 driving policy
+ * Maze training worlds: ten playable maze worlds that train and showcase the evolved v3 driving policy
  * exclusively on mazes. Shared contract between:
  * - the world builder + exporter (`tools/renn-mcp/export-maze-training-worlds.ts`),
  * - the world tests (`src/test/scenarios/maze-training-worlds.test.ts`),
@@ -26,7 +26,7 @@ export interface MazeTrainingWorldSpec {
 }
 
 /**
- * The five training mazes. Seeds 2001-2005 are distinct from every training/holdout course seed
+ * The ten training mazes. Seeds 2001-2010 are distinct from every training/holdout course seed
  * (train 1001-1016 range) so the worlds are neither trained-on nor holdout mazes.
  */
 export const MAZE_TRAINING_WORLDS: MazeTrainingWorldSpec[] = [
@@ -35,6 +35,11 @@ export const MAZE_TRAINING_WORLDS: MazeTrainingWorldSpec[] = [
   { id: 'maze_train_3', seed: 2003, name: 'Maze Training 3' },
   { id: 'maze_train_4', seed: 2004, name: 'Maze Training 4' },
   { id: 'maze_train_5', seed: 2005, name: 'Maze Training 5' },
+  { id: 'maze_train_6', seed: 2006, name: 'Maze Training 6' },
+  { id: 'maze_train_7', seed: 2007, name: 'Maze Training 7' },
+  { id: 'maze_train_8', seed: 2008, name: 'Maze Training 8' },
+  { id: 'maze_train_9', seed: 2009, name: 'Maze Training 9' },
+  { id: 'maze_train_10', seed: 2010, name: 'Maze Training 10' },
 ]
 
 export interface MazeTrainingCandidate {

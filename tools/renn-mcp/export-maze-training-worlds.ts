@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Write the five maze training worlds (the shipped v3 policy driving seeded 6x6 mazes, one maze copy per training
+ * Write the ten maze training worlds (the shipped v3 policy driving seeded 6x6 mazes, one maze copy per training
  * route — several routes through the maze, some of them in reverse direction — on tapered guidance chains, in-world
  * scoring + chain rendering) to public/exampleWorlds/maze_train_<n>/ (File -> Example Worlds, Maze Training dialog).
  * Per world: world.json, meta.json (bestScore null until measured) and a top-down thumb.svg (one maze frame per route
