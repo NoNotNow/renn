@@ -1,0 +1,99 @@
+{
+ "schema": "renn.policy-evolution.latest-stats/1",
+ "source": "training-data/policy-evolution/v3nose.json",
+ "policy": "v3",
+ "kinds": [
+  "maze"
+ ],
+ "speedCap": 10,
+ "gen": 3000,
+ "updatedAt": "2026-10-12T20:00:06.940Z",
+ "elapsedSec": 7383,
+ "islands": {
+  "centers": [
+   null,
+   0,
+   0
+  ],
+  "ages": [
+   0,
+   950,
+   50
+  ],
+  "stagns": [
+   0,
+   2,
+   0
+  ],
+  "boosts": [
+   1,
+   1,
+   1
+  ],
+  "globalStagn": 2,
+  "globalBoost": 1,
+  "focus": {
+   "set": [
+    1
+   ],
+   "epochs": 1,
+   "sinceGen": 2975,
+   "max": 4
+  }
+ },
+ "stage": {
+  "share": 0,
+  "ema": 0
+ },
+ "epoch": {
+  "gen": 3000,
+  "scores": [
+   0,
+   0.7903455038503744,
+   0.2245017461079647
+  ],
+  "bestIsland": 1,
+  "train": {
+   "fitness": 0.0000021350548912136294,
+   "finished": 25,
+   "total": 27,
+   "worst3": [
+    0.0000021350548912136294,
+    0.24607619774296827,
+    0.7025401636339983
+   ]
+  },
+  "holdout": {
+   "fitness": 0,
+   "finished": 12,
+   "total": 13
+  },
+  "perKind": [
+   {
+    "kind": "maze",
+    "chains": 13,
+    "finished": 12,
+    "finishRate": 0.9230769230769231,
+    "setups": 5,
+    "setupsAllFinished": 4,
+    "allFinishedShare": 0.8,
+    "offcourse": 1,
+    "crashes": 0,
+    "reverseShare": 0.00012893243940175349,
+    "maxReverseM": 0.029509378445228895,
+    "reversedEpisodes": 0
+   }
+  ]
+ },
+ "best": {
+  "gen": 675,
+  "train": 0.000002137562750177137,
+  "holdout": 0,
+  "worst3": [
+   0.000002137562750177137,
+   0.17795477506025997,
+   0.182095019638121
+  ]
+ },
+ "why": "every 20 gens"
+}
