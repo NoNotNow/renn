@@ -47,7 +47,7 @@ describe('v3 split A/B oracle: old single stage vs input+drive chain', () => {
     const chain = [[0, 0], [0, 40], [0, 25], [0, 70]]
     const legEnds = [1, 2, 3]
     const cmd = { lmin: 12, tau: 1.5, period: 0.5, noiseDeg: 3, seed: 7 }
-    const oldParams = { w, gain: 1200, chain, legEnds, offM: 8, cmd, noise: 0.02, noiseSeed: 5 }
+    const oldParams = { w, gain: 1200, chain, legEnds, offM: 8, cmd, noise: 0.02, noiseSeed: 5, v3: true }
     const inputParams = { chain, legEnds, offM: 8, cmd }
     const driveParams = { w, gain: 1200, noise: 0.02, noiseSeed: 5 }
 

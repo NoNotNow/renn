@@ -14,6 +14,7 @@ import { createRng } from '@/avEvolution/core/rng'
 import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { buildCourse, KIND_SALT, type Course, type CourseBox } from './courses'
+import { NOSE_M } from './policy'
 import { WALL_LOS_JS } from './wallLos'
 import { POLICY_CAR_ID, POLICY_GROUND, policyCourseParts, type CmdConfig } from './episode'
 
@@ -375,7 +376,9 @@ export const MAZE_CARROT_COLOR = '#aa44ff'
  * the own tapered chain (1 pt / m, never backwards) plus a speed bonus (up to `bonusRate` pt/s at `vRef`) minus a
  * per-second TOUCH penalty (wall contact via `isTouchingSide` costs `wallPenaltyPerS`, object contact — any contact
  * without a lateral one and without support below the hull, i.e. not merely standing on the ground — costs
- * `objectPenaltyPerS`; walls cost more than objects). LINE-OF-SIGHT GATE (WALL_LOS_JS above): the progress credit is
+ * `objectPenaltyPerS`; walls cost more than objects). THE OWN-CAR ANCHOR IS THE NOSE (center + fwd * NOSE_M, the same
+ * front edge the v3 command projects from): progress projection, LOS gate, goal reach and the own carrot line all lead
+ * from the front; the other cars (api.getWorldPosition) stay center-anchored — they are visualization only. LINE-OF-SIGHT GATE (WALL_LOS_JS above): the progress credit is
  * only raised when the segment car -> projected chain point crosses no wall of `params.walls` — a projection onto a
  * chain point behind a wall (wrong side of a wall, parallel corridor, shortcut across a maze interval) is not credit
  * the car drove; while occluded the previous credit stands and bonus / penalties keep running. Stages without
@@ -417,7 +420,12 @@ function transform(input, dt, params, state, api) {
     state.los = losWallsInit(params.walls || [])
   }
   var total = state.cum[n - 1]
-  var px = input.position[0], pz = input.position[2]
+  var up = api.getUpVector(input.rotation)
+  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))
+  // the own-car anchor is the car NOSE (center + fwd * NOSE_M, the same front edge the ray sensing and the v3 command use):
+  // projection, LOS gate, goal reach and the own carrot all lead from the front — NO leading-edge flip here (the maze worlds
+  // have no reversal legs and the score counts forward progress); the other cars stay center-anchored (visualization)
+  var px = input.position[0] + fwd[0] * ${NOSE_M}, pz = input.position[2] + fwd[2] * ${NOSE_M}
   var vRef = params.vRef || 20
   var v = Math.min(Math.hypot(input.velocity[0], input.velocity[2]), vRef)
   // finish: within MAZE_GOAL_REACH_M of the chain end the route is cleared (same rule as the exporter early-stop).

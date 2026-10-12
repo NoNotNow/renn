@@ -8,7 +8,7 @@ import { chainOfEpisode, isChainEpisodeKey, polylineLength, type Chain } from '.
 import { LegProgress } from './legs'
 import { WallLos } from './wallLos'
 import { V3_OBJECT_TOUCH_PENALTY, V3_WALL_TOUCH_PENALTY } from './es'
-import { hiddenOfLength, N_IN_V2, N_IN_V3, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
+import { hiddenOfLength, N_IN_V2, N_IN_V3, NOSE_M, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
 import { policyDriveStage, policyInputStage, policyV1Stage, policyV2Stage, POLICY_INPUT_STAGE_ID } from './policyStages'
 
 
@@ -178,7 +178,7 @@ export function policyCourseParts(course: Course, genome: ArrayLike<number>, opt
     ? {
         // v3 split chain (shared store): the input stage owns the command (chain / legs / cmd config), the drive stage runs the net
         [inputId]: policyInputStage({ chain: opts.chain!.map((p) => [p[0] + ox, p[1] + oz]), legEnds: opts.legEnds, offM: opts.offM, cmd: opts.cmd ?? cmdConfigFor('default') }),
-        [stageId]: policyDriveStage({ w: Array.from(genome), gain, ...noiseParams }),
+        [stageId]: policyDriveStage({ w: Array.from(genome), gain, v3: true, ...noiseParams }),
         [actuatorId]: { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS },
       }
     : {
@@ -260,41 +260,50 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
   let wallTouchT = 0
   let touchPenalty = 0
   let peakNorm = 0
+  // v3: which end of the car leads (hysteresis at +-0.5 m/s of forward speed): false = the nose, true = the tail
+  let anchorRev = false
   for (let frame = 0; frame < frames; frame++) {
     sim.runFrames(1)
     det.advance(DEFAULT_DT)
     t = (frame + 1) * DEFAULT_DT
     const cp = sim.getPosition(POLICY_CAR_ID)
     const q = sim.getRotation(POLICY_CAR_ID)
+    const fx = -(2 * (q.x * q.z + q.w * q.y))
+    const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
     if (onFrame) {
       const v = sim.getVelocity(POLICY_CAR_ID)
       const hx = -(2 * (q.x * q.z + q.w * q.y))
       const hz = -(1 - 2 * (q.x * q.x + q.y * q.y))
       onFrame(cp[0], cp[2], t, { yaw: Math.atan2(hx, hz), vx: v[0], vz: v[2], vf: v[0] * hx + v[2] * hz })
     }
-    const progress = route.update(cp[0], cp[2])
+    let progress: number
     if (v3) {
+      // the progress / LOS / finish anchor is the LEADING edge in the direction of travel (nose forward, tail reversing,
+      // the same rule + hysteresis the stage command projects from); v1 / v2 keep the center. The touch / deviation
+      // tests below stay center-anchored.
+      const v = sim.getVelocity(POLICY_CAR_ID)
+      const vf = v[0] * fx + v[2] * fz
+      anchorRev = vf < -0.5 ? true : vf > 0.5 ? false : anchorRev
+      const fwdN = Math.hypot(fx, fz) || 1
+      const am = (anchorRev ? -1 : 1) * NOSE_M
+      progress = route.update(cp[0] + (fx / fwdN) * am, cp[2] + (fz / fwdN) * am)
       // deviation from the ORIGINAL chain (full polyline, not just the current leg): the v3 fitness subtracts
       // the episode's max deviation from the model's points, so following the path vector is the only free route
       const devOrig = polylineNearestDist(chainPoints!, cp[0], cp[2])
       if (devOrig > maxDevOrig) maxDevOrig = devOrig
-      const v = sim.getVelocity(POLICY_CAR_ID)
-      const fvx = -(2 * (q.x * q.z + q.w * q.y))
-      const fvz = -(1 - 2 * (q.x * q.x + q.y * q.y))
-      const vf = v[0] * fvx + v[2] * fvz
       stillT = Math.hypot(v[0], v[2]) < STILL_SPEED ? stillT + DEFAULT_DT : 0
       if (vf < -REVERSE_SPEED) {
         reverseFrames++
         reverseRun += -vf * DEFAULT_DT
         if (reverseRun > maxReverse) maxReverse = reverseRun
       } else if (vf > REVERSE_SPEED) reverseRun = 0
+    } else {
+      progress = route.update(cp[0], cp[2])
     }
     if (upY(q) < 0.2) {
       outcome = 'flip'
       break
     }
-    const fx = -(2 * (q.x * q.z + q.w * q.y))
-    const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
     const hull = rectPoly(cp[0], cp[2], Math.atan2(fx, fz), CAR_SIZE[0], CAR_SIZE[1])
     let wallTouch = false
     for (const w of walls) {

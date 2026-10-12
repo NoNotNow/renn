@@ -177,8 +177,9 @@ describe('policy episode', () => {
   }, 60_000)
 
   it('a BRIEF touch does not end the episode (it is counted and the run goes on)', async () => {
-    // corridor chain 1 starts with a reverse leg: the forward-only follower brushes a wall, then goes offcourse on its own
-    const m = await runPolicyEpisode(pursuitV3(0.35), 'corridor:1#1v3')
+    // corridor chain 2: the forward-only follower brushes a wall mid-swing, then goes offcourse on its own
+    // (under the nose anchor the old corridor:1#1v3 swing no longer touches at all)
+    const m = await runPolicyEpisode(pursuitV3(0.35), 'corridor:4#2v3')
     expect(m.touchWallFrames).toBeGreaterThan(0)
     expect(m.touchWallFrames).toBeLessThan(Math.round(CRASH_TOUCH_S / (1 / 60)))
     expect(m.outcome).not.toBe('crash')

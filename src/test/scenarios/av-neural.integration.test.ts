@@ -233,7 +233,7 @@ describe('AV neural drive (e) the stage computes the policy', () => {
     // the touch inputs: no contacts in this scripted frame -> both 0
     expect(p.x[N_IN_V3 - 2]).toBe(0)
     expect(p.x[N_IN_V3 - 1]).toBe(0)
-    // aim: L = clamp(8 + 0.6 * 5, 8, 40) = 11 m along the route (straight ahead), next = direction of the route 12 m beyond (still the first leg)
+    // aim: L = clamp(8 + 0.6 * 5, 8, 40) = 11 m along the route (straight ahead; v2 projects from the CENTER), next = direction of the route 12 m beyond (still the first leg)
     expect(p.aim[0]).toBeCloseTo(0, 6)
     expect(p.aim[1]).toBeCloseTo(11, 6)
     expect(p.x[N_RAYS + 3]).toBeCloseTo(1, 6)
@@ -252,13 +252,13 @@ describe('AV neural drive (e) the stage computes the policy', () => {
 
   it('the training stage (POLICY_STAGE_CODE_V3, same 26 inputs, one-leg chain / same command config) writes the same actions', () => {
     const route = [[0, 0], [0, 40], [30, 70]]
-    const av = { ego: { speed: 5, kappa: 0, speedF: 5 }, plan: {}, vehicle: { width: 4, length: 8, height: 1 }, routePath: route, goal: { dist: 99 }, mission: { isFinal: false } }
+    const av = { ego: { speed: 5, kappa: 0, speedF: 5, fwd: [0, 0, 1] }, plan: {}, vehicle: { width: 4, length: 8, height: 1 }, routePath: route, goal: { dist: 99 }, mission: { isFinal: false } }
     const neural = { ...baseInput(), av }
     // neuralReverse keeps the v3 target speed negative (noRev would floor it at 0, unlike the training stage)
     compile(diskStage())(neural, dt, { neuralMode: 'always', neuralPolicy: 'v3', wV3: w, neuralVMax: 1000, neuralReverse: true }, {}, api)
     const train = baseInput()
     // (the AV stage starts the memory inputs from the classic car: steer = kappa / 0.12 = 0, gas = v / 30)
-    compile(POLICY_STAGE_CODE_V3)(train, dt, { w, chain: route, cmd: { lmin: 8, tau: 0.6, period: 0.5, noiseDeg: 0, seed: 1 }, gain: 1200 }, { steer: 0, gas: 5 / 30 }, api)
+    compile(POLICY_STAGE_CODE_V3)(train, dt, { w, chain: route, v3: true, cmd: { lmin: 8, tau: 0.6, period: 0.5, noiseDeg: 0, seed: 1 }, gain: 1200 }, { steer: 0, gas: 5 / 30 }, api)
     expect(neural.actions).toEqual(train.actions)
   })
 
@@ -408,9 +408,9 @@ describe('AV neural drive v3 policy (neuralPolicy v3, reversing)', () => {
     const p = state.p as { x: number[]; aim: number[] }
     expect(state.on).toBe(true)
     expect(p.x.length).toBe(N_IN_V3)
-    // leg-wise command: aim = clamp(8 + 0.6 * 5, 8, 40) = 11 m along the route (one leg)
+    // leg-wise command: aim = clamp(8 + 0.6 * 5, 8, 40) = 11 m along the route from the NOSE (the v3 anchor, 4.1 m ahead of the center)
     expect(p.aim[0]).toBeCloseTo(0, 6)
-    expect(p.aim[1]).toBeCloseTo(11, 6)
+    expect(p.aim[1]).toBeCloseTo(15.1, 6)
     const out = policyForwardV3(genome, p.x)
     const a = inp.actions
     expect(a.steering_angle).toBeCloseTo(Math.abs(out[0]) < 1e-4 ? 1e-4 : out[0], 12)
@@ -453,10 +453,11 @@ describe('AV neural drive v3 policy (neuralPolicy v3, reversing)', () => {
     const P = r.state.p as { revLeg: boolean; revChain: number[][]; revEnds: number[]; aim: number[] }
     expect(r.triggeredAt).toBeGreaterThanOrEqual(55) // after ~1 s blocked
     expect(P.revLeg).toBe(true)
-    // back leg: from the car 6 m (= neuralRevMaxM < 10, rear free) straight back along its own heading, then the route again
-    expect(P.revChain[0]).toEqual([0, 0])
+    // back leg: FROM THE TAIL (the leading edge while reversing) 6 m (= neuralRevMaxM < 10, rear free) straight back
+    // along the own heading, then the route again
+    expect(P.revChain[0]).toEqual([0, -4.1])
     expect(P.revChain[1]![0]).toBeCloseTo(0, 9)
-    expect(P.revChain[1]![1]).toBeCloseTo(-6, 9)
+    expect(P.revChain[1]![1]).toBeCloseTo(-4.1 - 6, 9)
     expect(P.revEnds).toEqual([1, P.revChain.length - 1])
     expect(P.aim[1]).toBeLessThan(0) // aim point behind the car
     expect(r.dirs.slice(0, r.triggeredAt)).not.toContain('rev')
@@ -465,7 +466,7 @@ describe('AV neural drive v3 policy (neuralPolicy v3, reversing)', () => {
     expect(av).toBeLessThanOrEqual(6)
     // default cap 12 m: the leg is limited to 10 m
     const r12 = blockedRun({ neuralReverse: true })
-    expect((r12.state.p as { revChain: number[][] }).revChain[1]![1]).toBeCloseTo(-10, 9)
+    expect((r12.state.p as { revChain: number[][] }).revChain[1]![1]).toBeCloseTo(-4.1 - 10, 9)
   })
 
   it('(d) the leg metres are counted and the route comes back after the leg', () => {
@@ -530,7 +531,7 @@ describe('AV neural drive v3 policy (neuralPolicy v3, reversing)', () => {
       if (trainState) {
         // identical inputs into the training stage: same chain + legEnds, memory inputs carried over
         const tin = { ...mkIn(z, spd), actions: {} as Record<string, number> }
-        train(tin, dt, { w: genome, chain, legEnds: ends, cmd: { lmin: 8, tau: 0.6, period: 0.5, noiseDeg: 0, seed: 1 }, gain: 1200 }, trainState, api)
+        train(tin, dt, { w: genome, chain, legEnds: ends, v3: true, cmd: { lmin: 8, tau: 0.6, period: 0.5, noiseDeg: 0, seed: 1 }, gain: 1200 }, trainState, api)
         expect(inp.actions).toEqual(tin.actions)
         n++
         z += spd * dt * 4 // walk the car back (a few mm per frame is enough to move the projection; 4x for a longer path)

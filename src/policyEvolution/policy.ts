@@ -9,6 +9,15 @@ import { LEG_TRACK_JS } from './legs'
 /** Ray bearings in degrees from the heading (positive = left); dense in front, sparse behind. */
 export const RAY_ANGLES_DEG = [0, 10, -10, 20, -20, 35, -35, 55, -55, 80, -80, 120, -120, 180] as const
 export const RAY_RANGE = 50
+/**
+ * v3 command anchor: the projection onto the chain sits at the car's LEADING edge in the direction of travel — the
+ * NOSE, center + fwd * NOSE_M, when driving forward, the TAIL, center - fwd * NOSE_M, when reversing (the car is 4 x 8 m;
+ * 4.1 is the same front-edge margin the ray sensing uses, see `hl` in STAGE_SENSE). The steering / clearance reference sits
+ * at the end that leads while MOVING, so a center-anchored projection makes the car react late in curves and a nose-only
+ * anchor deadlocks back legs (the nose trails 4.1 m in travel direction while reversing). The side is held stable by
+ * hysteresis on the forward speed (see STAGE_GOAL_V2). v1 / v2 stay center-anchored.
+ */
+export const NOSE_M = 4.1
 
 /** inputs: rays, fwd speed, side speed, yaw rate, goal (fwd, left, dist), previous steer + gas */
 export const N_RAYS = RAY_ANGLES_DEG.length
@@ -256,7 +265,8 @@ function deriveCmd(params, state, dt, pos, speed) {
 
 /**
  * v3 command helpers (replace STAGE_CMD_HELPERS in `POLICY_STAGE_CODE_V3`, same `deriveCmd` name so STAGE_GOAL_V2 is reused unchanged): the chain is split into
- * LEGS (`params.legEnds`, see legs.ts; none = one leg) and the car is tracked leg-wise with the shared leg tracker. The aim point lies `clamp(lmin + tau speed)` m further
+ * LEGS (`params.legEnds`, see legs.ts; none = one leg) and the car is tracked leg-wise with the shared leg tracker; `deriveCmd` receives the ANCHOR position (the car
+ * NOSE in the v3 stages, the center in v2 — see STAGE_GOAL_V2), so the projection, the leg tracker and the noise pivot all sit at the anchor. The aim point lies `clamp(lmin + tau speed)` m further
  * along the CURRENT leg, but never beyond its end (a reversal leg of 5 m puts the aim 5 m behind the car); `next` is the point 12 m beyond the aim, continuing on the
  * next leg when the aim sits at the leg end. A leg change refreshes the command at once. Speed in the lookahead is |forward speed| (a reversing car looks ahead too).
  */
@@ -368,10 +378,28 @@ const STAGE_GOAL_V1 = `  var goals = params.goals || []
   x[n + 7] = state.gas || 0
 `
 
+/**
+ * Command inputs of v2 / v3: the aim / next world points come from `input.av.cmd` (written by the split input stage) or, as a
+ * fallback, from `deriveCmd` projecting onto `params.chain`. The projection anchor is the car CENTER in v2; in v3
+ * (`params.v3`, set by the training drive stage and the AV neural stage) it is the LEADING edge in the direction of travel —
+ * the nose (center + fwd * NOSE_M) forward, the tail (center - fwd * NOSE_M) reversing — held stable by hysteresis on the
+ * forward speed (`state.aRev`, flips to tail below -0.5 m/s, back to nose above +0.5 m/s; a reversal leg the car drives
+ * nose-trailing no longer deadlocks). The aim-bearing noise pivot sits at the anchor too. The aim vector itself
+ * (x[n+3..n+5]) is still measured from the center.
+ */
 export const STAGE_GOAL_V2 = `  var cmd = input.av && input.av.cmd
   var ac
   if (cmd && cmd.aim) ac = [cmd.aim[0], cmd.aim[1], (cmd.next || cmd.aim)[0], (cmd.next || cmd.aim)[1]]
-  else if (params.chain && params.chain.length > 1) ac = deriveCmd(params, state, dt, pos, Math.abs(api.vec.dot(input.velocity, fwd)))
+  else if (params.chain && params.chain.length > 1) {
+    var v3on = params.v3 ? 1 : 0
+    var vfv = api.vec.dot(input.velocity, fwd)
+    if (state.aRev === undefined) state.aRev = false
+    if (vfv < -0.5) state.aRev = true
+    else if (vfv > 0.5) state.aRev = false
+    var am = ${NOSE_M} * (state.aRev ? -1 : 1) * v3on
+    var apx = pos[0] + fwd[0] * am, apz = pos[2] + fwd[2] * am
+    ac = deriveCmd(params, state, dt, [apx, pos[1], apz], Math.abs(vfv))
+  }
   else ac = [pos[0], pos[2], pos[0], pos[2]]
   var gx = ac[0] - pos[0], gz = ac[1] - pos[2]
   var gd = Math.hypot(gx, gz) || 1

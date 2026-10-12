@@ -6,7 +6,7 @@
  * the split is behavior-preserving (see policyStages.test.ts: the old single v3 stage and the split chain produce
  * bit-identical actions). v1 / v2 stay single stages (their legacy strings are untouched, in policy.ts).
  */
-import { POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, POLICY_STAGE_CODE_V3, POLICY_STAGE_ID, STAGE_CMD_HELPERS_V3, STAGE_RND } from './policy'
+import { NOSE_M, POLICY_STAGE_CODE, POLICY_STAGE_CODE_V2, POLICY_STAGE_CODE_V3, POLICY_STAGE_ID, STAGE_CMD_HELPERS_V3, STAGE_RND } from './policy'
 
 /** Stage id prefix of the input stage (per-copy suffix like the drive stage: `policy_input_<i>`). */
 export const POLICY_INPUT_STAGE_ID = 'policy_input'
@@ -15,8 +15,11 @@ export const POLICY_INPUT_STAGE_PRIORITY = 4
 
 /**
  * Code of the input stage: the v3 command logic (`deriveCmd` over the leg-wise chain, same math / dt / refresh period / rng
- * as before, its OWN state) writing `input.av.cmd = { aim, next }` every frame. The drive stage's `input.av.cmd` path is
- * unchanged, so the split only moves the computation — the net sees the same aim / next on the same frame.
+ * as before, its OWN state) writing `input.av.cmd = { aim, next }` every frame. The projection anchor is the LEADING edge
+ * in the direction of travel — the nose (center + fwd * NOSE_M) forward, the tail (center - fwd * NOSE_M) reversing — held
+ * stable by hysteresis on the forward speed (`state.aRev`, +-0.5 m/s; a reversal leg the car drives nose-trailing no longer
+ * deadlocks). The drive stage's `input.av.cmd` path is unchanged, so the split only moves the computation — the net sees
+ * the same aim / next on the same frame.
  */
 export const POLICY_INPUT_STAGE_CODE =
   STAGE_RND +
@@ -26,7 +29,12 @@ export const POLICY_INPUT_STAGE_CODE =
   if (!ch || ch.length < 2) return {}
   var up = api.getUpVector(input.rotation)
   var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))
-  var c = deriveCmd(params, state, dt, input.position, Math.abs(api.vec.dot(input.velocity, fwd)))
+  var vf = api.vec.dot(input.velocity, fwd)
+  if (state.aRev === undefined) state.aRev = false
+  if (vf < -0.5) state.aRev = true
+  else if (vf > 0.5) state.aRev = false
+  var am = ${NOSE_M} * (state.aRev ? -1 : 1)
+  var c = deriveCmd(params, state, dt, [input.position[0] + fwd[0] * am, input.position[1], input.position[2] + fwd[2] * am], Math.abs(vf))
   var av = input.av || (input.av = {})
   av.cmd = { aim: [c[0], c[1]], next: [c[2], c[3]] }
   return {}

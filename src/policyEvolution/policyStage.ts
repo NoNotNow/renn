@@ -7,11 +7,12 @@
  * every `period` s, next-segment hint) and forward-pass code are the SAME strings the training stage `POLICY_STAGE_CODE_V2` is built from
  * (`policy.ts`), only wrapped in a function `policyStep` and with two additions made by string replacement (asserted, so a refactor of
  * policy.ts cannot silently disable them): the input vector is stashed in `state.x` (the auto trigger reads the net's own rays) and the target
- * speed is capped at `params.vMax`.
+ * speed is capped at `params.vMax`. The v3 runs project the car at its LEADING edge (nose forward, tail reversing, hysteresis in the
+ * shared GOAL fallback — like the v3 training stages); v2 keeps the center.
  *
  * Phase 1 of agent-context/plan-policy-in-av-car.md. `neuralMode` off (default) returns before touching anything: bit-identical to no stage.
  */
-import { genomeLength, N_HIDDEN, N_IN_V3, STAGE_CMD_HELPERS_V3, STAGE_GOAL_V2, STAGE_NET, STAGE_SENSE, STAGE_TOUCH, stageHead } from './policy'
+import { genomeLength, N_HIDDEN, N_IN_V3, NOSE_M, STAGE_CMD_HELPERS_V3, STAGE_GOAL_V2, STAGE_NET, STAGE_SENSE, STAGE_TOUCH, stageHead } from './policy'
 
 export const AV_NEURAL_STAGE_FILE = 'av-neural.js'
 /** generated copy of shippedPolicyV3.json next to avNeuralWeights.json (by the export script) */
@@ -90,7 +91,7 @@ const AV_NEURAL_BODY = `
 // hull-ray distance < 0.4 m at > 3 m/s, side speed > 4 m/s, a classic manoeuvre starting while the net drives. Pedal law and gain as in training (neuralGain 1200); target speed capped at neuralVMax.
 // neuralPolicy 'v3' (+ neuralReverse): the leg-trained v3 net (same inputs/outputs) on a leg-wise chain (the SAME leg tracker + command helper as in training). Forward: the route is ONE leg.
 // Reversing (only with neuralReverse): blocked ahead (|v| < 1.2 m/s, front rays < 3 m, aim not behind) for 1 s with the rear rays (120 / 180 / -120 deg) clear -> a back leg of 5-10 m
-// along the own heading (never more than neuralRevMaxM, never into the rear free distance), then the route again. A net target speed < 0 reads av.neural.dir = 'rev'.
+// along the own heading FROM THE TAIL (the leading edge while reversing; the metres reversed by the car stay under neuralRevMaxM, never into the rear free distance), then the route again. A net target speed < 0 reads av.neural.dir = 'rev'.
 // Handback while reversing (|v| >= 1 m/s) is deferred: the stage brakes to a stop first. The watchdog's hull-ray test uses the rear rays when reversing.
 // Watch: av.neural (on/off + why), av.neural.n (onS, handovers, fails; v3: dir + reverse metres). av.neural = { on, justOff, why, occ, mov, conf, dir: 'fwd' | 'rev', revM }. Overlay: violet line car -> aim.
 ${'\u0000POLICY_STEP\u0000'}
@@ -186,6 +187,15 @@ function transform(input, dt, params, state, api) {
   var revMax = params.neuralRevMaxM != null ? params.neuralRevMaxM : 12
   var e = av.ego
   var pos = input.position
+  // v3: the projection anchor is the LEADING edge in the direction of travel — the nose (center + fwd * NOSE_M) forward,
+  // the tail (center - fwd * NOSE_M) reversing (the per-frame hysteresis lives in the shared GOAL fallback); v2 keeps the
+  // center (e.fwd is only read in v3 mode)
+  var nx = pos[0], nz = pos[2]
+  if (v3) {
+    var lead = e.speed < 0 ? -${NOSE_M} : ${NOSE_M}
+    nx = pos[0] + e.fwd[0] * lead
+    nz = pos[2] + e.fwd[2] * lead
+  }
   if (state.t === undefined) {
     state.t = 0
     state.on = false
@@ -243,7 +253,7 @@ function transform(input, dt, params, state, api) {
       if (rp !== P.srcRp) {
         P.srcRp = rp
         P.fb = null
-        if (v3) newChainV3(P, rp, undefined, pos[0], pos[2])
+        if (v3) newChainV3(P, rp, undefined, nx, nz)
         else newChain(P, rp, pos[0], pos[2])
       }
       chain = rp
@@ -257,7 +267,7 @@ function transform(input, dt, params, state, api) {
           P.fb = [[pos[0], pos[2]], [tg[0], tg[1]]]
           P.fbS = [pos[0], pos[2]]
           P.fbT = [tg[0], tg[1]]
-          if (v3) newChainV3(P, P.fb, undefined, pos[0], pos[2])
+          if (v3) newChainV3(P, P.fb, undefined, nx, nz)
           else newChain(P, P.fb, pos[0], pos[2])
         }
         chain = P.fb
@@ -359,7 +369,10 @@ function transform(input, dt, params, state, api) {
           if (back >= Math.min(5, revMax) && P.lt) {
             var hx = e.fwd[0], hz = e.fwd[2]
             var hn = Math.hypot(hx, hz) || 1
-            var pts = [[pos[0], pos[2]], [pos[0] - hx / hn * back, pos[2] - hz / hn * back]]
+            // the back leg is defined in TAIL coordinates (the leading edge while reversing): from the tail "back" m
+            // straight back along the own heading, then the rest of the current chain ahead of the car (leg 2 = the route again)
+            var tx = pos[0] - e.fwd[0] * ${NOSE_M}, tz = pos[2] - e.fwd[2] * ${NOSE_M}
+            var pts = [[tx, tz], [tx - hx / hn * back, tz - hz / hn * back]]
             // then the rest of the current chain ahead of the car (leg 2 = the route again)
             for (var ci = P.lt.seg + 1; ci < chain.length; ci++) pts.push(chain[ci])
             if (pts.length < 3) pts.push([pts[1][0] + hx / hn * 12, pts[1][1] + hz / hn * 12])
@@ -368,7 +381,7 @@ function transform(input, dt, params, state, api) {
             P.revLeg = true
             state.revM = 0
             state.blockT = 0
-            newChainV3(P, pts, P.revEnds, pos[0], pos[2])
+            newChainV3(P, pts, P.revEnds, tx, tz)
             // the stall window starts with the back leg
             state.wdT = state.t
             state.wdPos = [pos[0], pos[2]]

@@ -110,7 +110,10 @@ The net follows a DYNAMIC target vector instead of memorising courses. v1 (16 in
   holds, length <= 1.8 x shortest, symmetric Hausdorff >= 10 m to all accepted chains. Measured on seeds 1-8: 2.6-4.0 chains per setup (slalom 4.0, field 2.9, crowd 2.6, maze 2.8).
 - **Policy v2 (`policy.ts`):** `POLICY_STAGE_CODE_V2`, `policyForwardV2`, `GENOME_LENGTH_V2` = 272 (24 inputs), `padV1Genome` (v1 -> v2, identical outputs).
   The stage reads `input.av.cmd = { aim, next }` or derives the command from `params.chain` + `params.cmd` (`cmdConfigFor(key)`: Lmin 6-10 m, T 0.4-0.8 s, refresh
-  0.2-0.8 s, bearing noise 3 deg; the spec's 10-20 m / 1-2 s made a pure-pursuit follower cut every corner).
+  0.2-0.8 s, bearing noise 3 deg; the spec's 10-20 m / 1-2 s made a pure-pursuit follower cut every corner). The chain projection is anchored at the car CENTER in v2;
+  v3 stages (and the AV neural stage with `neuralPolicy: 'v3'`) project at the car's LEADING edge in the direction of travel — the nose,
+  center + fwd * `NOSE_M` (4.1 m, the ray-sensing front edge) when driving forward, the tail (center - fwd * `NOSE_M`) when reversing
+  (hysteresis at +-0.5 m/s, `state.aRev`), so the command leads the steering reference; v1/v2 stay center-anchored.
 - **Episode (`episode.ts`):** `runPolicyEpisode(v2Genome, '<setup>#<i>')`; progress along the commanded chain (`RouteProgress` over the chain points), `offcourse` > `OFF_CHAIN_M` = 6 m,
   90 s limit, norm per chain length (`metrics.length`). `opts.stageChain` commands a different chain than the scored one (exploit tests).
 - **Fitness (`es.ts`):** `aggregateEvenness(metrics)` (needs `key`): setupScore = 0.5 mean + 0.5 min over its chains; fitness = 0.5 mean + 0.5 worst-quarter mean over setups.
@@ -149,7 +152,7 @@ Browser panel / live playback per generation, MCP tools, comparison against the 
 
 ## v3 (2026-10-10): forward AND backward, free-track pretraining (spec: [spec-command-chains.md](./spec-command-chains.md), section v3)
 Same 24-input direction-only net, trained FROM SCRATCH (no warm start). Episode key `<setup>#<i>v3` (v2 keys are untouched).
-- **Leg-wise progress (`legs.ts`)**: chains are split into legs (`Chain.legEnds`); leg advances within `reach` (2.5-5 m) of its end; progress = finished legs + projection on the CURRENT leg; offcourse = distance to the current leg (`Chain.offM`: free 20 m, bay/corridor 8 m, v2 kinds 6 m). The tracker is one JS string used by the episode AND the stage (`POLICY_STAGE_CODE_V3`), v2 kinds are one-leg chains.
+- **Leg-wise progress (`legs.ts`)**: chains are split into legs (`Chain.legEnds`); leg advances within `reach` (2.5-5 m) of its end; progress = finished legs + projection on the CURRENT leg; offcourse = distance to the current leg (`Chain.offM`: free 20 m, bay/corridor 8 m, v2 kinds 6 m). The tracker is one JS string used by the episode AND the stage (`POLICY_STAGE_CODE_V3`), v2 kinds are one-leg chains. Since the v3 leading-edge anchor the episode tracker receives the car's LEADING edge in the direction of travel (nose forward, tail reversing, hysteresis at +-0.5 m/s — `NOSE_M` 4.1 m), like the stage command; legs complete when the LEADING edge is within reach, so a leg between two corners can lose up to ~2 x (4.1 + reach) m of center travel (short stop-and-go legs complete with centimetres of reversing).
 - **Stall**: stand-still (|v| < 0.5 m/s for 3 s) or no 1 m progress for 10 s; contact still ends the episode. Metrics carry `reverseShare`, `maxReverseM`.
 - **Setups**: `free` (200 x 200 m closed arena, 4 seeded chains of 6-12 legs: forward / reversal 5-20 m / lateral / stop-and-go; chain 1 starts with a reversal), `bay` (13 m wide, 20-32 m deep dead end; chains: in, back out, on to one of 3 exits), `corridor` (13 m wide, closed both ends; forward-back-forward, back-first, stop-and-go). The car's turning radius is ~10 m, so none of these can be turned in.
 - **Hand-wired check** (`reverserV3` vs `pursuitV2`, first setups): bay reverser 100 % / forward-only 0 %, corridor 100 % / 0 %, free 90 % (18/20) vs ~56 % (U-turns on open ground, slower: 28 s vs 20 s).

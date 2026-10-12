@@ -10,7 +10,7 @@
  *   node tools/policy-evolution/train-ctl.mjs trial [FILE]  # deploy the best candidate (default latest-best.json) into the
  *                                                           # maze training worlds (--score export) + on-disk gate, verdict printed
  *
- * Known jobs: the v3ref policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
+ * Known jobs: the v3nose policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
  * and the vite dev server. Detection is by command line + repo path, never a blanket pkill pattern.
  */
 import { spawnSync } from 'node:child_process'
@@ -20,16 +20,16 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const TRAIN = {
-  state: resolve(root, 'training-data/policy-evolution/v3ref.json'),
-  log: resolve(root, 'training-data/policy-evolution/v3ref.log'),
-  nohupLog: resolve(root, 'training-data/policy-evolution/v3ref.nohup.log'),
+  state: resolve(root, 'training-data/policy-evolution/v3nose.json'),
+  log: resolve(root, 'training-data/policy-evolution/v3nose.log'),
+  nohupLog: resolve(root, 'training-data/policy-evolution/v3nose.nohup.log'),
   targetGen: 3000,
-  why: 'policy evolution: v3ref REFINEMENT run (2026-10-12, Manuel: "jetzt Veredelung mit unseren groesseren mazes"): warm start from the v3crux best (gen 2725, the crux specialist that solved its tiny-world curriculum 100 percent - TRAIN 88/88, HOLDOUT 55/55, no dead zeros) onto the BIG mazes: --kinds maze only, batch 6, the clean standard band (8 train / 5 holdout setups + the M1/M2 adversarial ones - the doubled 16-band had 2 structurally unsolvable lateral start legs), speedCap 10 from gen 0. Goal: transfer the cornering machinery (occluded fast corners, confined pockets, S-bends, gate entries, final corners) into the full 6x6 mazes and make the candidate clear the 10 dialog training mazes.',
+  why: 'policy evolution: v3nose FRESH run (2026-10-12, Manuel: "ganz von vorne, nur mazes - die crux mini mazes sind von den alten Problemen beeinflusst"): cold start from random nets (NO warm start - v3crux/v3ref were trained against the old CENTER-anchored chain projection) with the NOSE-anchored command (the v3 tracker projects the car front, 4.1 m ahead of the center, where the steering sits - the center anchor made the car react late in curves and clip obstacles): --kinds maze only, batch 6, the clean standard band (8 train / 5 holdout setups + the M1/M2 adversarial ones), speedCap 10 from gen 0. Goal: a candidate that clears the 10 dialog training mazes with the nose-anchored tracker.',
   // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself).
   // caffeinate -is: the run holds its own PreventIdleSleep assertion - the Mac does not idle-sleep while training
   // (the sleep timer is 1 minute; without this the run pauses whenever display/audio/Chrome-wake-lock release).
   // caffeinate exits when its child (run-v3.sh) exits, so a clean stop releases the assertion automatically.
-  start: 'V3_OUT=training-data/policy-evolution/v3ref.json V3_EXTRA_ARGS="--kinds maze --batch 6 --speed-cap 10 --warm training-data/policy-evolution/v3crux.json" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3ref.nohup.log 2>&1 &',
+  start: 'V3_OUT=training-data/policy-evolution/v3nose.json V3_EXTRA_ARGS="--kinds maze --batch 6 --speed-cap 10" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3nose.nohup.log 2>&1 &',
 }
 const WATCH = {
   why: 'auto-trial watcher: deploys the newest candidate into the maze training worlds every 2 min (skips cycles without a new best)',
@@ -42,7 +42,7 @@ const ps = () => spawnSync('ps', ['-Ao', 'pid,ppid,pcpu,etime,command'], { encod
 /** All processes belonging to a job; absolute repo path OR the repo-relative launcher paths (bash run-v3.sh / tee are started relative). */
 function findProcs(pattern) {
   const me = String(process.pid)
-  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|tools\/policy-evolution\/auto-trial\.mjs|caffeinate -is bash tools\/policy-evolution\/run-v3|training-data\/policy-evolution\/v3ref\.log/
+  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|tools\/policy-evolution\/auto-trial\.mjs|caffeinate -is bash tools\/policy-evolution\/run-v3|training-data\/policy-evolution\/v3nose.log/
   return ps()
     .map((l) => {
       const m = l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\S+)\s+(.*)$/)
@@ -54,7 +54,7 @@ function findProcs(pattern) {
     .filter(Boolean)
 }
 
-const trainProcs = () => findProcs(/run-islands|run-v3\.sh|caffeinate|v3ref\.log/)
+const trainProcs = () => findProcs(/run-islands|run-v3\.sh|caffeinate|v3nose.log/)
 const watchProcs = () => findProcs(/auto-trial\.mjs/)
 const viteProcs = () => findProcs(/node_modules\/\.bin\/vite|vite\.js/).filter((p) => /vite/.test(p.cmd) && p.cmd.includes(root))
 
@@ -210,7 +210,7 @@ function start() {
     spawnSync('sleep', ['0.5'])
     up = trainProcs().length > 0
   }
-  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3ref.nohup.log')
+  console.log(up ? `training started, resuming at gen ${trainGen() ?? '?'}/${TRAIN.targetGen}` : 'start FAILED: no process came up, check training-data/policy-evolution/v3nose.nohup.log')
   // the auto-trial watcher deploys the newest candidate every 2 min while the run is up (idempotent if one is already up)
   if (up && !watchProcs().length) {
     spawnSync('bash', ['-c', WATCH.start], { cwd: root, stdio: 'ignore' })
@@ -225,7 +225,7 @@ function start() {
 
 function ship() {
   if (trainProcs().length) stop()
-  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3ref.json', '--v3', '--workers', '9', '--kinds', 'maze'], {
+  const r = spawnSync('npx', ['tsx', 'tools/policy-evolution/ship.ts', 'training-data/policy-evolution/v3nose.json', '--v3', '--workers', '9', '--kinds', 'maze'], {
     cwd: root,
     encoding: 'utf8',
   })

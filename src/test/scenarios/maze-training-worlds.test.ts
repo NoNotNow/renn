@@ -234,6 +234,19 @@ describe('maze training score stage: finish freeze', () => {
         watch[k] = v
       },
       getWatch: () => watch,
+      // identity heading +x (the car drives along the chain): the stage anchors the projection at the NOSE (x + 4.1)
+      getUpVector: () => [0, 1, 0],
+      getForwardVector: () => [1, 0, 0],
+      vec: {
+        normalize: (v: number[]) => {
+          const l = Math.hypot(v[0]!, v[1]!, v[2]!) || 1
+          return [v[0]! / l, v[1]! / l, v[2]! / l]
+        },
+        projectOntoPlane: (v: number[], n: number[]) => {
+          const d = v[0]! * n[0]! + v[1]! * n[1]! + v[2]! * n[2]!
+          return [v[0]! - d * n[0]!, v[1]! - d * n[1]!, v[2]! - d * n[2]!]
+        },
+      },
       raycast: () => ({ hit: true }),
       setScore: () => {},
       getWorldPosition: () => null,
@@ -254,7 +267,7 @@ describe('maze training score stage: finish freeze', () => {
     const state: Record<string, unknown> = {}
     const api = mkApi()
     stepAt(state, api, 20, false)
-    // 43 m on a 50 m chain: within MAZE_GOAL_REACH_M (8 m) of the end -> the route counts as cleared
+    // the nose (x + 4.1) at 47.1 is within MAZE_GOAL_REACH_M (8 m) of the end -> the route counts as cleared
     stepAt(state, api, 43, false)
     expect(state.done).toBe(true)
     const frozen = scoreOf(api)
@@ -271,21 +284,21 @@ describe('maze training score stage: finish freeze', () => {
     const api = mkApi()
     stepAt(state, api, 20, false)
     expect(state.done).toBeUndefined()
-    expect(scoreOf(api)).toBe(20)
-    // 2 s of wall contact at 12 pt/s: 25 m progress + ~10 pts speed bonus - 24 pts penalty = 11 pts of RUN score
+    expect(scoreOf(api)).toBe(24)
+    // 2 s of wall contact at 12 pt/s: 29.1 m nose progress + ~10 pts speed bonus - 24 pts penalty = 15 pts of RUN score
     for (let k = 0; k < 2 / DEFAULT_DT; k++) stepAt(state, api, 25, true)
     expect(state.done).toBeUndefined()
-    // the run score still pays (the penalty accumulates), but the SHOWN score is the high-water mark: 24 pts from the
-    // moment the progress jumped to 25 m — it never dropped to the drained run value of 11
+    // the run score still pays (the penalty accumulates), but the SHOWN score is the high-water mark: 29 pts from the
+    // moment the nose progress jumped to 29.1 m — it never dropped to the drained run value of 15
     expect(state.penalty as number).toBeCloseTo(24, 6)
-    expect(scoreOf(api)).toBe(24)
-    expect(api.getWatch()['maze.prog']).toBe('25.0 / 50 m')
+    expect(scoreOf(api)).toBe(29)
+    expect(api.getWatch()['maze.prog']).toBe('29.1 / 50 m')
   })
 
   it('the shown score never decreases: a stall against a wall drains the run score, not the high-water mark', () => {
     const state: Record<string, unknown> = {}
     const api = mkApi()
-    // drive to 25 m: ~25 pts banked
+    // drive to 25 m (nose projection 29.1): ~29 pts banked
     stepAt(state, api, 25, false)
     const high = scoreOf(api)
     expect(high).toBeGreaterThanOrEqual(25)
@@ -333,6 +346,19 @@ describe('maze training score stage: line-of-sight gate', () => {
         watch[k] = v
       },
       getWatch: () => watch,
+      // identity heading +x (the car drives along the chain): the stage anchors the projection at the NOSE (x + 4.1)
+      getUpVector: () => [0, 1, 0],
+      getForwardVector: () => [1, 0, 0],
+      vec: {
+        normalize: (v: number[]) => {
+          const l = Math.hypot(v[0]!, v[1]!, v[2]!) || 1
+          return [v[0]! / l, v[1]! / l, v[2]! / l]
+        },
+        projectOntoPlane: (v: number[], n: number[]) => {
+          const d = v[0]! * n[0]! + v[1]! * n[1]! + v[2]! * n[2]!
+          return [v[0]! - d * n[0]!, v[1]! - d * n[1]!, v[2]! - d * n[2]!]
+        },
+      },
       raycast: () => ({ hit: false }),
       setScore: () => {},
       getWorldPosition: () => null,
@@ -353,9 +379,9 @@ describe('maze training score stage: line-of-sight gate', () => {
     const state: Record<string, unknown> = {}
     const api = mkApi()
     stepAt(state, api, 10, 1)
-    expect(api.getWatch()['maze.prog']).toBe('10.0 / 50 m')
-    stepAt(state, api, 20, 8) // north of the wall: the projection (20, 0) is behind it
-    expect(api.getWatch()['maze.prog']).toBe('10.0 / 50 m')
+    expect(api.getWatch()['maze.prog']).toBe('14.1 / 50 m')
+    stepAt(state, api, 20, 8) // north of the wall: the projection (24.1, 0) is behind it
+    expect(api.getWatch()['maze.prog']).toBe('14.1 / 50 m')
     expect(state.seg).toBe(0)
   })
 
@@ -363,11 +389,11 @@ describe('maze training score stage: line-of-sight gate', () => {
     const state: Record<string, unknown> = {}
     const api = mkApi()
     stepAt(state, api, 20, 1)
-    expect(api.getWatch()['maze.prog']).toBe('20.0 / 50 m')
+    expect(api.getWatch()['maze.prog']).toBe('24.1 / 50 m')
     const legacy = { ...params, walls: undefined }
     const state2: Record<string, unknown> = {}
     transform({ position: [20, 1, 8], velocity: [20, 0, 0], environment: {} }, DEFAULT_DT, legacy, state2, mkApi())
-    expect((state2 as { s?: number }).s).toBeCloseTo(20, 6)
+    expect((state2 as { s?: number }).s).toBeCloseTo(24.1, 6)
   })
 
   it('(iii) once the occlusion is gone the progress keeps flowing (no deadlock); bonus and penalties run while occluded', () => {
@@ -378,12 +404,12 @@ describe('maze training score stage: line-of-sight gate', () => {
     const bonusWhileOccluded = state.bonus as number
     // 0.5 s of scraping the wall on the wrong side: the credit stays, the penalty keeps running
     for (let k = 0; k < 0.5 / DEFAULT_DT; k++) stepAt(state, api, 20, 8, true)
-    expect(api.getWatch()['maze.prog']).toBe('10.0 / 50 m')
+    expect(api.getWatch()['maze.prog']).toBe('14.1 / 50 m')
     expect(state.penalty as number).toBeGreaterThan(0)
     expect(state.bonus as number).toBeGreaterThanOrEqual(bonusWhileOccluded)
     // back on the chain's side of the wall: the credit jumps to the visible projection
     stepAt(state, api, 30, 2)
-    expect(api.getWatch()['maze.prog']).toBe('30.0 / 50 m')
+    expect(api.getWatch()['maze.prog']).toBe('34.1 / 50 m')
   })
 
   it('(iv) the shown score stays the HIGH-WATER of the occlusion-corrected curve', () => {
@@ -396,7 +422,7 @@ describe('maze training score stage: line-of-sight gate', () => {
     for (let k = 0; k < 8 / DEFAULT_DT; k++) stepAt(state, api, 20, 8, true)
     expect(scoreOf(api)).toBe(high)
     expect(state.best).toBe(high)
-    expect(state.s).toBe(10)
+    expect(state.s).toBeCloseTo(14.1, 6)
   })
 })
 

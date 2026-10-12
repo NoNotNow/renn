@@ -16,6 +16,7 @@ import { CAR_SIZE, runPolicyEpisode, type EpisodeOutcome } from '@/policyEvoluti
 import { shippedGenomeV3 } from '@/policyEvolution/exampleWorld'
 import { pursuitV2 } from '@/policyEvolution/handWired'
 import { LegProgress } from '@/policyEvolution/legs'
+import { NOSE_M } from '@/policyEvolution/policy'
 import { parseKinds } from '@/policyEvolution/chainReport'
 import { V3_KINDS } from '@/policyEvolution/courses'
 import { polyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
@@ -169,10 +170,15 @@ async function diagnose(split: 'train' | 'holdout', key: string): Promise<Rec> {
   const frames: Array<{ t: number; x: number; z: number; yaw: number; vf: number; spd: number; gap: number; leg: number; vx: number; vz: number }> = []
   let legStartT = 0
   let lastLeg = 0
+  // the training anchor: the LEADING edge in the direction of travel (nose forward, tail reversing, +-0.5 m/s hysteresis),
+  // exactly what the episode frame loop feeds the tracker (fwd of the yaw: fx = sin(yaw), fz = cos(yaw))
+  let anchorRev = false
   const m = await runPolicyEpisode(genome, key, {
     noise: NOISE,
     onFrame: (x, z, t, e) => {
-      tracker.update(x, z)
+      anchorRev = e!.vf < -0.5 ? true : e!.vf > 0.5 ? false : anchorRev
+      const am = (anchorRev ? -1 : 1) * NOSE_M
+      tracker.update(x + Math.sin(e!.yaw) * am, z + Math.cos(e!.yaw) * am)
       if (tracker.leg !== lastLeg) { lastLeg = tracker.leg; legStartT = t }
       const hull = rectPoly(x, z, e!.yaw, CAR_SIZE[0], CAR_SIZE[1])
       let gap = Infinity

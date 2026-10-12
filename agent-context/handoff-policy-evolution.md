@@ -24,6 +24,11 @@ mazes and crowded situations. Work focused, good tests, learn from past mistakes
   (0.5 mean + 0.5 min over kinds) with failed episodes counting 0.5 (`V3_FAIL_FACTOR`). Shipped: run v3 gen ~700. Worlds `policy_v3_{free,bay,corridor}`.
   HOLDOUT of the shipped v3: bay 16/18 (reverses 80 % of the time), corridor 17/18, free 22/24, maze 12/15, slalom 19/23, crowd 10/19, field 9/20.
   **Weak kinds now: field and crowd (~50 %, crashes).** v3 is NOT in the AV car yet.
+- **v3 command anchor = the car's LEADING edge in the direction of travel** (nose = center + fwd * `NOSE_M` 4.1 m forward, tail = center - fwd * `NOSE_M` reversing,
+  hysteresis at +-0.5 m/s, `state.aRev`; v1/v2 stay center-anchored): the command projection, the leg tracker and the AV neural stage (v3) all project from the
+  leading edge — the end the steering / clearance sits at while MOVING (the maze score stage keeps the plain nose: no reversal legs, forward progress). Legs
+  complete when the leading edge is within reach, so back legs no longer deadlock (the round-1 nose-only anchor stalled them: the nose trails 4.1 m while
+  reversing); the flip side: a short leg between two corners can complete with centimetres of travel (observed on stop-and-go corridor chains).
 
 ## Run state handed over (TRACKED in git: `training-data/policy-evolution/`)
 - Shipped v3 = `v3.json` gen 1000 (commit 3774e50e). HOLDOUT finished 114/137 (free 24/24, bay 17, corridor 16/18, field 13/20, slalom 19/23,
