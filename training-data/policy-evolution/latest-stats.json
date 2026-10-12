@@ -7,88 +7,98 @@
   "grid"
  ],
  "speedCap": 10,
- "gen": 7875,
- "updatedAt": "2026-10-12T11:12:05.285Z",
- "elapsedSec": 11071,
+ "gen": 8000,
+ "updatedAt": "2026-10-12T11:20:21.857Z",
+ "elapsedSec": 11568,
  "islands": {
   "centers": [
-   0.149,
    0,
-   null
+   0,
+   0
   ],
   "ages": [
-   650,
-   25,
-   0
+   775,
+   0,
+   50
   ],
   "stagns": [
-   0,
-   0,
-   0
-  ],
-  "boosts": [
    1,
-   1,
+   0,
    1
   ],
-  "globalStagn": 0,
-  "globalBoost": 1,
-  "focus": null
+  "boosts": [
+   2.25,
+   2.25,
+   2.25
+  ],
+  "globalStagn": 5,
+  "globalBoost": 2.25,
+  "focus": {
+   "set": [
+    0,
+    2
+   ],
+   "epochs": 0,
+   "sinceGen": 8000,
+   "max": 4
+  }
  },
  "stage": {
   "share": 0.7,
   "ema": 0.7754431647476836
  },
  "epoch": {
-  "gen": 7875,
+  "gen": 8000,
   "scores": [
-   0.2562630069132771,
    0,
-   0.16953246360950336
+   0,
+   0
   ],
-  "bestIsland": 0,
+  "bestIsland": 2,
+  "replaced": 1,
+  "by": "crossover",
   "train": {
    "fitness": 0,
-   "finished": 37,
+   "finished": 36,
    "total": 76,
    "worst3": [
     0,
     0,
-    0.1470176046067469
+    0.04920676321630509
    ]
   },
   "holdout": {
    "fitness": 0,
-   "finished": 18,
+   "finished": 20,
    "total": 38
   },
   "perKind": [
    {
     "kind": "maze",
     "chains": 28,
-    "finished": 15,
-    "finishRate": 0.5357142857142857,
+    "finished": 14,
+    "finishRate": 0.5,
     "setups": 10,
-    "setupsAllFinished": 3,
-    "allFinishedShare": 0.3,
-    "offcourse": 10,
-    "crashes": 2,
-    "reverseShare": 0.010080912587876377,
-    "maxReverseM": 0.7480628122138091,
+    "setupsAllFinished": 2,
+    "allFinishedShare": 0.2,
+    "offcourse": 7,
+    "crashes": 6,
+    "reverseShare": 0.009616705591427396,
+    "maxReverseM": 0.2774953550676008,
     "reversedEpisodes": 0
    },
    {
     "kind": "grid",
     "chains": 10,
-    "finished": 3,
-    "finishRate": 0.3,
+    "finished": 6,
+    "finishRate": 0.6,
     "setups": 5,
-    "setupsAllFinished": 0,
-    "allFinishedShare": 0,
-    "offcourse": 7,
+    "setupsAllFinished": 2,
+    "allFinishedShare": 0.4,
+    "offcourse": 4,
     "crashes": 0,
-    "reverseShare": 0,
-    "maxReverseM": 0,
+    "reverseShare": 0.03314696485623004,
+    "maxReverseM": 0.46494992768629095,
     "reversedEpisodes": 0
    }
   ]
@@ -103,5 +113,5 @@
    0.805222778500502
   ]
  },
- "why": "epoch end"
+ "why": "every 20 gens"
 }
