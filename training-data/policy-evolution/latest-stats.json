@@ -1,43 +1,44 @@
 {
  "schema": "renn.policy-evolution.latest-stats/1",
- "source": "training-data/policy-evolution/v3crux.json",
+ "source": "training-data/policy-evolution/v3ref.json",
  "policy": "v3",
  "kinds": [
-  "crux"
+  "maze"
  ],
  "speedCap": 10,
- "gen": 3000,
- "updatedAt": "2026-10-12T14:31:39.895Z",
- "elapsedSec": 3676,
+ "gen": 780,
+ "updatedAt": "2026-10-12T15:59:43.915Z",
+ "elapsedSec": 1875,
  "islands": {
   "centers": [
-   0.217,
-   0.92,
-   0.146
+   0,
+   0,
+   0
   ],
   "ages": [
-   25,
-   600,
-   25
+   780,
+   50,
+   380
   ],
   "stagns": [
+   2,
    0,
-   1,
-   0
+   2
   ],
   "boosts": [
    1,
    1,
    1
   ],
-  "globalStagn": 1,
+  "globalStagn": 2,
   "globalBoost": 1,
   "focus": {
    "set": [
-    1
+    0,
+    2
    ],
-   "epochs": 0,
-   "sinceGen": 3000,
+   "epochs": 1,
+   "sinceGen": 750,
    "max": 4
   }
  },
@@ -46,38 +47,38 @@
   "ema": 0
  },
  "epoch": {
-  "gen": 3000,
+  "gen": 775,
   "scores": [
-   0.15333302659411907,
-   0.9141158998830639,
-   0.18922702130431945
+   0.8518272517637869,
+   0.14716618151241037,
+   0.8091403504461844
   ],
-  "bestIsland": 1,
+  "bestIsland": 0,
   "train": {
-   "fitness": 0.8758807388679366,
-   "finished": 88,
-   "total": 88,
+   "fitness": 0,
+   "finished": 26,
+   "total": 27,
    "worst3": [
-    0.8758807388679366,
-    0.9126060246035047,
-    0.9181526816310591
+    0,
+    0.7804960115891647,
+    0.8935677118777888
    ]
   },
   "holdout": {
-   "fitness": 0.7566131096250451,
-   "finished": 55,
-   "total": 55
+   "fitness": 0,
+   "finished": 12,
+   "total": 13
   },
   "perKind": [
    {
-    "kind": "crux",
-    "chains": 55,
-    "finished": 55,
-    "finishRate": 1,
-    "setups": 10,
-    "setupsAllFinished": 10,
-    "allFinishedShare": 1,
-    "offcourse": 0,
+    "kind": "maze",
+    "chains": 13,
+    "finished": 12,
+    "finishRate": 0.9230769230769231,
+    "setups": 5,
+    "setupsAllFinished": 4,
+    "allFinishedShare": 0.8,
+    "offcourse": 1,
     "crashes": 0,
     "reverseShare": 0,
     "maxReverseM": 0,
@@ -86,13 +87,13 @@
   ]
  },
  "best": {
-  "gen": 2725,
-  "train": 0.912579970040416,
-  "holdout": 0.9005417440824895,
+  "gen": 650,
+  "train": 0,
+  "holdout": 0,
   "worst3": [
-   0.912579970040416,
-   0.9161750755449131,
-   0.9193167407137612
+   0,
+   0.795348043494941,
+   0.8818578347566646
   ]
  },
  "why": "every 20 gens"
