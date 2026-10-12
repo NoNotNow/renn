@@ -7,22 +7,22 @@
   "grid"
  ],
  "speedCap": 10,
- "gen": 6650,
- "updatedAt": "2026-10-12T09:41:52.962Z",
- "elapsedSec": 5659,
+ "gen": 7160,
+ "updatedAt": "2026-10-12T10:26:52.968Z",
+ "elapsedSec": 8359,
  "islands": {
   "centers": [
-   0,
-   0,
+   0.063,
+   null,
    0
   ],
   "ages": [
-   350,
    50,
-   1100
+   0,
+   1585
   ],
   "stagns": [
-   4,
+   0,
    0,
    4
   ],
@@ -35,11 +35,10 @@
   "globalBoost": 1.5,
   "focus": {
    "set": [
-    0,
     2
    ],
    "epochs": 3,
-   "sinceGen": 6575,
+   "sinceGen": 7075,
    "max": 4
   }
  },
@@ -48,21 +47,21 @@
   "ema": 0.7754431647476836
  },
  "epoch": {
-  "gen": 6650,
+  "gen": 7150,
   "scores": [
+   0.16038209279475082,
    0,
-   0,
-   0
+   0.9779154134902434
   ],
-  "bestIsland": 0,
+  "bestIsland": 2,
   "train": {
    "fitness": 0,
-   "finished": 73,
+   "finished": 74,
    "total": 76,
    "worst3": [
     0,
     0,
-    0.2706744699741323
+    0.7572390507152241
    ]
   },
   "holdout": {
@@ -79,10 +78,10 @@
     "setups": 10,
     "setupsAllFinished": 9,
     "allFinishedShare": 0.9,
-    "offcourse": 0,
+    "offcourse": 1,
     "crashes": 0,
-    "reverseShare": 0.016533739582399853,
-    "maxReverseM": 0.5496389847921235,
+    "reverseShare": 0,
+    "maxReverseM": 0,
     "reversedEpisodes": 0
    },
    {
@@ -95,8 +94,8 @@
     "allFinishedShare": 1,
     "offcourse": 0,
     "crashes": 0,
-    "reverseShare": 0.004184861717612808,
-    "maxReverseM": 0.21771872529491285,
+    "reverseShare": 0.00020441537203597706,
+    "maxReverseM": 0.00985570925941984,
     "reversedEpisodes": 0
    }
   ]
@@ -111,5 +110,5 @@
    0.805222778500502
   ]
  },
- "why": "epoch end"
+ "why": "every 20 gens"
 }
