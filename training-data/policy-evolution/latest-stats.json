@@ -13,83 +13,75 @@
   "grid"
  ],
  "speedCap": 10,
- "gen": 2825,
- "updatedAt": "2026-10-12T00:03:06.463Z",
- "elapsedSec": 8455,
+ "gen": 3360,
+ "updatedAt": "2026-10-12T00:47:13.330Z",
+ "elapsedSec": 11102,
  "islands": {
   "centers": [
-   null,
-   0.084,
-   0.078
+   0,
+   0.902,
+   0
   ],
   "ages": [
-   0,
-   2550,
-   1550
+   385,
+   285,
+   35
   ],
   "stagns": [
    0,
-   4,
-   4
+   0,
+   0
   ],
   "boosts": [
-   1.5,
-   1.5,
-   1.5
+   1,
+   1,
+   1
   ],
-  "globalStagn": 4,
-  "globalBoost": 1.5,
-  "focus": {
-   "set": [
-    1,
-    2
-   ],
-   "epochs": 3,
-   "sinceGen": 2750,
-   "max": 4
-  }
+  "globalStagn": 3,
+  "globalBoost": 1,
+  "focus": null
  },
  "stage": {
   "share": 0.7,
-  "ema": 0.9652167277841364
+  "ema": 0.6313284907074976
  },
  "epoch": {
-  "gen": 2825,
+  "gen": 3350,
   "scores": [
-   0,
-   0.7657934275192364,
-   0.15324643619433553
+   0.492756300832863,
+   0.22642783093777546,
+   0
   ],
-  "bestIsland": 1,
+  "bestIsland": 0,
   "train": {
    "fitness": 0,
-   "finished": 206,
+   "finished": 198,
    "total": 210,
    "worst3": [
     0,
-    0.31819813359770904,
-    0.3867437712830684
+    0,
+    0
    ]
   },
   "holdout": {
    "fitness": 0,
-   "finished": 119,
+   "finished": 121,
    "total": 125
   },
   "perKind": [
    {
     "kind": "free",
     "chains": 20,
-    "finished": 19,
-    "finishRate": 0.95,
+    "finished": 18,
+    "finishRate": 0.9,
     "setups": 5,
-    "setupsAllFinished": 4,
-    "allFinishedShare": 0.8,
+    "setupsAllFinished": 3,
+    "allFinishedShare": 0.6,
     "offcourse": 0,
     "crashes": 0,
-    "reverseShare": 0.3351122746953982,
-    "maxReverseM": 92.59475084190557,
-    "reversedEpisodes": 16
+    "reverseShare": 0.3503689532659197,
+    "maxReverseM": 77.7193067459291,
+    "reversedEpisodes": 19
    },
    {
     "kind": "bay",
@@ -101,8 +93,8 @@
     "allFinishedShare": 1,
     "offcourse": 0,
     "crashes": 0,
-    "reverseShare": 0.7255999005346263,
-    "maxReverseM": 86.45480684748654,
+    "reverseShare": 0.6710980966325039,
+    "maxReverseM": 86.68381763943867,
     "reversedEpisodes": 15
    },
    {
@@ -115,22 +107,22 @@
     "allFinishedShare": 1,
     "offcourse": 0,
     "crashes": 0,
-    "reverseShare": 0.1959052589321557,
-    "maxReverseM": 30.406896262301448,
+    "reverseShare": 0.19373949243455288,
+    "maxReverseM": 29.993420384456392,
     "reversedEpisodes": 15
    },
    {
     "kind": "field",
     "chains": 18,
-    "finished": 17,
-    "finishRate": 0.9444444444444444,
+    "finished": 18,
+    "finishRate": 1,
     "setups": 5,
-    "setupsAllFinished": 4,
-    "allFinishedShare": 0.8,
+    "setupsAllFinished": 5,
+    "allFinishedShare": 1,
     "offcourse": 0,
-    "crashes": 1,
-    "reverseShare": 0.001296402996131369,
-    "maxReverseM": 0.12273291549645383,
+    "crashes": 0,
+    "reverseShare": 0.00045171976166404943,
+    "maxReverseM": 0.27069477705717115,
     "reversedEpisodes": 0
    },
    {
@@ -143,8 +135,8 @@
     "allFinishedShare": 1,
     "offcourse": 0,
     "crashes": 0,
-    "reverseShare": 0.00033518304718632453,
-    "maxReverseM": 0.2836186303322923,
+    "reverseShare": 0.00001987794939074085,
+    "maxReverseM": 0.010975128273076307,
     "reversedEpisodes": 0
    },
    {
@@ -157,36 +149,36 @@
     "allFinishedShare": 0.8,
     "offcourse": 0,
     "crashes": 1,
-    "reverseShare": 0.005575505575505574,
-    "maxReverseM": 1.249689314082926,
+    "reverseShare": 0.0028229339044096168,
+    "maxReverseM": 1.2225887138685227,
     "reversedEpisodes": 1
    },
    {
     "kind": "crowd",
     "chains": 15,
-    "finished": 13,
-    "finishRate": 0.8666666666666667,
+    "finished": 14,
+    "finishRate": 0.9333333333333333,
     "setups": 5,
     "setupsAllFinished": 4,
     "allFinishedShare": 0.8,
     "offcourse": 0,
-    "crashes": 2,
-    "reverseShare": 0.0038229713137626965,
-    "maxReverseM": 0.594340509334709,
+    "crashes": 1,
+    "reverseShare": 0.0015950659293917484,
+    "maxReverseM": 0.06994128861218334,
     "reversedEpisodes": 0
    },
    {
     "kind": "grid",
     "chains": 10,
-    "finished": 9,
-    "finishRate": 0.9,
+    "finished": 10,
+    "finishRate": 1,
     "setups": 5,
-    "setupsAllFinished": 4,
-    "allFinishedShare": 0.8,
+    "setupsAllFinished": 5,
+    "allFinishedShare": 1,
     "offcourse": 0,
     "crashes": 0,
-    "reverseShare": 0.056104728827144,
-    "maxReverseM": 0.9877344072305617,
+    "reverseShare": 0,
+    "maxReverseM": 0,
     "reversedEpisodes": 0
    }
   ]
@@ -201,5 +193,5 @@
    0.805222778500502
   ]
  },
- "why": "epoch end"
+ "why": "every 20 gens"
 }
