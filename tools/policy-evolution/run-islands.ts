@@ -27,6 +27,7 @@
  * Options: --islands N (default 3) --pairs N (antithetic pairs PER island, default 8) --epoch N (25) --mature N (75) --p-cross P (0.5)
  *   --sigma --lr --seed --batch N (18) --train-per-kind N (30) --holdout-per-kind N (20) --workers N --out FILE --resume
  *   --no-variants --no-curriculum --curriculum-start D (0) --lex-eps E --csa
+ *   --train-per-kind-<kind> N / --holdout-per-kind-<kind> N override the count of that one kind (v2/v3; others keep the plain flags' defaults).
  * --lex-eps E (v3, creation only - persisted in config like speedCap): rank-tie tolerance for the lex vector ranks; near-tie
  *   candidates share their rank instead of getting opposite ranks off evaluation noise. 0/absent = strict (old behaviour).
  *   Calibration: the per-gen log prints `lex ties F`, the share of candidate pairs sharing a rank (starves the gradient when high).
@@ -127,8 +128,40 @@ async function main() {
     if (hiddenArg > h0) warm = widenHidden(warm, hiddenArg, createRng(num(args.seed, 1) * 31 + 7))
     console.log(`warm start: hidden ${h0} -> ${hiddenArg}`)
   }
-  const trainGroups = v3 ? trainV3Episodes(num(args['train-per-kind'], 8), kinds) : v2 ? trainChainEpisodes(num(args['train-per-kind'], 8), kinds) : []
-  const holdoutGroups = v3 ? holdoutV3Episodes(num(args['holdout-per-kind'], 5), kinds) : v2 ? holdoutChainEpisodes(num(args['holdout-per-kind'], 5), kinds) : []
+  // per-kind overrides of the setup counts: --train-per-kind-<kind> N / --holdout-per-kind-<kind> N (e.g. --train-per-kind-maze 16)
+  // replace the count of exactly that kind; the plain flags stay the defaults of the others. Without any override the
+  // groups are built exactly as before (bit-identical, resume determinism); with one the groups are built per kind and
+  // concatenated (trainV3Episodes keeps appending the adversarial setups of each kind).
+  const perKindOverrides = (prefix: 'train-per-kind' | 'holdout-per-kind'): Map<CourseKind, number> => {
+    const overrides = new Map<CourseKind, number>()
+    for (const key of Object.keys(args)) {
+      if (!key.startsWith(`${prefix}-`)) continue
+      const kind = key.slice(prefix.length + 1) as CourseKind
+      if (!(V3_KINDS as readonly string[]).includes(kind) || !kinds.includes(kind))
+        throw new Error(`--${key}: '${kind}' is not a kind of this run (--kinds ${kinds.join(',')})`)
+      const n = Number(args[key])
+      if (!Number.isInteger(n) || n < 1) throw new Error(`--${key} must be a positive integer, got ${String(args[key])}`)
+      overrides.set(kind, n)
+    }
+    return overrides
+  }
+  const withOverrides = (
+    groups: (perKind: number, ks: readonly CourseKind[]) => SetupChains[],
+    overrides: Map<CourseKind, number>,
+    fallback: number,
+  ): SetupChains[] => (overrides.size ? kinds.flatMap((k) => groups(overrides.get(k) ?? fallback, [k])) : groups(fallback, kinds))
+  const trainOverrides = perKindOverrides('train-per-kind')
+  const holdoutOverrides = perKindOverrides('holdout-per-kind')
+  const trainGroups = v3
+    ? withOverrides(trainV3Episodes, trainOverrides, num(args['train-per-kind'], 8))
+    : v2
+    ? withOverrides(trainChainEpisodes, trainOverrides, num(args['train-per-kind'], 8))
+    : []
+  const holdoutGroups = v3
+    ? withOverrides(holdoutV3Episodes, holdoutOverrides, num(args['holdout-per-kind'], 5))
+    : v2
+    ? withOverrides(holdoutChainEpisodes, holdoutOverrides, num(args['holdout-per-kind'], 5))
+    : []
   const trainByKind: Record<string, SetupChains[]> = {}
   for (const g of trainGroups) (trainByKind[parseCourseKey(g.setupKey).kind] ??= []).push(g)
   /** stratified v3 setups of one generation: perKind setups of every active kind, a start variant per generation, field capped */

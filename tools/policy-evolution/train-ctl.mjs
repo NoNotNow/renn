@@ -23,13 +23,13 @@ const TRAIN = {
   state: resolve(root, 'training-data/policy-evolution/v3mg7.json'),
   log: resolve(root, 'training-data/policy-evolution/v3mg7.log'),
   nohupLog: resolve(root, 'training-data/policy-evolution/v3mg7.nohup.log'),
-  targetGen: 3000,
-  why: 'policy evolution: v3mg7 maze+grid FRESH run (random nets) with speedCap 10 FROM GEN 0 - no speed entrenchment can form: every finish scores 1.0 regardless of speed, any fail stays below frac^2 x cap/20, so braking into corners finally pays from the first generation. v3mg6 (archived at gen 2220) proved the point: 1220 gens of quadratic speed reward anchored full-throttle weights so deeply that even 1000 capped gens could not grow corner-braking (best frozen since 1425, 4x sigma boost destroyed the centers). Adversarial TRAIN setups from the T4 diagnosis included',
+  targetGen: 8000,
+  why: 'policy evolution: v3mg7 maze+grid FRESH run (random nets) with speedCap 10 FROM GEN 0 - no speed entrenchment can form: every finish scores 1.0 regardless of speed, any fail stays below frac^2 x cap/20, so braking into corners finally pays from the first generation. v3mg6 (archived at gen 2220) proved the point: 1220 gens of quadratic speed reward anchored full-throttle weights so deeply that even 1000 capped gens could not grow corner-braking (best frozen since 1425, 4x sigma boost destroyed the centers). Adversarial TRAIN setups from the T4 diagnosis included. 2026-10-12 decision: maze band doubled (train 8->16, holdout 5->10) against per-maze overfitting / perzeptuelles Aliasing on the stuck worst3 routes; grid stays 8/5.',
   // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself).
   // caffeinate -is: the run holds its own PreventIdleSleep assertion - the Mac does not idle-sleep while training
   // (the sleep timer is 1 minute; without this the run pauses whenever display/audio/Chrome-wake-lock release).
   // caffeinate exits when its child (run-v3.sh) exits, so a clean stop releases the assertion automatically.
-  start: 'V3_OUT=training-data/policy-evolution/v3mg7.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6 --speed-cap 10" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3mg7.nohup.log 2>&1 &',
+  start: 'V3_OUT=training-data/policy-evolution/v3mg7.json V3_EXTRA_ARGS="--kinds maze,grid --batch 6 --speed-cap 10 --train-per-kind-maze 16 --holdout-per-kind-maze 10" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 8000 9 > training-data/policy-evolution/v3mg7.nohup.log 2>&1 &',
 }
 const WATCH = {
   why: 'auto-trial watcher: deploys the newest candidate into the maze training worlds every 2 min (skips cycles without a new best)',
