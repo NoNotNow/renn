@@ -6,9 +6,9 @@
   "maze"
  ],
  "speedCap": 10,
- "gen": 2225,
- "updatedAt": "2026-10-12T17:03:09.764Z",
- "elapsedSec": 5681,
+ "gen": 2300,
+ "updatedAt": "2026-10-12T17:05:23.441Z",
+ "elapsedSec": 5815,
  "islands": {
   "centers": [
    0,
@@ -16,12 +16,12 @@
    0
   ],
   "ages": [
-   2225,
+   2300,
    50,
    1725
   ],
   "stagns": [
-   2,
+   0,
    0,
    0
   ],
@@ -32,25 +32,18 @@
   ],
   "globalStagn": 0,
   "globalBoost": 1,
-  "focus": {
-   "set": [
-    0
-   ],
-   "epochs": 1,
-   "sinceGen": 2200,
-   "max": 4
-  }
+  "focus": null
  },
  "stage": {
   "share": 0,
   "ema": 0
  },
  "epoch": {
-  "gen": 2225,
+  "gen": 2300,
   "scores": [
-   0.9089303391711518,
-   0.2005028604484029,
-   0.9649761447127766
+   0.8586611097489925,
+   0.14454215144539395,
+   0.8729631798856148
   ],
   "bestIsland": 2,
   "train": {
@@ -95,5 +88,5 @@
    0.8714466436665849
   ]
  },
- "why": "epoch end"
+ "why": "every 20 gens"
 }
