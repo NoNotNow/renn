@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="130" height="220" viewBox="0 0 130 220">
+<rect x="0" y="0" width="130" height="220" fill="#10131a"/>
+<rect x="57.3" y="201.6" width="62.2" height="8.4" fill="#444a55"/>
+<rect x="111.2" y="18.4" width="8.4" height="191.6" fill="#444a55"/>
+<rect x="10.5" y="60.1" width="46.9" height="8.4" fill="#444a55"/>
+<rect x="10.5" y="10" width="46.9" height="8.4" fill="#444a55"/>
+<rect x="10.5" y="10" width="8.4" height="58.4" fill="#444a55"/>
+<rect x="57.3" y="60.1" width="8.4" height="149.9" fill="#444a55"/>
+<polyline points="86.7,170.9 85.7,140.3 84.8,109.6 83.9,78.9 82.8,70.7 80.1,62.8 75.9,55.7 70.4,49.4 63.8,44.5 56.3,40.9 48.2,38.9 39.9,38.5 35.5,38.7" fill="none" stroke="#44bbff" stroke-width="1.5" stroke-opacity="0.9"/>
+<circle cx="86.7" cy="170.9" r="5" fill="#44bbff"/>
+<circle cx="35.5" cy="38.7" r="5" fill="#ff4444"/>
+</svg>

@@ -10,12 +10,7 @@ import {
 import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
 import { useCornerBrResize } from '@/hooks/useCornerBrResize'
-import {
-  MAZE_TRAINING_WORLDS,
-  mazeCarId,
-  type MazeTrainingMeta,
-  type MazeTrainingWorldSpec,
-} from '@/policyEvolution/mazeTraining'
+import { MAZE_TRAINING_SET, type TrainingMeta, type TrainingSet } from './trainingSets'
 import {
   fetchMazeCandidates,
   type MazeCandidate,
@@ -34,9 +29,12 @@ export interface MazeTrainingLiveRun {
   routeIndex: number
 }
 
+
 export interface MazeTrainingDialogProps {
   isOpen: boolean
   onClose: () => void
+  /** Which training set the panel serves (worlds, car ids, watch labels, tile texts); default: the training mazes. */
+  trainingSet?: TrainingSet
   /**
    * Loads the example world into the builder focused on the selected route (Builder implements this; the dialog
    * stays open). `candidate` is the model selected via the header chips — the Builder swaps the drive-stage
@@ -48,7 +46,7 @@ export interface MazeTrainingDialogProps {
 }
 
 interface MazeCardState {
-  meta: MazeTrainingMeta | null
+  meta: TrainingMeta | null
   /** meta.json fetch failed (world not exported yet). */
   failed: boolean
 }
@@ -60,10 +58,11 @@ const PANEL_BG_TRANSLUCENT = 'rgba(27, 31, 42, 0.55)'
 /** Denser translucent strip for the header over the blurred scene. */
 const HEADER_BG_TRANSLUCENT = theme.bg.modalGlassHeader
 
-const POS_STORAGE_KEY = 'mazeTrainingPanelPos'
-const SIZE_STORAGE_KEY = 'mazeTrainingPanelSize'
-const COLLAPSED_STORAGE_KEY = 'mazeTrainingPanelCollapsed'
-const CANDIDATE_STORAGE_KEY = 'mazeTrainingPanelCandidate'
+/** localStorage key suffixes per training set: `<set key>TrainingPanel<suffix>` (the two panels store independently). */
+const PANEL_POS_KEY = 'TrainingPanelPos'
+const PANEL_SIZE_KEY = 'TrainingPanelSize'
+const PANEL_COLLAPSED_KEY = 'TrainingPanelCollapsed'
+const PANEL_CANDIDATE_KEY = 'TrainingPanelCandidate'
 
 const STRIP_HEIGHT = 38
 const DEFAULT_WIDTH = 540
@@ -83,24 +82,17 @@ interface PanelSize {
   height: number
 }
 
-function mazeMetaUrl(spec: MazeTrainingWorldSpec): string {
+/** meta.json url of one training world (same layout for both sets: public/exampleWorlds/<id>/meta.json). */
+function trainingMetaUrl(spec: { id: string }): string {
   return `${BASE_URL}exampleWorlds/${encodeURIComponent(spec.id)}/meta.json`
 }
 
-/** Per-route tile image (clicking a tile in the expanded row starts the run on that way). */
-function mazeRouteTileUrl(spec: MazeTrainingWorldSpec, routeIndex: number): string {
-  return `${BASE_URL}exampleWorlds/${encodeURIComponent(spec.id)}/route_${routeIndex}.svg`
+/** Per-tile image (clicking a tile in the expanded row starts the run on that way). */
+function trainingTileUrl(spec: { id: string }, tileIndex: number): string {
+  return `${BASE_URL}exampleWorlds/${encodeURIComponent(spec.id)}/route_${tileIndex}.svg`
 }
 
-/** "3 ways · 1 reversed"; null when an older meta.json predates the routes field. */
-function routesLabel(meta: MazeTrainingMeta): string | null {
-  const routes = meta.routes
-  if (!routes || typeof routes.forward !== 'number') return null
-  const reversed = typeof routes.reversed === 'number' ? routes.reversed : 0
-  return `${routes.forward} ways · ${reversed} reversed`
-}
-
-function bestScoreLabel(meta: MazeTrainingMeta): string {
+function bestScoreLabel(meta: TrainingMeta): string {
   return meta.bestScore == null ? 'Best: —' : `Best: ${meta.bestScore} pts`
 }
 
@@ -111,15 +103,15 @@ interface MazeLiveWatchState {
 
 const EMPTY_LIVE_WATCH: MazeLiveWatchState = { score: null, seg: null }
 
-/** Parses the focused car's watch entries ('maze.score' = "123 pts", 'maze.seg' = "3") into a stable live snapshot. */
-function parseLiveWatchEntries(entries: readonly TransformerWatchEntry[]): MazeLiveWatchState {
+/** Parses the focused car's watch entries (score = "123 pts", seg = "3") into a stable live snapshot; labels are per training set. */
+function parseLiveWatchEntries(entries: readonly TransformerWatchEntry[], watch: TrainingSet['watch']): MazeLiveWatchState {
   let score: number | null = null
   let seg: number | null = null
   for (const entry of entries) {
-    if (entry.label === 'maze.score') {
+    if (entry.label === watch.score) {
       const match = /(\d+)/.exec(entry.value)
       if (match) score = Number(match[1])
-    } else if (entry.label === 'maze.seg') {
+    } else if (entry.label === watch.seg) {
       const parsed = Number(entry.value)
       if (Number.isFinite(parsed)) seg = parsed
     }
@@ -128,7 +120,7 @@ function parseLiveWatchEntries(entries: readonly TransformerWatchEntry[]): MazeL
 }
 
 /** Route's own best headless score; "Score: —" when null or when the meta predates the tileSvg field. */
-function routeScoreLabel(meta: MazeTrainingMeta, routeIndex: number): string {
+function routeScoreLabel(meta: TrainingMeta, routeIndex: number): string {
   const score = meta.tileSvg?.routes[routeIndex]?.score
   return score == null ? 'Score: —' : `Score: ${score} pts`
 }
@@ -139,7 +131,7 @@ function routeScoreLabel(meta: MazeTrainingMeta, routeIndex: number): string {
  * where training is stuck). Includes the 1-based way number so the culprit route is visible without expanding
  * the row. Routes without a measured score (older exports) are ignored; no tileSvg / nothing measured -> null.
  */
-function worstRouteScore(meta: MazeTrainingMeta): { score: number; way: number } | null {
+function worstRouteScore(meta: TrainingMeta): { score: number; way: number } | null {
   const routes = meta.tileSvg?.routes
   if (!routes) return null
   let worst: { score: number; way: number } | null = null
@@ -151,10 +143,10 @@ function worstRouteScore(meta: MazeTrainingMeta): { score: number; way: number }
   return worst
 }
 
-/** "Worst: 23 pts · way 2"; "Worst: —" when no route score is available. */
-function worstScoreLabel(meta: MazeTrainingMeta): string {
+/** "Worst: 23 pts · way 2" / "Worst: 12 pts · chain 3"; "Worst: —" when no tile score is available. */
+function worstScoreLabel(meta: TrainingMeta, noun: string): string {
   const worst = worstRouteScore(meta)
-  return worst == null ? 'Worst: —' : `Worst: ${worst.score} pts · way ${worst.way}`
+  return worst == null ? 'Worst: —' : `Worst: ${worst.score} pts · ${noun} ${worst.way}`
 }
 
 /**
@@ -167,7 +159,7 @@ function LiveRouteVectorOverlay({
   seg,
   testId,
 }: {
-  tileSvg: NonNullable<MazeTrainingMeta['tileSvg']>
+  tileSvg: NonNullable<TrainingMeta['tileSvg']>
   routeIndex: number
   seg: number | null
   testId: string
@@ -240,8 +232,8 @@ function persistJson(key: string, value: unknown): void {
   }
 }
 
-function readStoredPos(): PanelPos | null {
-  const parsed = readStoredJson(POS_STORAGE_KEY) as Partial<PanelPos> | null
+function readStoredPos(key: string): PanelPos | null {
+  const parsed = readStoredJson(key) as Partial<PanelPos> | null
   if (
     parsed &&
     typeof parsed.x === 'number' &&
@@ -254,8 +246,8 @@ function readStoredPos(): PanelPos | null {
   return null
 }
 
-function readStoredSize(): PanelSize | null {
-  const parsed = readStoredJson(SIZE_STORAGE_KEY) as Partial<PanelSize> | null
+function readStoredSize(key: string): PanelSize | null {
+  const parsed = readStoredJson(key) as Partial<PanelSize> | null
   if (
     parsed &&
     typeof parsed.width === 'number' &&
@@ -270,8 +262,8 @@ function readStoredSize(): PanelSize | null {
   return null
 }
 
-function readStoredCollapsed(): boolean {
-  return readStoredJson(COLLAPSED_STORAGE_KEY) !== false
+function readStoredCollapsed(key: string): boolean {
+  return readStoredJson(key) !== false
 }
 
 function defaultPanelPos(width: number): PanelPos {
@@ -292,23 +284,28 @@ function clampPosToViewport(pos: PanelPos, panel: { width: number; height: numbe
   }
 }
 
-export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld, liveRun = null }: MazeTrainingDialogProps) {
+export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE_TRAINING_SET, onPlayExampleWorld, liveRun = null }: MazeTrainingDialogProps) {
+  // per-set localStorage slots (`mazeTrainingPanelPos` for the mazes, `cruxTrainingPanelPos` for the crux, ...)
+  const posStorageKey = `${trainingSet.key}${PANEL_POS_KEY}`
+  const sizeStorageKey = `${trainingSet.key}${PANEL_SIZE_KEY}`
+  const collapsedStorageKey = `${trainingSet.key}${PANEL_COLLAPSED_KEY}`
+  const candidateStorageKey = `${trainingSet.key}${PANEL_CANDIDATE_KEY}`
   const [cardStates, setCardStates] = useState<Record<string, MazeCardState>>(() =>
-    Object.fromEntries(MAZE_TRAINING_WORLDS.map((spec) => [spec.id, initialCardState])),
+    Object.fromEntries(trainingSet.worlds.map((spec) => [spec.id, initialCardState])),
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
   /** Run row whose full-width thumbnail is expanded (one at a time; null = all rows single-line). */
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
   /** Route tile per world that started the run (the accent border marks the started way; default route 0). */
   const [selectedRoutes, setSelectedRoutes] = useState<Record<string, number>>({})
-  const [collapsed, setCollapsed] = useState<boolean>(() => readStoredCollapsed())
+  const [collapsed, setCollapsed] = useState<boolean>(() => readStoredCollapsed(collapsedStorageKey))
   /** Candidate model selected via the header chips (null = the deployed candidate baked into the export); persisted. */
-  const [candidateId, setCandidateId] = useState<string | null>(() => readStoredJson(CANDIDATE_STORAGE_KEY) as string | null)
+  const [candidateId, setCandidateId] = useState<string | null>(() => readStoredJson(candidateStorageKey) as string | null)
   const [candidatesFile, setCandidatesFile] = useState<MazeCandidatesFile | null>(null)
-  const [size, setSize] = useState<PanelSize>(() => readStoredSize() ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
+  const [size, setSize] = useState<PanelSize>(() => readStoredSize(sizeStorageKey) ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
   const [pos, setPos] = useState<PanelPos>(() => {
-    const stored = readStoredPos()
-    return stored ?? defaultPanelPos(readStoredSize()?.width ?? DEFAULT_WIDTH)
+    const stored = readStoredPos(posStorageKey)
+    return stored ?? defaultPanelPos(readStoredSize(sizeStorageKey)?.width ?? DEFAULT_WIDTH)
   })
 
   const posRef = useRef(pos)
@@ -320,10 +317,10 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
 
   const expanded = !collapsed
 
-  // Live watch of the focused route's car ('maze.score' / 'maze.seg' published by the in-world score stage).
+  // Live watch of the focused route's car (the set's watch labels, published by the in-world score stage).
   // The snapshot must be referentially stable between publishes: the derived value is cached in a ref keyed by
   // the entity + the entries array identity (the bridge hands out a stable array between publishes).
-  const liveCarId = liveRun != null ? mazeCarId(liveRun.routeIndex) : null
+  const liveCarId = liveRun != null ? trainingSet.carId(liveRun.routeIndex) : null
   const liveWatchRef = useRef<{ carId: string | null; entries: readonly TransformerWatchEntry[]; value: MazeLiveWatchState }>({
     carId: null,
     entries: [],
@@ -334,20 +331,20 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
     const entries = getTransformerWatchEntriesForEntity(liveCarId)
     const cached = liveWatchRef.current
     if (cached.carId === liveCarId && cached.entries === entries) return cached.value
-    const value = parseLiveWatchEntries(entries)
+    const value = parseLiveWatchEntries(entries, trainingSet.watch)
     liveWatchRef.current = { carId: liveCarId, entries, value }
     return value
-  }, [liveCarId])
+  }, [liveCarId, trainingSet.watch])
   const liveWatch = useSyncExternalStore(subscribeTransformerWatch, getLiveWatchSnapshot)
 
   useEffect(() => {
     if (!isOpen) return
     let cancelled = false
-    for (const spec of MAZE_TRAINING_WORLDS) {
-      fetch(mazeMetaUrl(spec), { cache: 'no-cache' })
+    for (const spec of trainingSet.worlds) {
+      fetch(trainingMetaUrl(spec), { cache: 'no-cache' })
         .then(async (res) => {
           if (!res.ok) throw new Error(String(res.status))
-          return (await res.json()) as MazeTrainingMeta
+          return (await res.json()) as TrainingMeta
         })
         .then((meta) => {
           if (!cancelled) {
@@ -363,7 +360,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
     return () => {
       cancelled = true
     }
-  }, [isOpen])
+  }, [isOpen, trainingSet.worlds])
 
   // Candidate models (island centers / best / shipped) exported next to the worlds; chips render only when the
   // file exists. A persisted selection that the file no longer lists is dropped (stale id after a re-export).
@@ -391,10 +388,10 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev
-      persistJson(COLLAPSED_STORAGE_KEY, next)
+      persistJson(collapsedStorageKey, next)
       return next
     })
-  }, [])
+  }, [collapsedStorageKey])
 
   const handleHeaderPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -438,10 +435,10 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
       e.currentTarget.releasePointerCapture?.(e.pointerId)
       if (drag.moved) {
         suppressClickRef.current = true
-        persistJson(POS_STORAGE_KEY, posRef.current)
+        persistJson(posStorageKey, posRef.current)
       }
     },
-    [],
+    [posStorageKey],
   )
 
   const handleHeaderClick = useCallback(() => {
@@ -477,7 +474,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
     size: { width: size.width, height: size.height },
     onSizeChange: (next) => {
       setSize(next)
-      persistJson(SIZE_STORAGE_KEY, next)
+      persistJson(sizeStorageKey, next)
     },
     resolveStartSize,
   })
@@ -506,11 +503,11 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
     (id: string) => {
       const next = selectedCandidate?.id === id ? null : id
       setCandidateId(next)
-      persistJson(CANDIDATE_STORAGE_KEY, next)
+      persistJson(candidateStorageKey, next)
       const candidate = next ? candidatesFile?.candidates.find((c) => c.id === next) ?? null : null
       if (liveRun) onPlayExampleWorld(liveRun.worldId, liveRun.routeIndex, candidate)
     },
-    [selectedCandidate, candidatesFile, liveRun, onPlayExampleWorld],
+    [selectedCandidate, candidatesFile, liveRun, onPlayExampleWorld, candidateStorageKey],
   )
 
   const handleThumbError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -523,7 +520,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
   // every run's worst route score. Unmeasured values (null, not-yet-fetched) are skipped; nothing renders while
   // no meta has loaded at all. The worst sum is the dialog-side weakest-link aggregate: it only grows when the
   // stuck routes improve.
-  const metas = MAZE_TRAINING_WORLDS.map((spec) => cardStates[spec.id]?.meta).filter((m): m is MazeTrainingMeta => m != null)
+  const metas = trainingSet.worlds.map((spec) => cardStates[spec.id]?.meta).filter((m): m is TrainingMeta => m != null)
   const sumBest = metas.length && metas.some((m) => m.bestScore != null) ? metas.reduce((a, m) => a + (m.bestScore ?? 0), 0) : null
   const worsts = metas.map((m) => worstRouteScore(m)).filter((w): w is { score: number; way: number } => w != null)
   const sumWorst = worsts.length ? worsts.reduce((a, w) => a + w.score, 0) : null
@@ -537,9 +534,9 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
   return createPortal(
     <div
       ref={panelRef}
-      data-testid="maze-training-panel"
+      data-testid={`${trainingSet.testid}-training-panel`}
       role="dialog"
-      aria-label="Training Mazes"
+      aria-label={trainingSet.title}
       style={{
         position: 'fixed',
         left: pos.x,
@@ -559,11 +556,11 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
       }}
     >
       <div
-        data-testid="maze-training-panel-header"
+        data-testid={`${trainingSet.testid}-training-panel-header`}
         role="button"
         tabIndex={0}
         aria-expanded={expanded}
-        aria-label="Training Mazes"
+        aria-label={trainingSet.title}
         title="Drag to move — click to expand/collapse"
         onPointerDown={handleHeaderPointerDown}
         onPointerMove={handleHeaderPointerMove}
@@ -597,14 +594,14 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
           &#9662;
         </span>
         <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary, whiteSpace: 'nowrap' }}>
-          Training Mazes
+          {trainingSet.title}
         </span>
         <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
-          {MAZE_TRAINING_WORLDS.length} runs
+          {trainingSet.worlds.length} runs
         </span>
         {totalsLine ? (
           <span
-            data-testid="maze-training-header-totals"
+            data-testid={`${trainingSet.testid}-training-header-totals`}
             title="Totals across the runs: sum of each run's best score and sum of its worst route score (the stuck routes)"
             style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}
           >
@@ -613,7 +610,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
         ) : null}
         {candidatesFile && candidatesFile.candidates.length > 0 ? (
           <span
-            data-testid="maze-training-candidates"
+            data-testid={`${trainingSet.testid}-training-candidates`}
             title="Candidate models: a chip swaps the driving net of the loaded world (the exported file keeps the deployed best). The scores in this dialog describe the DEPLOYED candidate — the deployed model is what the auto-trial baked into the export."
             style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
           >
@@ -623,7 +620,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                 <button
                   key={candidate.id}
                   type="button"
-                  data-testid={`maze-training-candidate-chip-${candidate.id}`}
+                  data-testid={`${trainingSet.testid}-training-candidate-chip-${candidate.id}`}
                   aria-pressed={active}
                   aria-label={`Candidate ${candidate.label}`}
                   title={`${candidate.detail}${candidate.gen != null ? ` · gen ${candidate.gen}` : ''}${active ? ' — click again for the deployed candidate' : ''}`}
@@ -652,7 +649,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
         <div style={{ flex: 1 }} />
         <button
           type="button"
-          data-testid="maze-training-close"
+          data-testid={`${trainingSet.testid}-training-close`}
           onClick={(e) => {
             e.stopPropagation()
             onClose()
@@ -672,7 +669,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
             justifyContent: 'center',
             borderRadius: 4,
           }}
-          aria-label="Close Training Mazes"
+          aria-label={`Close ${trainingSet.title}`}
         >
           ×
         </button>
@@ -690,7 +687,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
             gap: 6,
           }}
         >
-          {MAZE_TRAINING_WORLDS.map((spec) => {
+          {trainingSet.worlds.map((spec) => {
             const state = cardStates[spec.id] ?? initialCardState
             const meta = state.meta
             const exported = !state.failed && meta != null
@@ -699,7 +696,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
             return (
               <div
                 key={spec.id}
-                data-testid={`maze-training-card-${spec.id}`}
+                data-testid={`${trainingSet.testid}-training-card-${spec.id}`}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -710,7 +707,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                 }}
               >
                 <div
-                  data-testid={`maze-training-row-${spec.id}`}
+                  data-testid={`${trainingSet.testid}-training-row-${spec.id}`}
                   role="button"
                   tabIndex={0}
                   aria-label={spec.name}
@@ -741,7 +738,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                   <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary, whiteSpace: 'nowrap' }}>
                     {spec.name}
                   </span>
-                  <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>seed {spec.seed}</span>
+                  <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>{spec.info}</span>
                   <div style={{ flex: 1 }} />
                   {exported && meta ? (
                     <>
@@ -749,11 +746,11 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                         {bestScoreLabel(meta)}
                       </span>
                       <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>
-                        {worstScoreLabel(meta)}
+                        {worstScoreLabel(meta, trainingSet.noun)}
                       </span>
-                      {routesLabel(meta) ? (
+                      {trainingSet.badge(meta) ? (
                         <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
-                          {routesLabel(meta)}
+                          {trainingSet.badge(meta)}
                         </span>
                       ) : null}
                     </>
@@ -764,19 +761,19 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                 {rowExpanded && meta ? (
                   <div style={{ padding: '0 8px 8px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                      {Array.from({ length: (meta.routes?.forward ?? 0) + (meta.routes?.reversed ?? 0) }, (_, i) => {
-                        const reversed = i >= (meta.routes?.forward ?? 0)
+                      {Array.from({ length: trainingSet.tileCount(meta) }, (_, i) => {
+                        const tile = trainingSet.tileText(meta, i)
                         const tileSelected = (selectedRoutes[spec.id] ?? 0) === i
                         const isLiveTile = liveRun != null && liveRun.worldId === spec.id && liveRun.routeIndex === i
                         return (
                           <div
                             key={i}
-                            data-testid={`maze-training-route-tile-${spec.id}-${i}`}
+                            data-testid={`${trainingSet.testid}-training-route-tile-${spec.id}-${i}`}
                             role="button"
                             tabIndex={0}
                             aria-pressed={tileSelected}
-                            aria-label={`${spec.name} way ${i + 1} (${reversed ? 'reversed' : 'forward'})`}
-                            title={`Way ${i + 1} (${reversed ? 'reversed' : 'forward'}) — start the run on this way`}
+                            aria-label={`${spec.name} ${tile.name.toLowerCase()} (${tile.long})`}
+                            title={`${tile.name} (${tile.long}) — start the run on this ${trainingSet.noun}`}
                             onClick={() => handleTileClick(spec.id, i)}
                             onKeyDown={(e) => e.key === 'Enter' && handleTileClick(spec.id, i)}
                             style={{
@@ -794,9 +791,9 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                           >
                             <div style={{ position: 'relative', width: '100%', height: '8.4em' }}>
                               <img
-                                data-testid={`maze-training-thumb-${spec.id}-${i}`}
-                                src={mazeRouteTileUrl(spec, i)}
-                                alt={`${spec.name} way ${i + 1} (${reversed ? 'reversed' : 'forward'}) thumbnail (all guidance vectors)`}
+                                data-testid={`${trainingSet.testid}-training-thumb-${spec.id}-${i}`}
+                                src={trainingTileUrl(spec, i)}
+                                alt={`${spec.name} ${tile.name.toLowerCase()} (${tile.long}) thumbnail (all guidance vectors)`}
                                 style={{ width: '100%', height: '8.4em', display: 'block', objectFit: 'contain', borderRadius: 4 }}
                                 onError={handleThumbError}
                               />
@@ -805,7 +802,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                                   tileSvg={meta.tileSvg}
                                   routeIndex={i}
                                   seg={liveWatch.seg}
-                                  testId={`maze-training-live-vector-${spec.id}-${i}`}
+                                  testId={`${trainingSet.testid}-training-live-vector-${spec.id}-${i}`}
                                 />
                               ) : null}
                             </div>
@@ -818,7 +815,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              {tileSelected ? '\u25B8 ' : ''}Way {i + 1} {reversed ? '(rev)' : '(fwd)'}
+                              {tileSelected ? '\u25B8 ' : ''}{tile.name} {tile.short}
                             </span>
                             <span
                               style={{
@@ -855,7 +852,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, onPlayExampleWorld
         <div
           aria-hidden={true}
           {...resizeHandleProps}
-          data-testid="maze-training-resize-handle"
+          data-testid={`${trainingSet.testid}-training-resize-handle`}
           style={{
             position: 'absolute',
             right: 0,

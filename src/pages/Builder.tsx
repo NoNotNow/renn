@@ -13,8 +13,10 @@ import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import MazeTrainingDialog, { type MazeTrainingLiveRun } from '@/components/MazeTrainingDialog'
+import { CRUX_TRAINING_SET } from '@/components/trainingSets'
 import { applyMazeCandidate, type MazeCandidate } from '@/policyEvolution/mazeCandidates'
 import { focusMazeRoute } from '@/policyEvolution/mazeTraining'
+import { focusCruxChain } from '@/policyEvolution/cruxTraining'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
 import Workspace from '@/components/Workspace'
@@ -164,6 +166,9 @@ export default function Builder() {
   const [mazeTrainingOpen, setMazeTrainingOpen] = useState(false)
   /** Training-maze world+route currently loaded and driving in the builder (live active-vector overlay in the dialog). */
   const [mazeTrainingLive, setMazeTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
+  const [cruxTrainingOpen, setCruxTrainingOpen] = useState(false)
+  /** Training-crux world+chain currently loaded and driving in the builder (live overlay in the crux dialog). */
+  const [cruxTrainingLive, setCruxTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
   const [avEvolutionOpen, setAvEvolutionOpen] = useState(false)
   useEffect(() => installAvEvolutionAgentApi(getAvEvolutionStore()), [])
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
@@ -433,33 +438,37 @@ export default function Builder() {
     loadExampleWorld,
   })
 
-  // Every example-world load path resets the live training highlight; the training-maze play path below re-points
+  // Every example-world load path resets the live training highlight; the training play path below re-points
   // it right after the load call, in the same synchronous flow (so its set wins).
   const handleOpenExampleWorld = useCallback(
     (worldJson: Parameters<typeof handleOpenExampleWorldBase>[0], name: string, assets?: Map<string, Blob>) => {
       setMazeTrainingLive(null)
+      setCruxTrainingLive(null)
       handleOpenExampleWorldBase(worldJson, name, assets)
     },
     [handleOpenExampleWorldBase],
   )
 
-  // Training Mazes dialog → load the exported example world into the builder (no play mode):
+  // Training Mazes / Training Crux dialogs → load the exported example world into the builder (no play mode):
   // the world sets world.debugTargetLineEntityId, so the guidance chain overlay renders in builder
-  // mode. The tile clicked in the dialog focuses the run on that route (target vector): camera,
-  // visualizeLine display entity and HUD score move to the selected route's car (focusMazeRoute).
+  // mode. The tile clicked in the dialog focuses the run on that way (target vector): camera,
+  // visualizeLine display entity and HUD score move to the selected copy's car (focusMazeRoute /
+  // focusCruxChain — the crux worlds carry crux_score_* stages, every other world id is a maze one).
   // The dialog stays open; the game HUD is force-enabled so the score watch is visible.
   // A selected candidate model (header chips) swaps the drive-stage weights of the LOADED world
-  // (applyMazeCandidate) — the export on disk keeps the deployed best (on-disk gate untouched).
+  // (applyMazeCandidate — the split drive stages are identical in both sets, so the swap is
+  // world-agnostic) — the export on disk keeps the deployed best (on-disk gate untouched).
   const handlePlayExampleWorld = useCallback(
     async (worldId: string, routeIndex: number, candidate: MazeCandidate | null) => {
       try {
         const { world, assets } = await loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', worldId)
-        let next = focusMazeRoute(world, routeIndex)
+        const crux = worldId.startsWith('crux_')
+        let next = crux ? focusCruxChain(world, routeIndex) : focusMazeRoute(world, routeIndex)
         if (candidate) next = applyMazeCandidate(next, candidate)
         handleOpenExampleWorld(next, worldId, assets)
-        setMazeTrainingLive({ worldId, routeIndex })
+        ;(crux ? setCruxTrainingLive : setMazeTrainingLive)({ worldId, routeIndex })
         setShowGameHud(true)
-        uiLogger.select('Builder', 'Load training maze into builder', {
+        uiLogger.select('Builder', crux ? 'Load training crux into builder' : 'Load training maze into builder', {
           worldName: worldId,
           routeIndex,
           candidate: candidate?.id ?? 'deployed',
@@ -694,7 +703,7 @@ export default function Builder() {
   const canRedoHistory = canRedoTextureMaker || editorCanRedo
 
   const traceActive = selectedEntityIds.length === 1 && workspaceOpen
-  const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || mazeTrainingOpen
+  const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || mazeTrainingOpen || cruxTrainingOpen
   useEffect(() => {
     if (traceActive) {
       setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
@@ -813,6 +822,10 @@ export default function Builder() {
           setMazeTrainingOpen(true)
           uiLogger.click('Builder', 'Open Training Mazes dialog', {})
         }}
+        onOpenCruxTraining={() => {
+          setCruxTrainingOpen(true)
+          uiLogger.click('Builder', 'Open Training Crux dialog', {})
+        }}
       />
         </div>
 
@@ -865,6 +878,18 @@ export default function Builder() {
         liveRun={
           mazeTrainingLive && currentProject.id === null && currentProject.name === mazeTrainingLive.worldId
             ? mazeTrainingLive
+            : null
+        }
+      />
+
+      <MazeTrainingDialog
+        trainingSet={CRUX_TRAINING_SET}
+        isOpen={cruxTrainingOpen}
+        onClose={() => setCruxTrainingOpen(false)}
+        onPlayExampleWorld={handlePlayExampleWorld}
+        liveRun={
+          cruxTrainingLive && currentProject.id === null && currentProject.name === cruxTrainingLive.worldId
+            ? cruxTrainingLive
             : null
         }
       />

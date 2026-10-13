@@ -4,11 +4,11 @@
   "name": "Maze Training 9",
   "candidate": {
     "policy": "v3",
-    "label": "v3cruxnose trial (gen 2775)",
-    "gen": 2775,
+    "label": "v3cruxnose trial (gen 3000)",
+    "gen": 3000,
     "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
   },
-  "bestScore": 132,
+  "bestScore": 134,
   "chain": {
     "points": 9,
     "lengthM": 121.3
@@ -60,7 +60,7 @@
             10
           ]
         ],
-        "score": 132
+        "score": 134
       },
       {
         "pts": [
@@ -101,7 +101,7 @@
             193.7
           ]
         ],
-        "score": 107
+        "score": 106
       }
     ]
   }

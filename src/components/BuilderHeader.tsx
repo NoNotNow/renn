@@ -23,6 +23,7 @@ import { discoverExampleWorldIdsFromBuild } from '@/utils/discoverExampleWorldId
 import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPublicBase'
 import { setExampleWorldUrlParam } from '@/utils/exampleWorldUrlParam'
 import { MAZE_TRAINING_WORLDS } from '@/policyEvolution/mazeTraining'
+import { CRUX_TRAINING_WORLDS } from '@/policyEvolution/cruxTraining'
 
 const BUILDER_BASE_URL = import.meta.env.BASE_URL || '/'
 
@@ -68,6 +69,8 @@ export interface BuilderHeaderProps {
   onOpenExampleWorld?: (worldJson: RennWorld, name: string, assets?: Map<string, Blob>) => void
   /** Opens the training-mazes gallery dialog (File menu → "Training Mazes…"). */
   onOpenMazeTraining?: () => void
+  /** Opens the training-crux gallery dialog (File menu → "Training Crux…"; the same parameterized dialog). */
+  onOpenCruxTraining?: () => void
 }
 
 export default function BuilderHeader({
@@ -106,6 +109,7 @@ export default function BuilderHeader({
   selectedEntityCount: _selectedEntityCount = 0,
   onOpenExampleWorld,
   onOpenMazeTraining,
+  onOpenCruxTraining,
 }: BuilderHeaderProps) {
   const {
     projects,
@@ -188,10 +192,10 @@ export default function BuilderHeader({
     [onOpenExampleWorld],
   )
 
-  // Pure training worlds (policy_* exports) and the maze training worlds (own dialog) stay out of
+  // Pure training worlds (policy_* exports) and the maze / crux training worlds (own dialog) stay out of
   // the generic Example Worlds submenu.
   const exampleWorldExcludedIds = useMemo(
-    () => new Set(MAZE_TRAINING_WORLDS.map((spec) => spec.id)),
+    () => new Set([...MAZE_TRAINING_WORLDS, ...CRUX_TRAINING_WORLDS].map((spec) => spec.id)),
     [],
   )
   const visibleExampleWorldIds = exampleWorldIds.filter(
@@ -231,6 +235,12 @@ export default function BuilderHeader({
       label: 'Training Mazes…',
       onClick: onOpenMazeTraining,
       disabled: !onOpenMazeTraining,
+    },
+    {
+      type: 'item',
+      label: 'Training Crux…',
+      onClick: onOpenCruxTraining,
+      disabled: !onOpenCruxTraining,
     },
     {
       type: 'item',

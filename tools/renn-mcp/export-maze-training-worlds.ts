@@ -11,12 +11,13 @@
  * into meta.json and print the per-car table. meta.json also carries `tileSvg` (per-route chain polylines in route_<i>.svg
  * pixel space + per-route scores) for the dialog's per-route tiles.
  * Source of truth: src/policyEvolution/mazeTraining.ts. Update the policy: tools/policy-evolution/ship.ts, then re-run.
+ * The thumb/tile renderer (trainingThumbSvg.ts) and the headless --score measurement (trainingScoreRun.ts) are shared
+ * with the crux exporter (export-crux-training-worlds.ts).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { invalidateAgentDevExampleWorldIdCache } from '../../src/agent/agentDevExampleWorlds'
-import { getTransformerWatchEntries, setAgentObservationWatchActive } from '../../src/runtime/transformerWatchBridge'
 import { shippedGenomeV3 } from '../../src/policyEvolution/exampleWorld'
 import {
   MAZE_GOAL_PREFIX,
@@ -33,164 +34,13 @@ import {
   trialMazeTrainingCandidate,
 } from '../../src/policyEvolution/mazeTraining'
 import type { MazeTrainingCandidate } from '../../src/policyEvolution/mazeTraining'
-import type { CourseBox } from '../../src/policyEvolution/courses'
 import type { V2 } from '../../src/avEvolution/eval/geometry'
-import { WallLos } from '../../src/policyEvolution/wallLos'
-import { DEFAULT_DT, WorldSimulator } from '../../src/test/helpers/worldSimulator'
-import type { RennWorld } from '../../src/types/world'
+import { scoreTrainingWorld } from './trainingScoreRun'
+import { thumbSvg } from './trainingThumbSvg'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const withScore = process.argv.includes('--score')
 const MAX_SIM_S = 120
-
-function watchValues(entityId: string): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const e of getTransformerWatchEntries().values()) if (e.entityId === entityId) out[e.label] = e.value
-  return out
-}
-
-/** Same scoring rule as the in-world stage (monotone chain progress + speed bonus, incl. the wall line-of-sight gate on the progress credit), as a cross-check of the watch value. */
-function identicalScorer(chain: number[][], walls: V2[][], vRef: number, bonusRate: number) {
-  const cum = [0]
-  for (let q = 1; q < chain.length; q++) cum.push(cum[q - 1]! + Math.hypot(chain[q]![0] - chain[q - 1]![0], chain[q]![1] - chain[q - 1]![1]))
-  let s = 0
-  let bonus = 0
-  let seg = 0
-  const los = new WallLos(walls)
-  return {
-    step(px: number, pz: number, vx: number, vz: number, dt: number): number {
-      let bestD = Infinity
-      let bestS = s
-      let bestSeg = seg
-      let bestPX = px
-      let bestPZ = pz
-      for (let i = Math.max(0, seg - 2); i <= Math.min(chain.length - 2, seg + 3); i++) {
-        const ax = chain[i]![0]
-        const az = chain[i]![1]
-        const dx = chain[i + 1]![0] - ax
-        const dz = chain[i + 1]![1] - az
-        const len2 = dx * dx + dz * dz || 1
-        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))
-        const d = Math.hypot(px - (ax + t * dx), pz - (az + t * dz))
-        if (d < bestD) {
-          bestD = d
-          bestS = cum[i]! + t * Math.sqrt(len2)
-          bestSeg = i
-          bestPX = ax + t * dx
-          bestPZ = az + t * dz
-        }
-      }
-      seg = bestSeg
-      if (bestS > s && !los.blocked(px, pz, bestPX, bestPZ)) s = bestS
-      bonus += (Math.min(Math.hypot(vx, vz), vRef) / vRef) * dt * bonusRate
-      return Math.floor(s + bonus)
-    },
-  }
-}
-
-/** Headless run of one world: every car drives simultaneously; per car reached/seconds/score, bestScore = max over cars. */
-async function scoreWorld(world: RennWorld, chains: number[][][], wallsWorld: V2[][][], vRef: number, bonusRate: number) {
-  const K = chains.length
-  const goalPos = (world.entities as { id: string; position: number[] }[]).filter((e) => e.id.startsWith(MAZE_GOAL_PREFIX)).map((e) => e.position)
-  setAgentObservationWatchActive(true)
-  const sim = await WorldSimulator.create(world, 0)
-  try {
-    const scorers = chains.map((ch, i) => identicalScorer(ch, wallsWorld[i] ?? [], vRef, bonusRate))
-    const reachedAt: Array<number | null> = new Array(K).fill(null)
-    // per-car snapshot AT the moment of reaching: the in-world stage freezes the score at its finish (MAZE_GOAL_REACH_M),
-    // so the watch value stands still afterwards — but snapshotting at reachedAt makes each car's result independent of
-    // the rest of the run (a slow route can no longer drag the early cars' scores through post-finish penalties)
-    const snapshot = new Array<number>(K).fill(0)
-    const fromWatch = new Array<boolean>(K).fill(false)
-    let t = 0
-    const frames = Math.round(MAX_SIM_S / DEFAULT_DT)
-    for (let f = 0; f < frames; f++) {
-      sim.runFrames(1)
-      t = (f + 1) * DEFAULT_DT
-      let allReached = true
-      for (let i = 0; i < K; i++) {
-        if (reachedAt[i] !== null) continue
-        const p = sim.getPosition(mazeCarId(i))
-        const v = sim.getVelocity(mazeCarId(i))
-        snapshot[i] = scorers[i]!.step(p[0], p[2], v[0], v[2], DEFAULT_DT)
-        if (Math.hypot(p[0] - goalPos[i]![0]!, p[2] - goalPos[i]![2]!) < MAZE_GOAL_REACH_M) {
-          reachedAt[i] = t
-          const m = /(\d+)/.exec(String(watchValues(mazeCarId(i))['maze.score'] ?? ''))
-          if (m) {
-            snapshot[i] = Number(m[1])
-            fromWatch[i] = true
-          }
-        } else {
-          allReached = false
-        }
-      }
-      if (allReached) break
-    }
-    return reachedAt.map((reached, i) => {
-      if (reached !== null) return { reached: true, seconds: reached, score: snapshot[i]!, fromWatch: fromWatch[i]! }
-      const m = /(\d+)/.exec(String(watchValues(mazeCarId(i))['maze.score'] ?? ''))
-      return { reached: false, seconds: t, score: m ? Number(m[1]) : snapshot[i]!, fromWatch: Boolean(m) }
-    })
-  } finally {
-    sim.dispose()
-    setAgentObservationWatchActive(false)
-  }
-}
-
-// --- thumb.svg: one maze frame per route copy side by side (like the world layout) ---------------------------------------------------
-
-const THUMB_H = 220
-const THUMB_MARGIN = 10
-
-/** One rendered maze copy: the chain polyline shifted by `ox`, in its direction's color pair. */
-type ThumbFrame = { ox: number; chain: V2[]; color: string; startColor: string }
-
-/** thumbSvg output: the svg markup plus the overlay geometry the dialog tiles need (`w`/`h` = pixel size, `frames[i].pts` = frame i's chain mapped into svg pixel space, rounded like the svg). */
-type ThumbSvg = { svg: string; w: number; h: number; frames: Array<{ pts: Array<[number, number]> }> }
-
-function thumbSvg(boxes: CourseBox[], frames: ThumbFrame[]): ThumbSvg {
-  let minX = Infinity
-  let maxX = -Infinity
-  let minZ = Infinity
-  let maxZ = -Infinity
-  const grow = (x: number, z: number) => {
-    minX = Math.min(minX, x)
-    maxX = Math.max(maxX, x)
-    minZ = Math.min(minZ, z)
-    maxZ = Math.max(maxZ, z)
-  }
-  for (const b of boxes) {
-    grow(b.at[0] - b.size[0] / 2, b.at[1] - b.size[1] / 2)
-    grow(b.at[0] + b.size[0] / 2, b.at[1] + b.size[1] / 2)
-  }
-  for (const f of frames) for (const p of f.chain) grow(p[0] + f.ox, p[1])
-  const spanX = Math.max(maxX - minX, 1)
-  const spanZ = Math.max(maxZ - minZ, 1)
-  const scale = (THUMB_H - 2 * THUMB_MARGIN) / spanZ
-  const width = Math.ceil(spanX * scale + 2 * THUMB_MARGIN)
-  const ox = THUMB_MARGIN + (width - 2 * THUMB_MARGIN - spanX * scale) / 2
-  const oz = THUMB_MARGIN + (THUMB_H - 2 * THUMB_MARGIN - spanZ * scale) / 2
-  const mx = (x: number) => Math.round((ox + (x - minX) * scale) * 10) / 10
-  const mz = (z: number) => Math.round((oz + (z - minZ) * scale) * 10) / 10
-  const mapped = frames.map((f) => f.chain.map((p) => [mx(p[0] + f.ox), mz(p[1])] as [number, number]))
-  const poly = (pts: V2[], o: number) => pts.map((p) => `${mx(p[0] + o)},${mz(p[1])}`).join(' ')
-  const lines: string[] = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${THUMB_H}" viewBox="0 0 ${width} ${THUMB_H}">`]
-  lines.push(`<rect x="0" y="0" width="${width}" height="${THUMB_H}" fill="#10131a"/>`)
-  for (const f of frames) {
-    for (const b of boxes) {
-      const x = mx(b.at[0] - b.size[0] / 2 + f.ox)
-      const y = mz(b.at[1] - b.size[1] / 2)
-      lines.push(`<rect x="${x}" y="${y}" width="${Math.round(b.size[0] * scale * 10) / 10}" height="${Math.round(b.size[1] * scale * 10) / 10}" fill="#444a55"/>`)
-    }
-    lines.push(`<polyline points="${poly(f.chain, f.ox)}" fill="none" stroke="${f.color}" stroke-width="1.5" stroke-opacity="0.9"/>`)
-    lines.push(`<circle cx="${mx(f.chain[0]![0] + f.ox)}" cy="${mz(f.chain[0]![1])}" r="5" fill="${f.startColor}"/>`)
-    lines.push(`<circle cx="${mx(f.chain[f.chain.length - 1]![0] + f.ox)}" cy="${mz(f.chain[f.chain.length - 1]![1])}" r="5" fill="#ff4444"/>`)
-  }
-  lines.push('</svg>')
-  return { svg: lines.join('\n') + '\n', w: width, h: THUMB_H, frames: mapped.map((pts) => ({ pts })) }
-}
-
-// --- main ----------------------------------------------------------------------------------------------------------------------------
 
 const t0 = Date.now()
 
@@ -218,7 +68,17 @@ async function main(): Promise<void> {
     let bestScore: number | null = null
     let routeScores: Array<number | null> = routes.map(() => null)
     if (withScore) {
-      const results = await scoreWorld(world, chainsWorld, wallsWorld, scoreStage0?.params?.vRef ?? 20, scoreStage0?.params?.bonusRate ?? 5)
+      const results = await scoreTrainingWorld(world, {
+        carId: mazeCarId,
+        goalPrefix: MAZE_GOAL_PREFIX,
+        goalReachM: MAZE_GOAL_REACH_M,
+        watchLabel: 'maze.score',
+        maxSimS: MAX_SIM_S,
+        chains: chainsWorld,
+        walls: wallsWorld,
+        vRef: scoreStage0?.params?.vRef ?? 20,
+        bonusRate: scoreStage0?.params?.bonusRate ?? 5,
+      })
       bestScore = Math.max(...results.map((r) => r.score))
       routeScores = results.map((r) => r.score)
       results.forEach((r, i) => {

@@ -8,7 +8,7 @@
  *   node tools/policy-evolution/train-ctl.mjs restart       # stop + start
  *   node tools/policy-evolution/train-ctl.mjs ship          # stop -> ship.ts (HOLDOUT finish-count gate) -> start, verdict printed
  *   node tools/policy-evolution/train-ctl.mjs trial [FILE]  # deploy the best candidate (default latest-best.json) into the
- *                                                           # maze training worlds (--score export) + on-disk gate, verdict printed
+ *                                                           # maze + crux training worlds (--score exports) + both on-disk gates, verdicts printed
  *
  * Known jobs: the v3cruxnose policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
  * and the vite dev server. Detection is by command line + repo path, never a blanket pkill pattern.
@@ -32,7 +32,7 @@ const TRAIN = {
   start: 'V3_OUT=training-data/policy-evolution/v3cruxnose.json V3_EXTRA_ARGS="--kinds crux --batch 6 --speed-cap 10" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3cruxnose.nohup.log 2>&1 &',
 }
 const WATCH = {
-  why: 'auto-trial watcher: deploys the newest candidate into the maze training worlds every 2 min (skips cycles without a new best)',
+  why: 'auto-trial watcher: deploys the newest candidate into the maze + crux training worlds every 2 min (skips cycles without a new best)',
   start: 'nohup node tools/policy-evolution/auto-trial.mjs --every 120 > training-data/policy-evolution/auto-trial.log 2>&1 &',
 }
 const VITE_WHY = 'vite dev server (localhost preview) - the test / play workflow'
@@ -219,7 +219,7 @@ function start() {
       spawnSync('sleep', ['0.5'])
       watching = watchProcs().length > 0
     }
-    console.log(watching ? 'auto-trial watcher started (a new candidate is deployed into the maze training worlds every 2 min)' : 'auto-trial watcher FAILED to come up, check training-data/policy-evolution/auto-trial.log')
+    console.log(watching ? 'auto-trial watcher started (a new candidate is deployed into the maze + crux training worlds every 2 min)' : 'auto-trial watcher FAILED to come up, check training-data/policy-evolution/auto-trial.log')
   }
 }
 
@@ -236,11 +236,12 @@ function ship() {
 }
 
 /**
- * Deploy the best candidate into the maze training worlds WITHOUT touching the shipped policy:
- * re-export maze_train_1..5 with --score via RENN_V3_GENOME_FILE (meta.json names the trial candidate),
- * then run the on-disk consistency gate against the same pinned candidate. Default: training-data/policy-evolution/latest-best.json.
- * The candidate is PINNED to a snapshot file for the whole trial: latest-best.json advancing mid-trial (the training
- * writes it on every new best) can never leave the worlds and the gate disagreeing.
+ * Deploy the best candidate into the maze AND crux training worlds WITHOUT touching the shipped policy:
+ * re-export maze_train_1..10 and crux_train_1..15 / crux_holdout_1..10 with --score via RENN_V3_GENOME_FILE
+ * (meta.json names the trial candidate), then run BOTH on-disk consistency gates against the same pinned
+ * candidate. Default: training-data/policy-evolution/latest-best.json. The candidate is PINNED to a snapshot file
+ * for the whole trial: latest-best.json advancing mid-trial (the training writes it on every new best) can never
+ * leave the worlds and the gates disagreeing.
  */
 function trial(file = 'training-data/policy-evolution/latest-best.json') {
   const path = resolve(root, file)
@@ -260,20 +261,34 @@ function trial(file = 'training-data/policy-evolution/latest-best.json') {
   const src = parsed.source ?? file
   const snap = resolve(root, 'training-data/policy-evolution/.trial-snapshot.json')
   copyFileSync(path, snap)
-  console.log(`trial: deploying ${src} (gen ${gen}) into the maze training worlds (export --score, then the on-disk gate)`)
+  console.log(`trial: deploying ${src} (gen ${gen}) into the maze + crux training worlds (export --score, then the on-disk gates)`)
   const env = { ...process.env, RENN_V3_GENOME_FILE: snap }
   const exp = spawnSync('npx', ['tsx', 'tools/renn-mcp/export-maze-training-worlds.ts', '--score'], { cwd: root, env, stdio: 'inherit' })
   if (exp.status !== 0) {
-    console.log('trial FAILED: the world export failed')
+    console.log('trial FAILED: the maze world export failed')
     process.exitCode = 1
     return
   }
-  const gate = spawnSync('npx', ['vitest', 'run', 'src/test/scenarios/maze-training-worlds.test.ts'], { cwd: root, env, encoding: 'utf8' })
-  const out = (gate.stdout || '') + (gate.stderr || '')
-  const line = out.split('\n').find((l) => /\d+ (?:passed|failed)/.test(l))
-  console.log(`trial gate (maze-training-worlds, candidate-aware): ${line ?? 'no summary line'}`)
-  if (gate.status !== 0) {
-    console.log('trial FAILED: the on-disk gate is red — re-run this command after the next latest-best update, or export from the matching run file')
+  const expCrux = spawnSync('npx', ['tsx', 'tools/renn-mcp/export-crux-training-worlds.ts', '--score'], { cwd: root, env, stdio: 'inherit' })
+  if (expCrux.status !== 0) {
+    console.log('trial FAILED: the crux world export failed')
+    process.exitCode = 1
+    return
+  }
+  const gates = [
+    ['maze-training-worlds', 'src/test/scenarios/maze-training-worlds.test.ts'],
+    ['crux-training-worlds', 'src/test/scenarios/crux-training-worlds.test.ts'],
+  ]
+  let failed = false
+  for (const [name, testFile] of gates) {
+    const gate = spawnSync('npx', ['vitest', 'run', testFile], { cwd: root, env, encoding: 'utf8' })
+    const out = (gate.stdout || '') + (gate.stderr || '')
+    const line = out.split('\n').find((l) => /\d+ (?:passed|failed)/.test(l))
+    console.log(`trial gate ${name} (candidate-aware): ${line ?? 'no summary line'}`)
+    if (gate.status !== 0) failed = true
+  }
+  if (failed) {
+    console.log('trial FAILED: an on-disk gate is red — re-run this command after the next latest-best update, or export from the matching run file')
     process.exitCode = 1
   }
 }

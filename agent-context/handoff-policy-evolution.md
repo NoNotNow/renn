@@ -68,6 +68,19 @@ The v3nose maze-only run failed; its gen-675 best fails mazes exactly two ways (
 - **NC2 start swing** (cls 1): LATERAL start (the old C4/M2, gate at 16 m) / CORNER-EXIT start (the M1 pocket: aimed at a dead-end wall, tight side mouth). All NC2 chains carry offM 16.
 Band: `--kinds crux --train-per-kind 15 --holdout-per-kind 10` (pinned in `crux.test.ts`), class = `(seed - 1) % 2`, embodiment / turn direction fixed by the seed (every class + embodiment + direction in the band), chains = base path + ~5 jittered variants behind the pure-pursuit acceptance gate (no dead zeros). Verified: the v3nose gen-675 best fails the band (train 51 % / holdout 43 %, the failure signatures match), the shipped v3 handles more (62 % / 56 %), the pursuit baseline finishes 100 %. The planned run (`tools/policy-evolution/train-ctl.mjs`, job `v3cruxnose`): `--kinds crux --batch 6 --speed-cap 10` (fitness normalizer only).
 
+## The crux band is playable in the app (2026-10-13)
+The accepted crux band is exported as 25 playable example worlds (`public/exampleWorlds/crux_train_1..15/` + `crux_holdout_1..10/`,
+`tools/renn-mcp/export-crux-training-worlds.ts --score`, source of truth `src/policyEvolution/cruxTraining.ts`): one tiny crux copy
+per accepted chain (base + jittered variants — the training episodes' chains), v3 policy car per copy, in-world scoring
+(`crux.score` watches, the shared training score stage). File → "Training Crux…" opens the SAME parameterized
+`MazeTrainingDialog` (`CRUX_TRAINING_SET`): per-chain tiles, best/worst scores, candidate chips (the same candidates.json —
+a chip swaps the drive-stage weights of the loaded world), live overlay while driving. `train-ctl.mjs trial` now exports
+BOTH sets (maze + crux) with the pinned candidate and runs BOTH on-disk gates. Tests:
+`npx vitest run src/test/scenarios/crux-training-worlds.test.ts` (candidate-aware like the maze test — with a trial deployed
+pass `RENN_V3_GENOME_FILE=<absolute .trial-snapshot.json>`); the headless crux progress gate is `CRUX_TRAIN_SIM=1` (green when
+a candidate clears every chain). Details in [feature-policy-evolution.md](./feature-policy-evolution.md), section
+"Crux training worlds + Training Crux dialog".
+
 ## Next steps (in order)
 1. Let `v3cap` train; ship check every ~1-2 h (stop training briefly, or run with `--workers 2`). If WROTE: re-export worlds, vitest, commit, push, deploy.
 2. Compare v3cap vs uncapped on field/crowd (crash counts, `diagnose-v3.ts`). Uncapped v3 regressed after gen 1000 on field/slalom/crowd holdout,

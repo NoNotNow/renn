@@ -2,8 +2,10 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MazeTrainingDialog from './MazeTrainingDialog'
+import { CRUX_TRAINING_SET } from './trainingSets'
 import { theme } from '@/config/theme'
 import { MAZE_TRAINING_WORLDS, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
+import { CRUX_TRAINING_WORLDS, cruxTrainingInfo, type CruxTrainingMeta } from '@/policyEvolution/cruxTraining'
 import type { MazeCandidate } from '@/policyEvolution/mazeCandidates'
 import {
   clearTransformerWatchEntries,
@@ -466,5 +468,148 @@ describe('MazeTrainingDialog', () => {
     )
     expect(screen.queryByText(/Live:/)).not.toBeInTheDocument()
     expect(screen.queryByTestId(/maze-training-live-vector-/)).not.toBeInTheDocument()
+  })
+})
+
+// --- the training-crux set: the SAME parameterized dialog on CRUX_TRAINING_SET -----------------------------------
+
+describe('MazeTrainingDialog (Training Crux set)', () => {
+  beforeEach(() => {
+    stubLocalStorage()
+    clearTransformerWatchEntries()
+  })
+
+  afterEach(() => {
+    clearTransformerWatchEntries()
+    setTransformerWatchEnabled(false)
+    vi.unstubAllGlobals()
+  })
+
+  /** Crux meta fixture: base + jittered chains, per-chain tile pts + scores, the class band fields. */
+  function makeCruxMeta(id: string, bestScore: number | null): CruxTrainingMeta {
+    const spec = CRUX_TRAINING_WORLDS.find((s) => s.id === id)!
+    return {
+      id,
+      setupKey: spec.setupKey,
+      name: spec.name,
+      candidate: { policy: 'v3', label: 'v3 shipped (gen 1000)', gen: 1000, source: 'shippedPolicyV3.json' },
+      bestScore,
+      cls: 0,
+      emb: 0,
+      dir: -1,
+      chain: { points: 12, lengthM: 36.4 },
+      chains: { base: 1, jittered: 5 },
+      tileSvg: {
+        w: 127,
+        h: 220,
+        routes: Array.from({ length: 6 }, (_, i) => ({
+          pts: TILE_PTS[0].map((p) => [...p] as [number, number]),
+          score: i === 2 ? null : 40 - i,
+        })),
+      },
+    } as CruxTrainingMeta
+  }
+
+  it('renders the Training Crux panel: own title, crux testids, class info chips, chain badge', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = String(input)
+        if (url.includes('policy-evolution/candidates.json')) throw new Error('offline')
+        const match = url.match(/exampleWorlds\/([^/]+)\/meta\.json$/)
+        const id = decodeURIComponent(match?.[1] ?? '')
+        if (!CRUX_TRAINING_WORLDS.some((s) => s.id === id)) throw new Error(`unexpected fetch: ${url}`)
+        return { ok: true, json: async () => makeCruxMeta(id, 43) }
+      }),
+    )
+    render(<MazeTrainingDialog isOpen trainingSet={CRUX_TRAINING_SET} onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    // the maze panel testids stay absent; the crux ones carry the crux prefix + the crux title
+    expect(screen.queryByTestId('maze-training-panel')).not.toBeInTheDocument()
+    const header = screen.getByTestId('crux-training-panel-header')
+    expect(header).toBeInTheDocument()
+    expect(screen.getByText('Training Crux')).toBeInTheDocument()
+    expect(screen.getByText(`${CRUX_TRAINING_WORLDS.length} runs`)).toBeInTheDocument()
+    await user.click(header)
+    for (const spec of CRUX_TRAINING_WORLDS) {
+      expect(screen.getByTestId(`crux-training-card-${spec.id}`)).toBeInTheDocument()
+      expect(screen.getByText(spec.name)).toBeInTheDocument()
+      // the row info chip is the class / embodiment / direction line (the maze rows show "seed 2001");
+      // several worlds of the band share a class/embodiment/direction combo, so count per line
+      expect(screen.getAllByText(cruxTrainingInfo(spec)).length).toBeGreaterThan(0)
+    }
+    // the weakest-link noun is "chain", the badge names the chains (not "ways / reversed"); the fixture's
+    // tile scores are [40, 39, null, 37, 36, 35] -> the worst is 35 on chain 6
+    expect(screen.getAllByText('Worst: 35 pts · chain 6')).toHaveLength(CRUX_TRAINING_WORLDS.length)
+    expect(screen.getAllByText('6 chains')).toHaveLength(CRUX_TRAINING_WORLDS.length)
+    expect(screen.queryByText(/reversed/)).not.toBeInTheDocument()
+  })
+
+  it('expands base + jitter chain tiles; a tile click starts the run on that chain', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = String(input)
+        if (url.includes('policy-evolution/candidates.json')) throw new Error('offline')
+        const match = url.match(/exampleWorlds\/([^/]+)\/meta\.json$/)
+        const id = decodeURIComponent(match?.[1] ?? '')
+        if (!CRUX_TRAINING_WORLDS.some((s) => s.id === id)) throw new Error(`unexpected fetch: ${url}`)
+        return { ok: true, json: async () => makeCruxMeta(id, 43) }
+      }),
+    )
+    const onPlay = vi.fn()
+    render(<MazeTrainingDialog isOpen trainingSet={CRUX_TRAINING_SET} onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    await user.click(screen.getByTestId('crux-training-panel-header'))
+    await screen.findAllByText('6 chains')
+    await user.click(screen.getByTestId('crux-training-row-crux_train_1'))
+    // 6 tiles: the base path first (green start), then the jittered variants
+    expect(screen.getByTestId('crux-training-route-tile-crux_train_1-0')).toHaveAttribute(
+      'aria-label',
+      'Crux Training 1 chain 1 (base path)',
+    )
+    expect(screen.getByTestId('crux-training-route-tile-crux_train_1-3')).toHaveAttribute(
+      'aria-label',
+      'Crux Training 1 chain 4 (jittered variant)',
+    )
+    expect(screen.getByText('Chain 4 (jitter)')).toBeInTheDocument()
+    expect(screen.getByTestId('crux-training-thumb-crux_train_1-2')).toHaveAttribute('src', expect.stringContaining('route_2.svg'))
+    await user.click(screen.getByTestId('crux-training-route-tile-crux_train_1-2'))
+    expect(onPlay).toHaveBeenCalledWith('crux_train_1', 2, null)
+  })
+
+  it('reads the crux.* watch labels of the live run (live score + segment for the focused chain)', async () => {
+    setTransformerWatchEnabled(true)
+    publishTransformerWatchEntry({ entityId: 'policy_car_body_2', configStackIndex: 3, label: 'crux.score', value: '37 pts' })
+    publishTransformerWatchEntry({ entityId: 'policy_car_body_2', configStackIndex: 3, label: 'crux.seg', value: '4' })
+    const user = userEvent.setup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = String(input)
+        if (url.includes('policy-evolution/candidates.json')) throw new Error('offline')
+        const match = url.match(/exampleWorlds\/([^/]+)\/meta\.json$/)
+        const id = decodeURIComponent(match?.[1] ?? '')
+        if (!CRUX_TRAINING_WORLDS.some((s) => s.id === id)) throw new Error(`unexpected fetch: ${url}`)
+        return { ok: true, json: async () => makeCruxMeta(id, 43) }
+      }),
+    )
+    render(
+      <MazeTrainingDialog
+        isOpen
+        trainingSet={CRUX_TRAINING_SET}
+        onClose={() => {}}
+        onPlayExampleWorld={() => {}}
+        liveRun={{ worldId: 'crux_train_1', routeIndex: 2 }}
+      />,
+    )
+    await user.click(screen.getByTestId('crux-training-panel-header'))
+    await screen.findAllByText('6 chains')
+    await user.click(screen.getByTestId('crux-training-row-crux_train_1'))
+    expect(screen.getByText('Live: 37 pts')).toBeInTheDocument()
+    const overlay = screen.getByTestId('crux-training-live-vector-crux_train_1-2')
+    expect(overlay.querySelectorAll('line')).toHaveLength(2)
+    // only the focused chain gets the overlay
+    expect(screen.queryByTestId('crux-training-live-vector-crux_train_1-0')).not.toBeInTheDocument()
   })
 })
