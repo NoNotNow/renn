@@ -150,6 +150,18 @@ function worstScoreLabel(meta: TrainingMeta, noun: string): string {
 }
 
 /**
+ * Header health dot color: the weakest-link aggregate as one glance — Σ Worst ÷ Σ Best mapped onto the
+ * green→red hue scale (ratio 1 = every run's stuck route scores as well as its best = green, 0 = stuck at
+ * zero = red; >1 clamps to green since the sums count different route sets). Gray while either side is
+ * unmeasured.
+ */
+function headerHealthColor(sumBest: number | null, sumWorst: number | null): string {
+  if (sumBest == null || sumWorst == null || sumBest <= 0) return theme.text.muted
+  const health = Math.max(0, Math.min(1, sumWorst / sumBest))
+  return `hsl(${Math.round(health * 120)}, 75%, 45%)`
+}
+
+/**
  * Live active-vector overlay for the focused route's thumbnail: the route's chain polyline dimmed, plus the
  * segment the run currently drives as a glowing halo+core stroke. Pure render of the parsed live watch state.
  */
@@ -600,13 +612,27 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
           {trainingSet.worlds.length} runs
         </span>
         {totalsLine ? (
-          <span
-            data-testid={`${trainingSet.testid}-training-header-totals`}
-            title="Totals across the runs: sum of each run's best score and sum of its worst route score (the stuck routes)"
-            style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}
-          >
-            {totalsLine}
-          </span>
+          <>
+            <span
+              data-testid={`${trainingSet.testid}-training-header-health`}
+              aria-hidden={true}
+              title="Weakest-link health: Σ Worst ÷ Σ Best — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not measured yet"
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                flexShrink: 0,
+                background: headerHealthColor(sumBest, sumWorst),
+              }}
+            />
+            <span
+              data-testid={`${trainingSet.testid}-training-header-totals`}
+              title="Totals across the runs: sum of each run's best score and sum of its worst route score (the stuck routes)"
+              style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}
+            >
+              {totalsLine}
+            </span>
+          </>
         ) : null}
         {candidatesFile && candidatesFile.candidates.length > 0 ? (
           <span

@@ -28,6 +28,13 @@ function stubLocalStorage(): Map<string, string> {
   return storage
 }
 
+/** jsdom normalizes hsl() in the background shorthand to rgb(); run the expected color through the same path. */
+function normalizedBackground(css: string): string {
+  const probe = document.createElement('span')
+  probe.style.background = css
+  return probe.style.background
+}
+
 /** Tile fixture: shared svg pixel size, one chain polyline (6 points) per route, per-route scores. */
 const TILE_PTS: Array<Array<[number, number]>> = [
   [
@@ -128,6 +135,7 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByText(`${MAZE_TRAINING_WORLDS.length} runs`)).toBeInTheDocument()
     // offline: no meta loaded -> no totals in the header strip
     expect(screen.queryByTestId('maze-training-header-totals')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('maze-training-header-health')).not.toBeInTheDocument()
     expect(screen.queryAllByTestId(/^maze-training-card-/)).toHaveLength(0)
     expect(screen.queryByTestId('maze-training-resize-handle')).not.toBeInTheDocument()
   })
@@ -152,7 +160,24 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getAllByText('3 ways · 1 reversed')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     // header totals: sum of the bests (9x123, one world null) and of the worsts (10x140)
     expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 1107 pts · Σ Worst: 1400 pts')
+    // header health dot: Σ Worst (1400) ÷ Σ Best (1107) > 1 clamps to full health -> green
+    expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground('hsl(120, 75%, 45%)'))
     expect(screen.getByTestId('maze-training-resize-handle')).toBeInTheDocument()
+  })
+
+  it('colors the header health dot red when the stuck routes score zero', async () => {
+    // best 100 per world, route 2 stuck at 0 -> Σ Best 1000, Σ Worst 0 -> health 0 -> red
+    const pts = TILE_PTS[0].map((p) => [...p] as [number, number])
+    stubFetchWithMeta((spec) => ({
+      ...makeMeta(spec, 100, { forward: 2, reversed: 0 }),
+      tileSvg: { w: 206, h: 220, routes: [{ pts, score: 100 }, { pts, score: 0 }] },
+    }))
+    const user = userEvent.setup()
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByText('Best: 100 pts')
+    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 1000 pts · Σ Worst: 0 pts')
+    expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground('hsl(0, 75%, 45%)'))
   })
 
   it('a row click expands its route tiles (one per way); clicking a tile selects the way it started', async () => {
@@ -375,6 +400,8 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getAllByText('Worst: —')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     // header totals: bests sum (10x77), no worst data at all
     expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 770 pts · Σ Worst: —')
+    // Σ Worst unmeasured -> the health dot stays gray
+    expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground(theme.text.muted))
     for (const spec of MAZE_TRAINING_WORLDS) {
       expect(screen.getByTestId(`maze-training-card-${spec.id}`)).toBeInTheDocument()
     }
@@ -543,6 +570,8 @@ describe('MazeTrainingDialog (Training Crux set)', () => {
     expect(screen.getAllByText('Worst: 35 pts · chain 6')).toHaveLength(CRUX_TRAINING_WORLDS.length)
     expect(screen.getAllByText('6 chains')).toHaveLength(CRUX_TRAINING_WORLDS.length)
     expect(screen.queryByText(/reversed/)).not.toBeInTheDocument()
+    // the crux panel carries the same header health dot: Σ Best 25x43, Σ Worst 25x35 -> health 875/1075
+    expect(screen.getByTestId('crux-training-header-health').style.background).toBe(normalizedBackground('hsl(98, 75%, 45%)'))
   })
 
   it('expands base + jitter chain tiles; a tile click starts the run on that chain', async () => {
