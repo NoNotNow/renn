@@ -23,13 +23,13 @@ const TRAIN = {
   state: resolve(root, 'training-data/policy-evolution/v3cruxnose.json'),
   log: resolve(root, 'training-data/policy-evolution/v3cruxnose.log'),
   nohupLog: resolve(root, 'training-data/policy-evolution/v3cruxnose.nohup.log'),
-  targetGen: 3000,
-  why: 'policy evolution: v3cruxnose FRESH run (2026-10-12, Manuel: "ganz von vorne, nur mit den crux - neue minimazes aus der Fail-Analyse des v3nose-Runs"): cold start from random nets (NO warm start) with the nose-anchored command on the NEW 2-class crux band (NC1 fast corner - the leg-0 offcourse-at-speed failures, 17-22 m/s, bearing err ~-48 deg; NC2 start swing - the slip-76 corner-exit / lateral-start failures), each crux in several embodiments, the noise via the jittered goal-vector variants: --kinds crux only, batch 6, speedCap 10 (fitness normalizer). Goal: a candidate that clears the crux band (15 train / 10 holdout setups) and then the 10 dialog training mazes.',
+  targetGen: 6000,
+  why: 'policy evolution: v3cruxnose FRESH run (2026-10-12, Manuel: "ganz von vorne, nur mit den crux - neue minimazes aus der Fail-Analyse des v3nose-Runs"): cold start from random nets (NO warm start) with the nose-anchored command on the NEW 2-class crux band (NC1 fast corner - the leg-0 offcourse-at-speed failures, 17-22 m/s, bearing err ~-48 deg; NC2 start swing - the slip-76 corner-exit / lateral-start failures), each crux in several embodiments, the noise via the jittered goal-vector variants: --kinds crux only, batch 6, speedCap 10 (fitness normalizer). Goal: a candidate that clears the crux band (15 train / 10 holdout setups) and then the 10 dialog training mazes. Extension to 6000 — best was still moving at gen 3000.',
   // the documented resume command (single source of truth; run-v3.sh re-attaches the tee log itself).
   // caffeinate -is: the run holds its own PreventIdleSleep assertion - the Mac does not idle-sleep while training
   // (the sleep timer is 1 minute; without this the run pauses whenever display/audio/Chrome-wake-lock release).
   // caffeinate exits when its child (run-v3.sh) exits, so a clean stop releases the assertion automatically.
-  start: 'V3_OUT=training-data/policy-evolution/v3cruxnose.json V3_EXTRA_ARGS="--kinds crux --batch 6 --speed-cap 10" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 3000 9 > training-data/policy-evolution/v3cruxnose.nohup.log 2>&1 &',
+  start: 'V3_OUT=training-data/policy-evolution/v3cruxnose.json V3_EXTRA_ARGS="--kinds crux --batch 6 --speed-cap 10" nohup caffeinate -is bash tools/policy-evolution/run-v3.sh 6000 9 > training-data/policy-evolution/v3cruxnose.nohup.log 2>&1 &',
 }
 const WATCH = {
   why: 'auto-trial watcher: deploys the newest candidate into the maze + crux training worlds every 2 min (skips cycles without a new best)',
