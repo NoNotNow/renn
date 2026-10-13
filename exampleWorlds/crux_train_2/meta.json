@@ -4,11 +4,11 @@
   "name": "Crux Training 2",
   "candidate": {
     "policy": "v3",
-    "label": "v3cruxnose-focus trial (gen 0)",
-    "gen": 0,
+    "label": "v3cruxnose trial (gen 3575)",
+    "gen": 3575,
     "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
   },
-  "bestScore": 54.1,
+  "bestScore": 54,
   "cls": 1,
   "emb": 0,
   "dir": -1,
@@ -91,7 +91,7 @@
             132.1
           ]
         ],
-        "score": 52.3
+        "score": 52.2
       },
       {
         "pts": [
@@ -225,7 +225,7 @@
             128.9
           ]
         ],
-        "score": 52.5
+        "score": 52.4
       },
       {
         "pts": [
@@ -371,7 +371,7 @@
             133.3
           ]
         ],
-        "score": 54.1
+        "score": 54
       },
       {
         "pts": [
@@ -444,7 +444,7 @@
             134.1
           ]
         ],
-        "score": 52.6
+        "score": 52.5
       }
     ]
   }

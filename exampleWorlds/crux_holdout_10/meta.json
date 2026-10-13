@@ -4,8 +4,8 @@
   "name": "Crux Holdout 10",
   "candidate": {
     "policy": "v3",
-    "label": "v3cruxnose-focus trial (gen 0)",
-    "gen": 0,
+    "label": "v3cruxnose trial (gen 3575)",
+    "gen": 3575,
     "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
   },
   "bestScore": 46.1,
@@ -79,7 +79,7 @@
             40
           ]
         ],
-        "score": 44.7
+        "score": 44.9
       },
       {
         "pts": [
