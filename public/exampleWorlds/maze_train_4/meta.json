@@ -4,11 +4,11 @@
   "name": "Maze Training 4",
   "candidate": {
     "policy": "v3",
-    "label": "v3cruxnose trial (gen 3575)",
-    "gen": 3575,
+    "label": "v3cruxnose-focus trial (gen 0)",
+    "gen": 0,
     "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
   },
-  "bestScore": 153,
+  "bestScore": 190.8,
   "chain": {
     "points": 10,
     "lengthM": 139.2
@@ -64,7 +64,7 @@
             10
           ]
         ],
-        "score": 153
+        "score": 157.5
       },
       {
         "pts": [
@@ -117,7 +117,7 @@
             10
           ]
         ],
-        "score": 26.9
+        "score": 26.1
       },
       {
         "pts": [
@@ -170,7 +170,7 @@
             10
           ]
         ],
-        "score": 27.7
+        "score": 190.8
       },
       {
         "pts": [
@@ -215,7 +215,7 @@
             193.7
           ]
         ],
-        "score": 146.3
+        "score": 18.5
       },
       {
         "pts": [
@@ -268,7 +268,7 @@
             193.7
           ]
         ],
-        "score": 46.1
+        "score": 44.9
       }
     ]
   }

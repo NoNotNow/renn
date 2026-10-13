@@ -4,11 +4,11 @@
   "name": "Crux Holdout 8",
   "candidate": {
     "policy": "v3",
-    "label": "v3cruxnose trial (gen 3575)",
-    "gen": 3575,
+    "label": "v3cruxnose-focus trial (gen 0)",
+    "gen": 0,
     "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
   },
-  "bestScore": 45.2,
+  "bestScore": 45.8,
   "cls": 0,
   "emb": 0,
   "dir": -1,
@@ -79,7 +79,7 @@
             39.2
           ]
         ],
-        "score": 44.2
+        "score": 44.6
       },
       {
         "pts": [
@@ -140,7 +140,7 @@
             41
           ]
         ],
-        "score": 45
+        "score": 45.3
       },
       {
         "pts": [
@@ -201,7 +201,7 @@
             40.7
           ]
         ],
-        "score": 44.2
+        "score": 44.3
       },
       {
         "pts": [
@@ -258,7 +258,7 @@
             38.7
           ]
         ],
-        "score": 44.2
+        "score": 43.8
       },
       {
         "pts": [
@@ -323,7 +323,7 @@
             37
           ]
         ],
-        "score": 44.7
+        "score": 44.6
       },
       {
         "pts": [
@@ -384,7 +384,7 @@
             37.3
           ]
         ],
-        "score": 45.2
+        "score": 45.8
       }
     ]
   }

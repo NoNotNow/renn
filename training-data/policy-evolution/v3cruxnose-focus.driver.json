@@ -1,0 +1,71 @@
+{
+ "schema": "renn.policy-evolution.focus-curriculum/1",
+ "phase": "kept",
+ "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/v3cruxnose.json",
+ "state": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/v3cruxnose-focus.json",
+ "focusSetups": [
+  "crux:5",
+  "crux:12"
+ ],
+ "baseline": {
+  "trainFails": [
+   "crux:5#0v3",
+   "crux:5#1v3",
+   "crux:5#3v3",
+   "crux:7#3v3",
+   "crux:12#0v3",
+   "crux:12#2v3",
+   "crux:13#1v3",
+   "crux:13#2v3",
+   "crux:13#5v3",
+   "crux:17#5v3"
+  ],
+  "holdoutFails": [
+   "crux:1003~1#5v3",
+   "crux:1005~1#0v3",
+   "crux:1005~1#4v3",
+   "crux:1005~1#5v3",
+   "crux:1007~1#0v3",
+   "crux:1007~1#5v3"
+  ]
+ },
+ "round": 2,
+ "rounds": [
+  {
+   "round": 1,
+   "focusSetups": [
+    "crux:5",
+    "crux:7",
+    "crux:12",
+    "crux:13",
+    "crux:17"
+   ],
+   "verdict": {
+    "focusFails": 3,
+    "otherFails": 0,
+    "baseOther": 0,
+    "holdoutFails": 3,
+    "holdoutBase": 6
+   }
+  },
+  {
+   "round": 2,
+   "focusSetups": [
+    "crux:5",
+    "crux:12"
+   ],
+   "verdict": {
+    "focusFails": 0,
+    "otherFails": 0,
+    "baseOther": 5,
+    "holdoutFails": 3,
+    "holdoutBase": 6
+   }
+  }
+ ],
+ "maxRounds": 5,
+ "startedAt": "2026-10-13T18:11:51.586Z",
+ "updatedAt": "2026-10-13T18:16:07.297Z",
+ "focusPassedAt": "2026-10-13T18:15:08.340Z",
+ "verdict": "validated"
+}
