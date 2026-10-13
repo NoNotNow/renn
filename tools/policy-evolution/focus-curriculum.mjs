@@ -84,6 +84,18 @@ const saveDs = (o) => {
 }
 const phase = () => ds?.phase ?? 'diagnose'
 
+/** A fresh cycle's checkpoint copy can carry a STALE focusPass / focusSetups (a promoted focus lineage IS a focus
+ *  state file) - the focus phase would read the stale allPass and skip every chunk. Invalidate both right after the
+ *  copy (the first --focus-setups chunk writes the fresh set). */
+function invalidateStaleFocusState() {
+  const f = readJson(state)
+  if (f.focusPass || f.focusSetups) {
+    delete f.focusPass
+    delete f.focusSetups
+    writeJson(state, f)
+  }
+}
+
 /** The real v3cruxnose training must not run concurrently (cores + it owns the shared exports). */
 function assertNoTrainer() {
   const r = spawnSync('node', [resolve(root, 'tools/policy-evolution/train-ctl.mjs'), 'status'], { cwd: root, encoding: 'utf8' })
@@ -176,9 +188,20 @@ if (!ds) {
   assertNoTrainer()
   const policyFile = arg('policy', undefined) !== undefined ? resolve(root, arg('policy', undefined)) : checkpointBest
   if (arg('policy', undefined) === undefined) {
-    const b = readJson(src).best
-    if (!b?.genome) throw new Error(`${basename(src)} has no best.genome - nothing to diagnose`)
-    writeJson(checkpointBest, { schema: 'renn.policy-evolution.focus-candidate/1', genome: b.genome, gen: b.gen, source: src })
+    // the checkpoint-diagnose candidate: the lineage's LAST KNOWN-GOOD candidate - the epoch-best first (a promoted
+    // focus lineage stores the validated candidate there; its stored file.best can be a stale pre-focus genome), the
+    // stored best as the fallback (normal runs never write epochBest)
+    const f = readJson(src)
+    const eb = f.epochBest
+    const b = f.best
+    const cand = eb?.genome
+      ? { genome: eb.genome, gen: eb.gen, kind: 'epoch-best' }
+      : b?.genome
+        ? { genome: b.genome, gen: b.gen, kind: 'stored best' }
+        : null
+    if (!cand) throw new Error(`${basename(src)} has neither epochBest nor best.genome - nothing to diagnose`)
+    log(`checkpoint candidate: the ${cand.kind} (gen ${cand.gen})`)
+    writeJson(checkpointBest, { schema: 'renn.policy-evolution.focus-candidate/1', genome: cand.genome, gen: cand.gen, source: src })
   }
   log(`phase DIAGNOSE: the current best of ${basename(src)}`)
   const d = diagnose(policyFile, 'checkpoint')
@@ -198,6 +221,7 @@ if (!ds) {
   }
   log(`phase CHECKPOINT: cp ${basename(src)} -> ${basename(state)} (the source stays the untouched rollback point)`)
   copyFileSync(src, state)
+  invalidateStaleFocusState()
   saveDs({
     schema: 'renn.policy-evolution.focus-curriculum/1',
     phase: 'focus',
@@ -219,6 +243,7 @@ for (;;) {
     if (!existsSync(state)) {
       log(`focus state file missing - re-checkpointing from ${basename(src)}`)
       copyFileSync(src, state)
+      invalidateStaleFocusState()
     }
     const spec = ds.focusSetups.join(',')
     log(`round ${ds.round}/${ds.maxRounds}: phase FOCUS - train ONLY [${spec}] (${ds.focusSetups.length} setups, all their chains) until every focus chain passes (max ${maxFocusChunks} epoch chunks)`)
