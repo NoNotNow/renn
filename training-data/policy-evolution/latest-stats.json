@@ -6,22 +6,22 @@
   "crux"
  ],
  "speedCap": 10,
- "gen": 3000,
- "updatedAt": "2026-10-12T22:21:10.756Z",
- "elapsedSec": 3450,
+ "gen": 4100,
+ "updatedAt": "2026-10-13T16:32:04.373Z",
+ "elapsedSec": 1467,
  "islands": {
   "centers": [
-   0.936,
-   0.941,
-   0.933
+   0.925,
+   0.925,
+   0.442
   ],
   "ages": [
-   1050,
-   25,
-   0
+   400,
+   300,
+   50
   ],
   "stagns": [
-   2,
+   0,
    0,
    0
   ],
@@ -30,71 +30,62 @@
    1,
    1
   ],
-  "globalStagn": 2,
+  "globalStagn": 0,
   "globalBoost": 1,
-  "focus": {
-   "set": [
-    0
-   ],
-   "epochs": 1,
-   "sinceGen": 2975,
-   "max": 4
-  }
+  "focus": null
  },
  "stage": {
   "share": 0,
   "ema": 0
  },
  "epoch": {
-  "gen": 3000,
+  "gen": 4100,
   "scores": [
-   0.9475446077924556,
-   0.9475393996215224,
-   0.939397537784704
+   0.9371691797101058,
+   0.9375245785786612,
+   0.879191895514103
   ],
-  "bestIsland": 0,
-  "replaced": 2,
-  "by": "immigrant",
+  "bestIsland": 1,
   "train": {
-   "fitness": 0.9376445611652419,
-   "finished": 38,
+   "fitness": 0.9381942471846171,
+   "finished": 40,
    "total": 40,
    "worst3": [
-    0.9376445611652419,
-    0.9381942279449338,
-    0.9399966893543682
+    0.9381942471846171,
+    0.9383404572975964,
+    0.9399963449885836
    ]
   },
   "holdout": {
-   "fitness": 0.8832069493180146,
-   "finished": 27,
+   "fitness": 0.812066537307729,
+   "finished": 28,
    "total": 28
   },
   "perKind": [
    {
     "kind": "crux",
     "chains": 28,
-    "finished": 27,
-    "finishRate": 0.9642857142857143,
+    "finished": 28,
+    "finishRate": 1,
     "setups": 5,
-    "setupsAllFinished": 4,
-    "allFinishedShare": 0.8,
+    "setupsAllFinished": 5,
+    "allFinishedShare": 1,
     "offcourse": 0,
-    "crashes": 1,
-    "reverseShare": 0.00044742729306487686,
-    "maxReverseM": 0.019406067760518505,
+    "crashes": 0,
+    "reverseShare": 0,
+    "maxReverseM": 0,
     "reversedEpisodes": 0
    }
   ]
  },
  "best": {
-  "gen": 3000,
-  "train": 0.9376445611652419,
-  "holdout": 0.8832069493180146,
+  "gen": 3575,
+  "train": 0.938194255719633,
+  "holdout": 0.8762614723388671,
   "worst3": [
-   0.9376445611652419,
-   0.9381942279449338,
-   0.9399966893543682
+   0.938194255719633,
+   0.9383181293370026,
+   0.939997330174071
   ]
  },
  "why": "every 20 gens"
