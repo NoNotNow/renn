@@ -58,7 +58,7 @@ export interface MazeTrainingMeta {
   seed: number
   name: string
   candidate: MazeTrainingCandidate
-  /** best headless score of the candidate on this maze (max over all route cars; points = vector path + speed bonus); null until measured */
+  /** best headless score of the candidate on this maze (max over all route cars; points = vector path + along-chain speed bonus); null until measured */
   bestScore: number | null
   /** stats of the primary (shortest forward) guidance chain */
   chain: { points: number; lengthM: number }
@@ -372,7 +372,7 @@ export const MAZE_CARROT_COLOR = '#aa44ff'
  * shifted chain, `chains` = ALL shifted chains, `chainColors` = per-chain [start, end] color pairs, `cars` = all car
  * entity ids, `idx` = the own copy index, `hud` = only car 0 writes the HUD score, `walls` = the own copy's wall rect
  * corner polys for the line-of-sight gate). Monotone arc-length progress along
- * the own tapered chain (1 pt / m, never backwards) plus a speed bonus (up to `bonusRate` pt/s at `vRef`) minus a
+ * the own tapered chain (1 pt / m, never backwards) plus an along-chain speed bonus (up to `bonusRate` pt/s at `vRef`, paid on the CREDITED progress dS/dt of the frame - raw speed pays nothing while the progress is LOS-frozen) minus a
  * per-second TOUCH penalty (wall contact via `isTouchingSide` costs `wallPenaltyPerS`, object contact — any contact
  * without a lateral one and without support below the hull, i.e. not merely standing on the ground — costs
  * `objectPenaltyPerS`; walls cost more than objects). THE OWN-CAR ANCHOR IS THE NOSE (center + fwd * NOSE_M, the same

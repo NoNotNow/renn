@@ -90,7 +90,7 @@ export interface CruxTrainingMeta {
   setupKey: string
   name: string
   candidate: TrainingCandidate
-  /** best headless score of the candidate on this crux (max over all chain cars; points = chain progress + speed bonus); null until measured */
+  /** best headless score of the candidate on this crux (max over all chain cars; points = chain progress + along-chain speed bonus); null until measured */
   bestScore: number | null
   /** crux class of the setup seed: 0 = NC1 fast corner, 1 = NC2 start swing */
   cls: 0 | 1
@@ -155,7 +155,7 @@ export const CRUX_CARROT_COLOR = MAZE_CARROT_COLOR
 /**
  * Custom-transformer code of the per-car score stage — the SHARED training score stage (trainingScoreStage.ts, the
  * same contract as MAZE_SCORE_STAGE_CODE) with the 'crux.*' watch labels: monotone arc-length progress along the own
- * chain polyline plus a speed bonus minus touch penalties, the wall line-of-sight gate on the progress credit (the
+ * chain polyline plus an along-chain speed bonus minus touch penalties, the wall line-of-sight gate on the progress credit (the
  * copy's own walls), the high-water-mark display score, the goal-reach finish freeze and the chain + carrot drawing
  * (car 0 draws every chain: base green -> orange, jittered variants blue -> orange).
  */

@@ -8,7 +8,7 @@
     "gen": 3000,
     "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
   },
-  "bestScore": 45,
+  "bestScore": 44,
   "cls": 1,
   "emb": 0,
   "dir": -1,
@@ -258,7 +258,7 @@
             117.2
           ]
         ],
-        "score": 44
+        "score": 43
       },
       {
         "pts": [
@@ -311,7 +311,7 @@
             121.2
           ]
         ],
-        "score": 45
+        "score": 44
       },
       {
         "pts": [

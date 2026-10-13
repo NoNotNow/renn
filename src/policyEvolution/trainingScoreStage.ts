@@ -1,6 +1,6 @@
 /**
  * Shared code string of the per-car score stage of the PLAYABLE training worlds (maze + crux): monotone arc-length
- * progress along the own chain polyline (1 pt / m) plus a speed bonus minus per-second touch penalties, with the wall
+ * progress along the own chain polyline (1 pt / m) plus an ALONG-CHAIN speed bonus (credited progress dS/dt, capped at vRef) minus per-second touch penalties, with the wall
  * line-of-sight gate on the progress credit (WALL_LOS_JS), the high-water-mark display score, the goal-reach finish
  * freeze and the chain + carrot drawing. ONE definition so the two training sets cannot diverge; the only per-set
  * difference is the `api.watch` label PREFIX ('maze.*' / 'crux.*' - the training dialog's live overlay reads it).
@@ -76,9 +76,17 @@ function transform(input, dt, params, state, api) {
     }
     state.seg = bestSeg
     // line-of-sight gate: only credit the projection when the car -> projected chain point segment crosses no wall —
-    // the previous credit stands while occluded (bonus / penalties keep running, the carrot vector stays the aim)
+    // the previous credit stands while occluded (the carrot vector, 8 m of arc ahead, can round a corner and cross a
+    // wall: it is a preview, the credit itself is what is gated). Penalties keep running while occluded.
+    var sPrev = state.s
     if (bestS > state.s && !losBlocked(state.los, px, pz, bestPX, bestPZ)) state.s = bestS
-    state.bonus += (v / vRef) * dt * (params.bonusRate || 5)
+    // the speed bonus pays the ALONG-CHAIN speed: this frame's CREDITED progress (dS / dt, capped at vRef). Raw
+    // |velocity| paid wrong-way driving, reversing and fast approaches at frozen progress (carrot through the wall,
+    // LOS-gated s) up to bonusRate pts/s — the score rose without any credited metre. Credited dS is 0 in all of
+    // those cases, so only forward progress along the chain earns the bonus.
+    var alongV = dt > 0 ? (state.s - sPrev) / dt : 0
+    if (alongV > vRef) alongV = vRef
+    state.bonus += (alongV / vRef) * dt * (params.bonusRate || 5)
     state.penalty += dt * (wallT ? (params.wallPenaltyPerS || 12) : objT ? (params.objectPenaltyPerS || 4) : 0)
   }
   var score = Math.floor(state.s + state.bonus - state.penalty)
