@@ -37,7 +37,13 @@ the checkpointed state. Reusable pipeline machinery, not a one-off script.
      `--focus-setups "<failing setups>"` until `focusPass.allPass` (cap `--max-focus-chunks 40` -> roll back).
    - **VALIDATE**: `--no-focus-setups` (ALL setups re-included) for `--validate-gens` generations (default 50 — the
      "50 runs" of the user spec are interpreted as 50 TRAINING generations; the flag makes it tunable), then diagnose the
-     new best again. **KEPT** only if (i) every focus setup's chain passes, (ii) the OTHER train setups have no new
+     **EPOCH-BEST candidate** — the last epoch-end best island (`file.epochBest`, written by every chunk: the driver runs
+     all chunks with `--epoch-best`, a v3 flag persisted like `speedCap`). **NOT the stored `file.best`**: it only moves
+     when the FULL-band fitness improves, and neither the focused fitness nor the recovering one beats the pre-focus
+     best — the FIRST real cycle proved it (focus passed at gen 4175, validation recovered 68/76 -> 73/76 train and
+     47/54 -> 51/54 holdout, but the verdict diagnosed the old gen-3575 genome byte-identically and rolled back a
+     candidate that never went through focus). Fallback to `file.best` only for state files without `epochBest` (old
+     format; logged). **KEPT** only if (i) every focus setup's chain passes, (ii) the OTHER train setups have no new
      failures vs the checkpoint diagnosis, (iii) holdout does not regress.
    - **Verdict**: KEPT = the validated copy is the new lineage (promote it MANUALLY: `cp v3cruxnose-focus.json
      v3cruxnose.json`, then `train-ctl.mjs start`); ROLLED BACK = the focus files are renamed `*.rejected-<ts>.json`,
@@ -49,8 +55,11 @@ the checkpointed state. Reusable pipeline machinery, not a one-off script.
 - The real v3cruxnose run trains/evaluates on the DEFAULT band (`--train-per-kind 8` -> 40 train chains, 27 holdout);
   the pinned/decision band is 15/10 (76/54). The driver passes `--train-per-kind 15 --holdout-per-kind 10` for the focus
   run, so the epoch-end TRAIN eval and the diagnose band coincide and the focus setups (crux:12/13/17 are OUTSIDE the
-  default 8-setup band) are inside the training evaluation. The stored best's 40-element trainVec re-anchors at the
-  first epoch end under `beatsBest`'s padded-zero semantics (missing episodes count as worst case) — expected, not a bug.
+  default 8-setup band) are inside the training evaluation. NOTE (first real cycle): the stored best's 40-element
+  trainVec does NOT re-anchor on the wider band — `beatsBest`/`lexGreater` decides at the FIRST differing position, and
+  the wider band's worst values (the failing setups, ~0.5 x peak) are LOWER than the old band's worst (~0.938), so the
+  stored `file.best` stays the pre-focus genome for the whole cycle. That is exactly why the verdict candidate is the
+  EPOCH-BEST (`file.epochBest`), not the stored best.
 - The pass check evaluates the BEST ISLAND of the epoch (the live population), not the stored `file.best`: during focus
   the stored best can lag (it only updates when the FULL band improves), and the validation phase exists precisely to
   repair collateral damage before anything is kept.

@@ -10,8 +10,11 @@
  *      setups fully excluded) until the best island passes EVERY chain of every focus setup (run-islands writes
  *      focusPass into the state file at each epoch end; cap --max-focus-chunks, then roll back)
  *   4. VALIDATES: resumes the copy WITHOUT focus (--no-focus-setups, ALL setups re-included) for --validate-gens
- *      generations (default 50), then diagnoses the new best again: KEPT only if (i) every focus setup fully passes,
- *      (ii) the OTHER train setups have no new failures vs the checkpoint diagnosis, (iii) HOLDOUT does not regress
+ *      generations (default 50), then diagnoses the EPOCH-BEST candidate (the last epoch-end best island, file.epochBest -
+ *      every chunk runs with --epoch-best): KEPT only if (i) every focus setup fully passes, (ii) the OTHER train setups
+ *      have no new failures vs the checkpoint diagnosis, (iii) HOLDOUT does not regress. NOT the stored file.best: it
+ *      only moves on a full-band fitness improvement, and the focused / recovering fitness does not beat the pre-focus
+ *      best - the first real cycle's verdict diagnosed the old pre-focus genome byte-identically.
  *   5. Verdict: KEPT = the validated copy is the new lineage (promote it MANUALLY - this driver NEVER writes the
  *      source state file); ROLLED BACK = the copy is renamed *.rejected-<ts>.json and the untouched source IS the
  *      state to resume.
@@ -91,10 +94,13 @@ function diagnose(policyFile, tag) {
 
 const setupOf = (chainKey) => chainKey.split('#')[0]
 
-/** One trainer chunk (resume of the focus state file); throws on a nonzero exit. */
+/** One trainer chunk (resume of the focus state file); throws on a nonzero exit. --epoch-best on every chunk: the
+ *  verdict candidate is the LAST EPOCH-END BEST ISLAND (file.epochBest), not the stored file.best - a focused /
+ *  recovering run's fitness does not beat the stored full-band best, so file.best can stay a pre-focus genome for a
+ *  whole cycle (the first real cycle proved it: the verdict diagnosed the old gen-3575 genome byte-identically). */
 function runTrainer(extra, gens) {
   const args = [
-    'tsx', 'tools/policy-evolution/run-islands.ts', '--v3', '--resume',
+    'tsx', 'tools/policy-evolution/run-islands.ts', '--v3', '--resume', '--epoch-best',
     '--out', state, '--gens', String(gens), '--workers', String(workers),
     '--kinds', kinds, '--batch', String(batch),
     '--train-per-kind', String(trainPerKind), '--holdout-per-kind', String(holdoutPerKind),
@@ -132,10 +138,9 @@ function rollback(reason) {
   saveDs({ ...(ds ?? {}), phase: 'rolled-back', verdict: reason })
 }
 
-function keep(d2, focusSetups, base) {
-  const b = readJson(state).best
+function keep(cand, d2, focusSetups, base) {
   log(`  focus setups ALL PASS; other train failures ${d2.trainFails.filter((k) => !focusSetups.includes(setupOf(k))).length} (checkpoint ${base.trainFails.filter((k) => !focusSetups.includes(setupOf(k))).length}); holdout failures ${d2.holdoutFails.length} (checkpoint ${base.holdoutFails.length})`)
-  log(`FOCUS CURRICULUM VERDICT: KEPT - the validated lineage is ${basename(state)} (gen ${readJson(state).state?.gen}, best gen ${b?.gen})`)
+  log(`FOCUS CURRICULUM VERDICT: KEPT - the validated lineage is ${basename(state)} (gen ${readJson(state).state?.gen}); the validated candidate is the epoch-best (gen ${cand.gen}${cand.island !== undefined ? `, island ${cand.island}` : ''}) -> ${basename(candidateBest)}`)
   log(`  promote it MANUALLY (this driver never writes ${basename(src)}): cp ${basename(state)} ${basename(src)}, then resume the real training (train-ctl.mjs start)`)
   saveDs({ ...(ds ?? {}), phase: 'kept', verdict: 'validated' })
 }
@@ -168,7 +173,7 @@ if (!ds) {
     log(`DRY RUN - no focus state written (only the read-only diagnose artifacts). Plan:`)
     log(`  checkpoint: cp ${basename(src)} -> ${basename(state)} (the source stays the untouched rollback point)`)
     log(`  focus chunks: trainer --focus-setups "${focusSetups.join(',')}" in one-epoch chunks until focusPass.allPass (max ${maxFocusChunks} chunks)`)
-    log(`  validate: trainer --no-focus-setups --gens ${validateGens} (ALL setups re-included), then diagnose + keep/rollback`)
+    log(`  validate: trainer --no-focus-setups --gens ${validateGens} (ALL setups re-included), then diagnose the epoch-best candidate + keep/rollback`)
     process.exit(0)
   }
   log(`phase CHECKPOINT: cp ${basename(src)} -> ${basename(state)} (the source stays the untouched rollback point)`)
@@ -220,9 +225,21 @@ if (phase() === 'validate') {
   assertNoTrainer()
   log(`phase VALIDATE: ${validateGens} full-band generations (--no-focus-setups - ALL setups re-included), then the verdict diagnose`)
   runTrainer(['--no-focus-setups'], validateGens)
-  const b = readJson(state).best
-  if (!b?.genome) throw new Error(`${basename(state)} has no best.genome after validation`)
-  writeJson(candidateBest, { schema: 'renn.policy-evolution.focus-candidate/1', genome: b.genome, gen: b.gen, source: state })
+  // the verdict candidate: the LAST EPOCH-END BEST ISLAND (file.epochBest, written by every --epoch-best chunk) - the
+  // candidate that actually went through focus + validation. NOT the stored file.best: it only moves on a full-band
+  // fitness improvement, and a focused / recovering fitness does not beat the pre-focus best (first real cycle: the
+  // verdict diagnosed the old gen-3575 genome byte-identically). Fallback (old state files / flag never set): file.best.
+  const f = readJson(state)
+  const eb = f.epochBest
+  const b = f.best
+  const cand = eb?.genome
+    ? { genome: eb.genome, gen: eb.gen, island: eb.island }
+    : b?.genome
+      ? { genome: b.genome, gen: b.gen }
+      : null
+  if (!cand) throw new Error(`${basename(state)} has neither epochBest nor best.genome after validation`)
+  log(`verdict candidate: ${eb?.genome ? `the epoch-end best island (gen ${eb.gen}, island ${eb.island})` : `FALLBACK to the stored file.best (gen ${b.gen}) - no epochBest in the state file (--epoch-best was never set)`}`)
+  writeJson(candidateBest, { schema: 'renn.policy-evolution.focus-candidate/1', genome: cand.genome, gen: cand.gen, ...(cand.island !== undefined ? { island: cand.island } : {}), source: state })
   const d2 = diagnose(candidateBest, 'validated')
   const focusFails = d2.trainFails.filter((k) => focusSetups.includes(setupOf(k)))
   const otherFails = d2.trainFails.filter((k) => !focusSetups.includes(setupOf(k)))
@@ -231,7 +248,7 @@ if (phase() === 'validate') {
   const trainOk = otherFails.length <= baseOther.length
   const holdoutOk = d2.holdoutFails.length <= base.holdoutFails.length
   log(`verdict check: (i) focus setups ${focusOk ? 'ALL PASS' : `${focusFails.length} still failing [${focusFails.join(' ')}]`}; (ii) other train failures ${otherFails.length} vs checkpoint ${baseOther.length}${trainOk ? '' : ` NEW [${otherFails.join(' ')}]`}; (iii) holdout failures ${d2.holdoutFails.length} vs checkpoint ${base.holdoutFails.length}${holdoutOk ? '' : ` REGRESSED [${d2.holdoutFails.join(' ')}]`}`)
-  if (focusOk && trainOk && holdoutOk) keep(d2, focusSetups, base)
+  if (focusOk && trainOk && holdoutOk) keep(cand, d2, focusSetups, base)
   else rollback(`validation failed: (i) ${focusOk ? 'pass' : `${focusFails.length} focus chains still fail`}, (ii) ${otherFails.length} other train failures vs ${baseOther.length}, (iii) ${d2.holdoutFails.length} holdout failures vs ${base.holdoutFails.length}`)
   process.exit(0)
 }

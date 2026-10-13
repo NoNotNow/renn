@@ -32,6 +32,10 @@
  *   setups (setup keys, or the chain keys a diagnose --list prints, mapped to their setups; ALL chains of each, the normal variant
  *   rotation) until every focus chain passes; the epoch-end island ranking runs on them too. The passing setups are fully excluded,
  *   not down-weighted. Given at creation or resume; persisted like speedCap (a resume keeps the stored set), --no-focus-setups clears it.
+ * --epoch-best (v3, persisted like speedCap): track the best island's center at EVERY epoch end as file.epochBest
+ *   {gen, island, genome}. The focus-curriculum driver sets it (focus + validation chunks): its verdict candidate is this
+ *   epoch-best, NOT the stored file.best - a focused / recovering run's fitness does not beat the stored full-band best, so
+ *   file.best can stay a pre-focus genome for a whole cycle (the first real cycle proved it).
  * --lex-eps E (v3, creation only - persisted in config like speedCap): rank-tie tolerance for the lex vector ranks; near-tie
  *   candidates share their rank instead of getting opposite ranks off evaluation noise. 0/absent = strict (old behaviour).
  *   Calibration: the per-gen log prints `lex ties F`, the share of candidate pairs sharing a rank (starves the gradient when high).
@@ -90,6 +94,10 @@ interface RunFile {
   focusSetups?: string[]
   /** last epoch-end focus pass check (the driver's phase-exit signal): per-setup finished chains on the canonical focus episodes */
   focusPass?: FocusPassReport
+  /** opt-in v3 epoch-best tracking (--epoch-best, persisted so --resume keeps it): the best island's center is stored at every epoch end */
+  epochBestOn?: true
+  /** the last epoch-end best island (written when epochBestOn): the focus-curriculum driver's verdict candidate */
+  epochBest?: { gen: number; island: number; genome: number[] }
   stage?: StageState | null
   config: EsConfig
   islands: IslandsConfig
@@ -132,6 +140,9 @@ async function main() {
   if (args['focus-setups'] !== undefined) focusSetups = parseFocusSetups(String(args['focus-setups']), kinds)
   else if (!args['no-focus-setups'] && resumed && file!.focusSetups?.length) focusSetups = file!.focusSetups
   if (focusSetups && !v3) throw new Error('--focus-setups needs --v3')
+  // --epoch-best (v3, persisted like speedCap): resume keeps the stored flag; the driver sets it on its focus + validation chunks
+  const epochBestOn = resumed ? !!file!.epochBestOn : !!args['epoch-best']
+  if (epochBestOn && !v3) throw new Error('--epoch-best needs --v3')
   let warm = args.warm ? v2GenomeFromFile(JSON.parse(fs.readFileSync(String(args.warm), 'utf8'))) : undefined
   if (warm && !v2) throw new Error('--warm needs --v2')
   if (args.hidden !== undefined && !v2) throw new Error('--hidden needs --v2')
@@ -239,6 +250,8 @@ async function main() {
   // the effective focus set is part of the run file (like speedCap): a plain resume of a focused run stays focused
   if (focusSetups) file!.focusSetups = focusSetups
   else delete file!.focusSetups
+  if (epochBestOn) file!.epochBestOn = true
+  else delete file!.epochBestOn
   const isl = new IslandEs(file!.config, file!.islands, file!.state, fitness, fitnessVec, csa)
   const pool = new PolicyPool(workers)
   const evaluate = pool.evaluator()
@@ -388,6 +401,9 @@ async function main() {
           line += `\n  FOCUS ended: ${done ? `islands [${focusBefore.set.join(' ')}] over the hump` : `capped at ${FOCUS_MAX_EPOCHS} epochs (stagn counters reset)`}`
         }
         const theta = isl.state.islands[best]!.es.theta.slice()
+        // epoch-best tracking (v3 --epoch-best): the winner's center at every epoch end - the population's current best
+        // candidate, independent of the stored file.best (which only moves on a full-band fitness improvement)
+        if (epochBestOn) file!.epochBest = { gen: isl.state.gen, island: best, genome: theta }
         const [tr, ho] = await Promise.all([evaluate(theta, train), evaluate(theta, holdout)])
         const trainFit = fitness(tr)
         const holdFit = fitness(ho)
