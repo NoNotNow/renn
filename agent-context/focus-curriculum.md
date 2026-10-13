@@ -43,11 +43,18 @@ the checkpointed state. Reusable pipeline machinery, not a one-off script.
      best — the FIRST real cycle proved it (focus passed at gen 4175, validation recovered 68/76 -> 73/76 train and
      47/54 -> 51/54 holdout, but the verdict diagnosed the old gen-3575 genome byte-identically and rolled back a
      candidate that never went through focus). Fallback to `file.best` only for state files without `epochBest` (old
-     format; logged). **KEPT** only if (i) every focus setup's chain passes, (ii) the OTHER train setups have no new
-     failures vs the checkpoint diagnosis, (iii) holdout does not regress.
-   - **Verdict**: KEPT = the validated copy is the new lineage (promote it MANUALLY: `cp v3cruxnose-focus.json
-     v3cruxnose.json`, then `train-ctl.mjs start`); ROLLED BACK = the focus files are renamed `*.rejected-<ts>.json`,
-     the untouched checkpoint is resumed as before.
+     format; logged).
+   - **ITERATE** (user decision after cycle 3, the first honest verdict: focus passed, validation improved holdout
+     6 -> 3 but 3 focus chains still failed — rolled back by the old single-shot logic): a failed verdict whose
+     failures are **ONLY focus chains** (no new other-train failures vs the CHECKPOINT diagnosis, holdout not regressed)
+     starts the **NEXT ROUND** on the residual failing setups (cycle 3 round 2 would have been `crux:5,crux:12`) —
+     same flow: focused chunks until `allPass` on the reduced set (the stale `focusPass` of the previous round is
+     invalidated), then another validation window. Up to `--max-rounds` rounds (default 5, persisted in the driver
+     state); real damage ((ii) or (iii) broken) rolls back immediately — the safety net. The driver state keeps a
+     `rounds[]` history (per-round focus set + verdict numbers) and both final verdicts summarize it.
+   - **Verdict**: **KEPT after N rounds** = the validated copy is the new lineage (promote it MANUALLY: `cp
+     v3cruxnose-focus.json v3cruxnose.json`, then `train-ctl.mjs start`); **ROLLED BACK after N rounds** = the focus
+     files are renamed `*.rejected-<ts>.json`, the untouched checkpoint is resumed as before.
    - `--dry-run` diagnoses and prints the plan without writing the focus state.
 
 ## Decisions worth remembering

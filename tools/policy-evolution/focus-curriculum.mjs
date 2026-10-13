@@ -15,9 +15,13 @@
  *      have no new failures vs the checkpoint diagnosis, (iii) HOLDOUT does not regress. NOT the stored file.best: it
  *      only moves on a full-band fitness improvement, and the focused / recovering fitness does not beat the pre-focus
  *      best - the first real cycle's verdict diagnosed the old pre-focus genome byte-identically.
- *   5. Verdict: KEPT = the validated copy is the new lineage (promote it MANUALLY - this driver NEVER writes the
+ *   5. ITERATES: a failed verdict whose failures are ONLY focus chains (no new other-train failures, holdout not
+ *      regressed) starts the NEXT ROUND on the residual failing setups (round 2 of the first honest cycle: crux:5,
+ *      crux:12) - same flow, another validation window. Up to --max-rounds rounds (default 5); real damage (ii or iii
+ *      broken) rolls back immediately, no further rounds - that is the safety net.
+ *   6. Verdict: KEPT = the validated copy is the new lineage (promote it MANUALLY - this driver NEVER writes the
  *      source state file); ROLLED BACK = the copy is renamed *.rejected-<ts>.json and the untouched source IS the
- *      state to resume.
+ *      state to resume. Both verdicts summarize every round (focus set + verdict numbers per round).
  * HOLDOUT failures are diagnosed and gated but NEVER trained on (holdout integrity).
  * Restartable: <stem>-focus.driver.json records the phase; a restart continues the phase it stopped in
  * (a finished cycle - kept / rolled-back - starts a FRESH diagnose). Started / stopped via train-ctl.mjs (job FOCUS):
@@ -25,8 +29,8 @@
  *   node tools/policy-evolution/train-ctl.mjs stop      # stops the driver + its trainer chunk
  *
  *   node tools/policy-evolution/focus-curriculum.mjs [--source FILE] [--policy FILE] [--validate-gens 50]
- *       [--max-focus-chunks 40] [--workers cores-1] [--kinds crux] [--train-per-kind 15] [--holdout-per-kind 10]
- *       [--batch 6] [--dry-run]
+ *       [--max-rounds 5] [--max-focus-chunks 40] [--workers cores-1] [--kinds crux] [--train-per-kind 15]
+ *       [--holdout-per-kind 10] [--batch 6] [--dry-run]
  */
 import { spawnSync } from 'node:child_process'
 import { cpus } from 'node:os'
@@ -57,6 +61,7 @@ const trainPerKind = num('train-per-kind', 15)
 const holdoutPerKind = num('holdout-per-kind', 10)
 const batch = num('batch', 6)
 const validateGens = num('validate-gens', 50)
+const maxRounds = num('max-rounds', 5)
 const maxFocusChunks = num('max-focus-chunks', 40)
 const workers = num('workers', Math.max(1, cpus().length - 1))
 
@@ -64,7 +69,15 @@ const log = (s) => console.log(`[focus ${new Date().toISOString()}] ${s}`)
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'))
 const writeJson = (p, o) => writeFileSync(p, `${JSON.stringify(o, null, 1)}\n`)
 
+// the driver state makes the cycle restartable: a stop/restart continues in the phase (and round) it stopped in
 let ds = null
+try {
+  ds = existsSync(driverFile) ? readJson(driverFile) : null
+  if (ds && typeof ds !== 'object') ds = null
+} catch (e) {
+  log(`driver state ${basename(driverFile)} is unreadable (${e.message}) - starting a fresh cycle`)
+  ds = null
+}
 const saveDs = (o) => {
   ds = { ...o, updatedAt: new Date().toISOString() }
   writeJson(driverFile, ds)
@@ -129,20 +142,27 @@ const focusPass = () => {
 }
 const fmtPass = (p) => (p ? `${p.perSetup.map((x) => `${x.setupKey} ${x.finished}/${x.chains}`).join(' ')}${p.allPass ? ' (ALL PASS)' : ''}` : 'no pass check yet')
 
+const roundsSummary = () =>
+  (ds?.rounds ?? []).length
+    ? (ds.rounds ?? []).map((r) => `round ${r.round} [${r.focusSetups.join(' ')}]: ${r.verdict.focusFails} focus chains still fail, ${r.verdict.otherFails} other train failures (checkpoint ${r.verdict.baseOther}), ${r.verdict.holdoutFails} holdout failures (checkpoint ${r.verdict.holdoutBase})`).join('\n  ')
+    : 'no validation round completed'
+
 /** Verdict paths. Rollback renames the focus files aside; the untouched source IS the checkpoint to resume. */
 function rollback(reason) {
   const ts = new Date().toISOString().replace(/[:.]/g, '-')
   for (const p of [state, best, stats]) if (existsSync(p)) renameSync(p, p.replace(/\.json$/, `.rejected-${ts}.json`))
-  log(`FOCUS CURRICULUM VERDICT: ROLLED BACK (${reason})`)
+  log(`FOCUS CURRICULUM VERDICT: ROLLED BACK after ${ds?.round ?? 1} ${ds?.round === 1 ? 'round' : 'rounds'} - ${reason}`)
+  log(`  rounds:\n  ${roundsSummary()}`)
   log(`  the focus copy is moved aside as *.rejected-${ts}.json; the untouched checkpoint ${basename(src)} IS the state to resume (train-ctl.mjs start)`)
   saveDs({ ...(ds ?? {}), phase: 'rolled-back', verdict: reason })
 }
 
 function keep(cand, d2, focusSetups, base) {
   log(`  focus setups ALL PASS; other train failures ${d2.trainFails.filter((k) => !focusSetups.includes(setupOf(k))).length} (checkpoint ${base.trainFails.filter((k) => !focusSetups.includes(setupOf(k))).length}); holdout failures ${d2.holdoutFails.length} (checkpoint ${base.holdoutFails.length})`)
-  log(`FOCUS CURRICULUM VERDICT: KEPT - the validated lineage is ${basename(state)} (gen ${readJson(state).state?.gen}); the validated candidate is the epoch-best (gen ${cand.gen}${cand.island !== undefined ? `, island ${cand.island}` : ''}) -> ${basename(candidateBest)}`)
+  log(`  rounds:\n  ${roundsSummary()}`)
+  log(`FOCUS CURRICULUM VERDICT: KEPT after ${ds.round} ${ds.round === 1 ? 'round' : 'rounds'} - the validated lineage is ${basename(state)} (gen ${readJson(state).state?.gen}); the validated candidate is the epoch-best (gen ${cand.gen}${cand.island !== undefined ? `, island ${cand.island}` : ''}) -> ${basename(candidateBest)}`)
   log(`  promote it MANUALLY (this driver never writes ${basename(src)}): cp ${basename(state)} ${basename(src)}, then resume the real training (train-ctl.mjs start)`)
-  saveDs({ ...(ds ?? {}), phase: 'kept', verdict: 'validated' })
+  saveDs({ ...ds, phase: 'kept', verdict: 'validated' })
 }
 
 // --- phase 1 + 2: diagnose the current best, checkpoint the copy -----------------------------------------------------------------
@@ -173,7 +193,7 @@ if (!ds) {
     log(`DRY RUN - no focus state written (only the read-only diagnose artifacts). Plan:`)
     log(`  checkpoint: cp ${basename(src)} -> ${basename(state)} (the source stays the untouched rollback point)`)
     log(`  focus chunks: trainer --focus-setups "${focusSetups.join(',')}" in one-epoch chunks until focusPass.allPass (max ${maxFocusChunks} chunks)`)
-    log(`  validate: trainer --no-focus-setups --gens ${validateGens} (ALL setups re-included), then diagnose the epoch-best candidate + keep/rollback`)
+    log(`  validate: trainer --no-focus-setups --gens ${validateGens} (ALL setups re-included), then diagnose the epoch-best candidate; a verdict failing ONLY on focus chains iterates (up to ${maxRounds} rounds, next round = the residual failing setups), anything else keeps/rolls back`)
     process.exit(0)
   }
   log(`phase CHECKPOINT: cp ${basename(src)} -> ${basename(state)} (the source stays the untouched rollback point)`)
@@ -185,45 +205,47 @@ if (!ds) {
     state,
     focusSetups,
     baseline: d,
+    round: 1,
+    rounds: [],
+    maxRounds,
     startedAt: new Date().toISOString(),
   })
 }
 
-// --- phase 3: focused training until every focus chain passes --------------------------------------------------------------------
+// --- the focus / validation rounds (a failed validation whose failures are ONLY focus chains starts the NEXT ROUND on the residual setups) ----
 
-if (ds.phase === 'focus') {
-  if (!existsSync(state)) {
-    log(`focus state file missing - re-checkpointing from ${basename(src)}`)
-    copyFileSync(src, state)
+for (;;) {
+  if (ds.phase === 'focus') {
+    if (!existsSync(state)) {
+      log(`focus state file missing - re-checkpointing from ${basename(src)}`)
+      copyFileSync(src, state)
+    }
+    const spec = ds.focusSetups.join(',')
+    log(`round ${ds.round}/${ds.maxRounds}: phase FOCUS - train ONLY [${spec}] (${ds.focusSetups.length} setups, all their chains) until every focus chain passes (max ${maxFocusChunks} epoch chunks)`)
+    let passed = focusPass()?.allPass === true
+    for (let chunk = 1; !passed && chunk <= maxFocusChunks; chunk++) {
+      const cg = chunkToEpoch()
+      log(`focus chunk ${chunk}/${maxFocusChunks}: ${cg} gens from gen ${readJson(state).state?.gen} (--focus-setups "${spec}")`)
+      assertNoTrainer()
+      runTrainer(['--focus-setups', spec], cg)
+      passed = focusPass()?.allPass === true
+      log(`focus pass check after chunk ${chunk}: ${fmtPass(focusPass())}`)
+    }
+    if (passed) {
+      const p = focusPass()
+      log(`FOCUS PASSED at gen ${p.gen}: ${fmtPass(p)}`)
+      saveDs({ ...ds, phase: 'validate', focusPassedAt: new Date().toISOString() })
+    } else {
+      rollback(`the focus setups still fail after ${maxFocusChunks} chunks (${fmtPass(focusPass())})`)
+      process.exit(0)
+    }
   }
-  const spec = ds.focusSetups.join(',')
-  log(`phase FOCUS: train ONLY [${spec}] (${ds.focusSetups.length} setups, all their chains) until every focus chain passes (max ${maxFocusChunks} epoch chunks)`)
-  let passed = focusPass()?.allPass === true
-  for (let chunk = 1; !passed && chunk <= maxFocusChunks; chunk++) {
-    const cg = chunkToEpoch()
-    log(`focus chunk ${chunk}/${maxFocusChunks}: ${cg} gens from gen ${readJson(state).state?.gen} (--focus-setups "${spec}")`)
-    assertNoTrainer()
-    runTrainer(['--focus-setups', spec], cg)
-    passed = focusPass()?.allPass === true
-    log(`focus pass check after chunk ${chunk}: ${fmtPass(focusPass())}`)
-  }
-  if (passed) {
-    const p = focusPass()
-    log(`FOCUS PASSED at gen ${p.gen}: ${fmtPass(p)}`)
-    saveDs({ ...ds, phase: 'validate', focusPassedAt: new Date().toISOString() })
-  } else {
-    rollback(`the focus setups still fail after ${maxFocusChunks} chunks (${fmtPass(focusPass())})`)
-    process.exit(0)
-  }
-}
 
-// --- phase 4: full-band validation window, then the verdict ----------------------------------------------------------------------
-
-if (phase() === 'validate') {
+  if (phase() !== 'validate') throw new Error(`unexpected driver phase: ${phase()}`)
   const focusSetups = ds.focusSetups
   const base = ds.baseline
   assertNoTrainer()
-  log(`phase VALIDATE: ${validateGens} full-band generations (--no-focus-setups - ALL setups re-included), then the verdict diagnose`)
+  log(`round ${ds.round}/${ds.maxRounds}: phase VALIDATE - ${validateGens} full-band generations (--no-focus-setups - ALL setups re-included), then the verdict diagnose`)
   runTrainer(['--no-focus-setups'], validateGens)
   // the verdict candidate: the LAST EPOCH-END BEST ISLAND (file.epochBest, written by every --epoch-best chunk) - the
   // candidate that actually went through focus + validation. NOT the stored file.best: it only moves on a full-band
@@ -247,10 +269,33 @@ if (phase() === 'validate') {
   const focusOk = focusFails.length === 0
   const trainOk = otherFails.length <= baseOther.length
   const holdoutOk = d2.holdoutFails.length <= base.holdoutFails.length
-  log(`verdict check: (i) focus setups ${focusOk ? 'ALL PASS' : `${focusFails.length} still failing [${focusFails.join(' ')}]`}; (ii) other train failures ${otherFails.length} vs checkpoint ${baseOther.length}${trainOk ? '' : ` NEW [${otherFails.join(' ')}]`}; (iii) holdout failures ${d2.holdoutFails.length} vs checkpoint ${base.holdoutFails.length}${holdoutOk ? '' : ` REGRESSED [${d2.holdoutFails.join(' ')}]`}`)
-  if (focusOk && trainOk && holdoutOk) keep(cand, d2, focusSetups, base)
-  else rollback(`validation failed: (i) ${focusOk ? 'pass' : `${focusFails.length} focus chains still fail`}, (ii) ${otherFails.length} other train failures vs ${baseOther.length}, (iii) ${d2.holdoutFails.length} holdout failures vs ${base.holdoutFails.length}`)
+  log(`verdict check (round ${ds.round}): (i) focus setups ${focusOk ? 'ALL PASS' : `${focusFails.length} still failing [${focusFails.join(' ')}]`}; (ii) other train failures ${otherFails.length} vs checkpoint ${baseOther.length}${trainOk ? '' : ` NEW [${otherFails.join(' ')}]`}; (iii) holdout failures ${d2.holdoutFails.length} vs checkpoint ${base.holdoutFails.length}${holdoutOk ? '' : ` REGRESSED [${d2.holdoutFails.join(' ')}]`}`)
+  // the rounds history (per round: its focus set + the verdict numbers) - the final verdict summarizes it
+  saveDs({
+    ...ds,
+    rounds: [...(ds.rounds ?? []), { round: ds.round, focusSetups: [...focusSetups], verdict: { focusFails: focusFails.length, otherFails: otherFails.length, baseOther: baseOther.length, holdoutFails: d2.holdoutFails.length, holdoutBase: base.holdoutFails.length } }],
+  })
+  if (focusOk && trainOk && holdoutOk) {
+    keep(cand, d2, focusSetups, base)
+    process.exit(0)
+  }
+  // ITERATION: the failures are ONLY focus chains (no new other-train failures, holdout not regressed) -> the next
+  // round focuses on the residual failing setups (from THIS verdict diagnosis - nothing is re-diagnosed); real
+  // damage (ii or iii broken) falls through to the rollback - the safety net
+  if (focusFails.length > 0 && trainOk && holdoutOk) {
+    if (ds.round >= ds.maxRounds) {
+      rollback(`round cap ${ds.maxRounds} reached: (i) ${focusFails.length} focus chains still fail [${focusFails.join(' ')}], (ii) ${otherFails.length} other train failures vs ${baseOther.length}, (iii) ${d2.holdoutFails.length} holdout failures vs ${base.holdoutFails.length}`)
+      process.exit(0)
+    }
+    const residual = [...new Set(focusFails.map(setupOf))]
+    log(`iteration: the failures are ONLY focus chains [${focusFails.join(' ')}] - round ${ds.round + 1} focuses on the residual setups [${residual.join(' ')}]`)
+    // the previous round's focusPass (allPass) must not false-exit the next focus loop before any chunk ran
+    const fRound = readJson(state)
+    fRound.focusPass = null
+    writeJson(state, fRound)
+    saveDs({ ...ds, phase: 'focus', round: ds.round + 1, focusSetups: residual })
+    continue
+  }
+  rollback(`validation failed: (i) ${focusOk ? 'pass' : `${focusFails.length} focus chains still fail`}, (ii) ${otherFails.length} other train failures vs ${baseOther.length}, (iii) ${d2.holdoutFails.length} holdout failures vs ${base.holdoutFails.length}`)
   process.exit(0)
 }
-
-if (phase() !== 'focus') throw new Error(`unexpected driver phase: ${phase()}`)
