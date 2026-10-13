@@ -162,6 +162,19 @@ function headerHealthColor(sumBest: number | null, sumWorst: number | null): str
 }
 
 /**
+ * Row health dot color: the run's own weakest link — worst route score ÷ best score on the green→red hue
+ * scale (1 = the stuck route scores as well as the run's best = green, 0 = stuck at zero = red). Gray while
+ * either side is unmeasured.
+ */
+function rowHealthColor(meta: TrainingMeta): string {
+  const best = meta.bestScore
+  const worst = worstRouteScore(meta)
+  if (best == null || best <= 0 || worst == null) return theme.text.muted
+  const health = Math.max(0, Math.min(1, worst.score / best))
+  return `hsl(${Math.round(health * 120)}, 75%, 45%)`
+}
+
+/**
  * Live active-vector overlay for the focused route's thumbnail: the route's chain polyline dimmed, plus the
  * segment the run currently drives as a glowing halo+core stroke. Pure render of the parsed live watch state.
  */
@@ -768,6 +781,18 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
                   <div style={{ flex: 1 }} />
                   {exported && meta ? (
                     <>
+                      <span
+                        data-testid={`${trainingSet.testid}-training-row-health-${spec.id}`}
+                        aria-hidden={true}
+                        title="Weakest-link health: the run's worst route score ÷ its best score — green = the stuck route scores as well as the run's best, red = stuck at zero, gray = not measured yet"
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          flexShrink: 0,
+                          background: rowHealthColor(meta),
+                        }}
+                      />
                       <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>
                         {bestScoreLabel(meta)}
                       </span>

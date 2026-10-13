@@ -162,6 +162,12 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 1107 pts · Σ Worst: 1400 pts')
     // header health dot: Σ Worst (1400) ÷ Σ Best (1107) > 1 clamps to full health -> green
     expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground('hsl(120, 75%, 45%)'))
+    // every row carries its own health dot: worst (140) ÷ best (123) > 1 -> green; the null-best world stays gray
+    const rowDots = screen.getAllByTestId(/^maze-training-row-health-/)
+    expect(rowDots).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    const green = normalizedBackground('hsl(120, 75%, 45%)')
+    expect(rowDots.filter((dot) => dot.style.background === green)).toHaveLength(MAZE_TRAINING_WORLDS.length - 1)
+    expect(rowDots.filter((dot) => dot.style.background === normalizedBackground(theme.text.muted))).toHaveLength(1)
     expect(screen.getByTestId('maze-training-resize-handle')).toBeInTheDocument()
   })
 
@@ -178,6 +184,10 @@ describe('MazeTrainingDialog', () => {
     await screen.findAllByText('Best: 100 pts')
     expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 1000 pts · Σ Worst: 0 pts')
     expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground('hsl(0, 75%, 45%)'))
+    // per-row dot: worst (0) ÷ best (100) = 0 -> red on all rows
+    const rowDots = screen.getAllByTestId(/^maze-training-row-health-/)
+    expect(rowDots).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    for (const dot of rowDots) expect(dot.style.background).toBe(normalizedBackground('hsl(0, 75%, 45%)'))
   })
 
   it('a row click expands its route tiles (one per way); clicking a tile selects the way it started', async () => {
@@ -364,6 +374,8 @@ describe('MazeTrainingDialog', () => {
     })
     // tiles only render for exported worlds, so no run can be started
     expect(screen.queryAllByTestId(/maze-training-route-tile-/)).toHaveLength(0)
+    // no meta -> no Best/Worst labels and no row health dots either
+    expect(screen.queryAllByTestId(/^maze-training-row-health-/)).toHaveLength(0)
     expect(onPlay).not.toHaveBeenCalled()
   })
 
@@ -402,6 +414,10 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 770 pts · Σ Worst: —')
     // Σ Worst unmeasured -> the health dot stays gray
     expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground(theme.text.muted))
+    // rows: best measured but no per-route scores -> every row dot stays gray too
+    const rowDots = screen.getAllByTestId(/^maze-training-row-health-/)
+    expect(rowDots).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    for (const dot of rowDots) expect(dot.style.background).toBe(normalizedBackground(theme.text.muted))
     for (const spec of MAZE_TRAINING_WORLDS) {
       expect(screen.getByTestId(`maze-training-card-${spec.id}`)).toBeInTheDocument()
     }
@@ -572,6 +588,10 @@ describe('MazeTrainingDialog (Training Crux set)', () => {
     expect(screen.queryByText(/reversed/)).not.toBeInTheDocument()
     // the crux panel carries the same header health dot: Σ Best 25x43, Σ Worst 25x35 -> health 875/1075
     expect(screen.getByTestId('crux-training-header-health').style.background).toBe(normalizedBackground('hsl(98, 75%, 45%)'))
+    // and the same per-row dots: worst (35) ÷ best (43) -> health 35/43
+    const rowDots = screen.getAllByTestId(/^crux-training-row-health-/)
+    expect(rowDots).toHaveLength(CRUX_TRAINING_WORLDS.length)
+    for (const dot of rowDots) expect(dot.style.background).toBe(normalizedBackground('hsl(98, 75%, 45%)'))
   })
 
   it('expands base + jitter chain tiles; a tile click starts the run on that chain', async () => {
