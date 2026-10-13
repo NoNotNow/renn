@@ -6,74 +6,82 @@
   "crux"
  ],
  "speedCap": 10,
- "gen": 4100,
- "updatedAt": "2026-10-13T16:32:04.373Z",
- "elapsedSec": 1467,
+ "gen": 5140,
+ "updatedAt": "2026-10-13T18:53:15.559Z",
+ "elapsedSec": 1424,
  "islands": {
   "centers": [
-   0.925,
-   0.925,
-   0.442
+   0.935,
+   0.41,
+   0.934
   ],
   "ages": [
-   400,
-   300,
-   50
+   1415,
+   25,
+   890
   ],
   "stagns": [
+   3,
    0,
-   0,
-   0
+   3
   ],
   "boosts": [
    1,
    1,
    1
   ],
-  "globalStagn": 0,
+  "globalStagn": 3,
   "globalBoost": 1,
-  "focus": null
+  "focus": {
+   "set": [
+    0,
+    2
+   ],
+   "epochs": 2,
+   "sinceGen": 5075,
+   "max": 4
+  }
  },
  "stage": {
   "share": 0,
   "ema": 0
  },
  "epoch": {
-  "gen": 4100,
+  "gen": 5125,
   "scores": [
-   0.9371691797101058,
-   0.9375245785786612,
-   0.879191895514103
+   0.9420884658993572,
+   0.39240522548677,
+   0.9414228284824989
   ],
-  "bestIsland": 1,
+  "bestIsland": 0,
   "train": {
-   "fitness": 0.9381942471846171,
+   "fitness": 0.9381942452117695,
    "finished": 40,
    "total": 40,
    "worst3": [
-    0.9381942471846171,
-    0.9383404572975964,
-    0.9399963449885836
+    0.9381942452117695,
+    0.9383181434290996,
+    0.9399973207712774
    ]
   },
   "holdout": {
-   "fitness": 0.812066537307729,
-   "finished": 28,
+   "fitness": 0.4124233411031779,
+   "finished": 26,
    "total": 28
   },
   "perKind": [
    {
     "kind": "crux",
     "chains": 28,
-    "finished": 28,
-    "finishRate": 1,
+    "finished": 26,
+    "finishRate": 0.9285714285714286,
     "setups": 5,
-    "setupsAllFinished": 5,
-    "allFinishedShare": 1,
-    "offcourse": 0,
-    "crashes": 0,
-    "reverseShare": 0,
-    "maxReverseM": 0,
+    "setupsAllFinished": 3,
+    "allFinishedShare": 0.6,
+    "offcourse": 1,
+    "crashes": 1,
+    "reverseShare": 0.0004514672686230247,
+    "maxReverseM": 0.02028284609136672,
     "reversedEpisodes": 0
    }
   ]
