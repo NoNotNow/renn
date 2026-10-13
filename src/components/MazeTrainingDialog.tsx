@@ -150,15 +150,23 @@ function worstScoreLabel(meta: TrainingMeta, noun: string): string {
 }
 
 /**
- * Header health dot color: the weakest-link aggregate as one glance — Σ Worst ÷ Σ Best mapped onto the
- * green→red hue scale (ratio 1 = every run's stuck route scores as well as its best = green, 0 = stuck at
- * zero = red; >1 clamps to green since the sums count different route sets). Gray while either side is
- * unmeasured.
+ * Green→red hue mapper of every health dot: `worst ÷ best` (weakest link ÷ ceiling) with 1 = green (the stuck
+ * routes score as well as the best), 0 = red (stuck at zero) and >1 clamping to green (the two sides count
+ * different route sets). Gray while either side is unmeasured.
+ */
+function healthHueColor(best: number | null, worst: number | null): string {
+  if (best == null || worst == null || best <= 0) return theme.text.muted
+  const health = Math.max(0, Math.min(1, worst / best))
+  return `hsl(${Math.round(health * 120)}, 75%, 45%)`
+}
+
+/**
+ * Header health dot color: the weakest-link aggregate as one glance — Σ Worst ÷ Σ Best (ratio 1 = every run's
+ * stuck route scores as well as its best = green, 0 = stuck at zero = red; >1 clamps to green since the sums
+ * count different route sets). Gray while either side is unmeasured.
  */
 function headerHealthColor(sumBest: number | null, sumWorst: number | null): string {
-  if (sumBest == null || sumWorst == null || sumBest <= 0) return theme.text.muted
-  const health = Math.max(0, Math.min(1, sumWorst / sumBest))
-  return `hsl(${Math.round(health * 120)}, 75%, 45%)`
+  return healthHueColor(sumBest, sumWorst)
 }
 
 /**
@@ -167,11 +175,24 @@ function headerHealthColor(sumBest: number | null, sumWorst: number | null): str
  * either side is unmeasured.
  */
 function rowHealthColor(meta: TrainingMeta): string {
-  const best = meta.bestScore
-  const worst = worstRouteScore(meta)
-  if (best == null || best <= 0 || worst == null) return theme.text.muted
-  const health = Math.max(0, Math.min(1, worst.score / best))
-  return `hsl(${Math.round(health * 120)}, 75%, 45%)`
+  return healthHueColor(meta.bestScore, worstRouteScore(meta)?.score ?? null)
+}
+
+/** Min over the measured route scores of a candidate's per-world score snapshot; null when nothing is measured. */
+function candidateWorstRoute(routes: Array<number | null>): number | null {
+  const measured = routes.filter((s): s is number => s != null)
+  return measured.length > 0 ? Math.min(...measured) : null
+}
+
+/**
+ * Row health dot under the SELECTED candidate's headless scores — same weakest-link ratio as the deployed-side
+ * `rowHealthColor`, but from the candidate's per-world snapshot. Gray when that world has no scores (older
+ * deploy or a world the scoring pass did not cover).
+ */
+function candidateRowHealthColor(candidate: MazeCandidate, worldId: string): string {
+  const s = candidate.scores?.[worldId]
+  if (!s) return theme.text.muted
+  return healthHueColor(s.best, candidateWorstRoute(s.routes))
 }
 
 /**
@@ -554,6 +575,26 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
       ? `${sumBest != null ? `Σ Best: ${sumBest} pts` : 'Σ Best: —'} · ${sumWorst != null ? `Σ Worst: ${sumWorst} pts` : 'Σ Worst: —'}`
       : null
 
+  // health-dot aggregates follow the SELECTED candidate when a chip is active (its headless per-world scores,
+  // scored by export-maze-candidates.ts over this same training set); the numeric totals line keeps describing
+  // the DEPLOYED candidate. Gray until the candidate's scores cover at least one world of this set.
+  let dotSumBest: number | null = null
+  let dotSumWorst: number | null = null
+  if (selectedCandidate) {
+    const entries = selectedCandidate.scores
+      ? trainingSet.worlds.map((spec) => selectedCandidate.scores?.[spec.id]).filter((s): s is { best: number; routes: Array<number | null> } => s != null)
+      : []
+    dotSumBest = entries.length > 0 ? entries.reduce((a, s) => a + s.best, 0) : null
+    const dotWorsts = entries.map((s) => candidateWorstRoute(s.routes)).filter((w): w is number => w != null)
+    dotSumWorst = dotWorsts.length > 0 ? dotWorsts.reduce((a, w) => a + w, 0) : null
+  } else {
+    dotSumBest = sumBest
+    dotSumWorst = sumWorst
+  }
+  const healthTitle = selectedCandidate
+    ? `Weakest-link health of the SELECTED candidate (${selectedCandidate.label}${selectedCandidate.scoredGen != null ? ` · scored gen ${selectedCandidate.scoredGen}` : ''}): Σ worst ÷ Σ best of its headless scores — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not scored yet`
+    : 'Weakest-link health of the deployed candidate: Σ Worst ÷ Σ Best — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not measured yet'
+
   const panelHeight = expanded ? size.height : STRIP_HEIGHT
 
   return createPortal(
@@ -629,13 +670,13 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
             <span
               data-testid={`${trainingSet.testid}-training-header-health`}
               aria-hidden={true}
-              title="Weakest-link health: Σ Worst ÷ Σ Best — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not measured yet"
+              title={healthTitle}
               style={{
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
                 flexShrink: 0,
-                background: headerHealthColor(sumBest, sumWorst),
+                background: headerHealthColor(dotSumBest, dotSumWorst),
               }}
             />
             <span
@@ -662,7 +703,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
                   data-testid={`${trainingSet.testid}-training-candidate-chip-${candidate.id}`}
                   aria-pressed={active}
                   aria-label={`Candidate ${candidate.label}`}
-                  title={`${candidate.detail}${candidate.gen != null ? ` · gen ${candidate.gen}` : ''}${active ? ' — click again for the deployed candidate' : ''}`}
+                  title={`${candidate.detail}${candidate.gen != null ? ` · gen ${candidate.gen}` : ''}${candidate.scoredGen != null ? ` · scored gen ${candidate.scoredGen}` : ''}${active ? ' — click again for the deployed candidate' : ''}`}
                   onClick={(e) => {
                     e.stopPropagation()
                     handleCandidateChipClick(candidate.id)
@@ -784,13 +825,17 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
                       <span
                         data-testid={`${trainingSet.testid}-training-row-health-${spec.id}`}
                         aria-hidden={true}
-                        title="Weakest-link health: the run's worst route score ÷ its best score — green = the stuck route scores as well as the run's best, red = stuck at zero, gray = not measured yet"
+                        title={
+                          selectedCandidate
+                            ? `Weakest-link health of the SELECTED candidate (${selectedCandidate.label}): the run's worst route score ÷ its best under that model — green = the stuck route scores as well as the run's best, red = stuck at zero, gray = not scored yet`
+                            : "Weakest-link health: the run's worst route score ÷ its best score — green = the stuck route scores as well as the run's best, red = stuck at zero, gray = not measured yet"
+                        }
                         style={{
                           width: 8,
                           height: 8,
                           borderRadius: '50%',
                           flexShrink: 0,
-                          background: rowHealthColor(meta),
+                          background: selectedCandidate ? candidateRowHealthColor(selectedCandidate, spec.id) : rowHealthColor(meta),
                         }}
                       />
                       <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>

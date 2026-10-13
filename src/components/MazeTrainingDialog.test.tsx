@@ -108,9 +108,13 @@ function stubFetchWithMeta(
   )
 }
 
-/** Candidate fixture: minimal valid candidate (the dialog only reads id/label/gen/genome/detail). */
-function makeCandidate(id: string, label: string): MazeCandidate {
-  return { id, label, gen: 42, genome: [1, 2, 3], detail: `${label} detail` }
+/** Candidate fixture: minimal valid candidate (the dialog only reads id/label/gen/genome/detail/scores). */
+function makeCandidate(
+  id: string,
+  label: string,
+  scores?: Record<string, { best: number; routes: Array<number | null> }>,
+): MazeCandidate {
+  return { id, label, gen: 42, genome: [1, 2, 3], detail: `${label} detail`, ...(scores ? { scores, scoredGen: 42 } : {}) }
 }
 
 describe('MazeTrainingDialog', () => {
@@ -311,6 +315,38 @@ describe('MazeTrainingDialog', () => {
     expect(window.localStorage.getItem('mazeTrainingPanelCandidate')).toBe(JSON.stringify(null))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-2'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 2, null)
+  })
+
+  it('the health dots follow the selected candidate (its headless scores), not the deployed meta', async () => {
+    // deployed meta: best 123, worst route 150 -> green; island-0's scores: best 100, worst route 10 -> hsl(12)
+    const scores: Record<string, { best: number; routes: Array<number | null> }> = {}
+    for (const spec of MAZE_TRAINING_WORLDS) scores[spec.id] = { best: 100, routes: [100, 10] }
+    const candidates = [makeCandidate('island-0', 'I1', scores), makeCandidate('island-1', 'I2')]
+    stubFetchWithMeta((spec) => makeMeta(spec, 123, { forward: 2, reversed: 0 }), candidates)
+    const user = userEvent.setup()
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByText('Best: 123 pts')
+    const headerDot = () => screen.getByTestId('maze-training-header-health')
+    const rowDots = () => screen.getAllByTestId(/^maze-training-row-health-/)
+    const green = normalizedBackground('hsl(120, 75%, 45%)')
+    // deployed candidate (no chip active): worst 150 ÷ best 123 > 1 clamps to green
+    expect(headerDot().style.background).toBe(green)
+    expect(rowDots()).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    for (const dot of rowDots()) expect(dot.style.background).toBe(green)
+    // selecting island-0 switches every dot to ITS scores: worst 10 ÷ best 100 -> hsl(12)
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-0'))
+    const islandHue = normalizedBackground('hsl(12, 75%, 45%)')
+    expect(headerDot().style.background).toBe(islandHue)
+    for (const dot of rowDots()) expect(dot.style.background).toBe(islandHue)
+    // a candidate without shipped scores (older deploy) -> gray everywhere, NOT the deployed colors
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-1'))
+    expect(headerDot().style.background).toBe(normalizedBackground(theme.text.muted))
+    for (const dot of rowDots()) expect(dot.style.background).toBe(normalizedBackground(theme.text.muted))
+    // deselecting returns to the deployed candidate's colors
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-1'))
+    expect(headerDot().style.background).toBe(green)
+    for (const dot of rowDots()) expect(dot.style.background).toBe(green)
   })
 
   it('a chip click re-loads the live run with the new candidate when a run is driving', async () => {

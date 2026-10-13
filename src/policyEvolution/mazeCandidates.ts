@@ -22,6 +22,14 @@ export interface MazeCandidate {
   genome: number[]
   /** Tooltip line (island age / origin / stagnation, best/shipped provenance). */
   detail: string
+  /**
+   * Headless per-world scores of THIS genome (export-maze-candidates.ts scores every candidate over all maze +
+   * crux training worlds each watcher cycle): best over cars + the per-route scores, keyed by world id. The
+   * dialog's health dots follow the selected candidate's scores; missing on older deploys (dots stay gray).
+   */
+  scores?: Record<string, { best: number; routes: Array<number | null> }>
+  /** Generation the scores were measured at (the genomes move every gen; scores belong to the snapshot they shipped with). */
+  scoredGen?: number | null
 }
 
 /** Shape of `public/policy-evolution/candidates.json` (schema `renn.policy-evolution.candidates/1`). */

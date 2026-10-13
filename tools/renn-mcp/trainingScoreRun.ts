@@ -139,3 +139,44 @@ export async function scoreTrainingWorld(
     setAgentObservationWatchActive(false)
   }
 }
+
+/** One candidate's headless snapshot of one training world: best over cars + the per-route scores (candidates.json shape). */
+export interface TrainingCandidateWorldScores {
+  best: number
+  routes: Array<number | null>
+}
+
+/**
+ * Scores one already-built training world straight from its own score stages: extracts `vRef` / `bonusRate` from
+ * stage 0 and the per-copy chains + LOS walls (shifted per copy — the same extraction the maze + crux exporters do
+ * inline), then runs `scoreTrainingWorld`. Used by export-maze-candidates.ts to attach per-world scores to every
+ * candidate chip (the dialog's health dots follow the selected candidate instead of the deployed one).
+ */
+export async function scoreTrainingWorldStages(
+  world: RennWorld,
+  opts: {
+    scoreStageBase: string
+    carId: (i: number) => string
+    goalPrefix: string
+    goalReachM: number
+    watchLabel: string
+    maxSimS: number
+  },
+): Promise<TrainingCandidateWorldScores> {
+  const scoreStages = world.transformers as Record<string, { params?: { vRef?: number; bonusRate?: number; chains?: number[][][]; walls?: V2[][] } }>
+  const scoreStage0 = scoreStages[`${opts.scoreStageBase}0`]
+  const chainsWorld = (scoreStage0?.params?.chains ?? []) as number[][][]
+  const wallsWorld = Array.from({ length: chainsWorld.length }, (_, i) => (scoreStages[`${opts.scoreStageBase}${i}`]?.params?.walls ?? []) as V2[][])
+  const results = await scoreTrainingWorld(world, {
+    carId: opts.carId,
+    goalPrefix: opts.goalPrefix,
+    goalReachM: opts.goalReachM,
+    watchLabel: opts.watchLabel,
+    maxSimS: opts.maxSimS,
+    chains: chainsWorld,
+    walls: wallsWorld,
+    vRef: scoreStage0?.params?.vRef ?? 20,
+    bonusRate: scoreStage0?.params?.bonusRate ?? 5,
+  })
+  return { best: Math.max(...results.map((r) => r.score)), routes: results.map((r) => r.score) }
+}
