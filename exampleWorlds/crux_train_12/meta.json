@@ -4,11 +4,11 @@
   "name": "Crux Training 12",
   "candidate": {
     "policy": "v3",
-    "label": "v3cruxnose-focus trial (gen 0)",
-    "gen": 0,
+    "label": "v3cruxnose trial (gen 3575)",
+    "gen": 3575,
     "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
   },
-  "bestScore": 43.4,
+  "bestScore": 43.3,
   "cls": 1,
   "emb": 0,
   "dir": 1,
@@ -327,7 +327,7 @@
             123
           ]
         ],
-        "score": 43.4
+        "score": 43.3
       },
       {
         "pts": [
