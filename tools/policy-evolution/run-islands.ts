@@ -33,7 +33,8 @@
  *   rotation) until every focus chain passes; the epoch-end island ranking runs on them too. The passing setups are fully excluded,
  *   not down-weighted. Given at creation or resume; persisted like speedCap (a resume keeps the stored set), --no-focus-setups clears it.
  * --epoch-best (v3, persisted like speedCap): track the best island's center at EVERY epoch end as file.epochBest
- *   {gen, island, genome}. The focus-curriculum driver sets it (focus + validation chunks): its verdict candidate is this
+ *   {gen, island, genome}. Given at creation or on resume (--no-epoch-best clears it; a resume without either keeps the
+ *   stored value). The focus-curriculum driver sets it on its focus + validation chunks: its verdict candidate is this
  *   epoch-best, NOT the stored file.best - a focused / recovering run's fitness does not beat the stored full-band best, so
  *   file.best can stay a pre-focus genome for a whole cycle (the first real cycle proved it).
  * --lex-eps E (v3, creation only - persisted in config like speedCap): rank-tie tolerance for the lex vector ranks; near-tie
@@ -140,8 +141,10 @@ async function main() {
   if (args['focus-setups'] !== undefined) focusSetups = parseFocusSetups(String(args['focus-setups']), kinds)
   else if (!args['no-focus-setups'] && resumed && file!.focusSetups?.length) focusSetups = file!.focusSetups
   if (focusSetups && !v3) throw new Error('--focus-setups needs --v3')
-  // --epoch-best (v3, persisted like speedCap): resume keeps the stored flag; the driver sets it on its focus + validation chunks
-  const epochBestOn = resumed ? !!file!.epochBestOn : !!args['epoch-best']
+  // --epoch-best (v3, persisted like speedCap): --epoch-best sets tracking on RESUME too (the focus-curriculum driver's
+  // chunks always resume the checkpoint copy, whose source never stored the flag); --no-epoch-best clears it, a resume
+  // without either keeps the stored value
+  const epochBestOn = args['epoch-best'] ? true : args['no-epoch-best'] ? false : resumed ? !!file!.epochBestOn : false
   if (epochBestOn && !v3) throw new Error('--epoch-best needs --v3')
   let warm = args.warm ? v2GenomeFromFile(JSON.parse(fs.readFileSync(String(args.warm), 'utf8'))) : undefined
   if (warm && !v2) throw new Error('--warm needs --v2')
