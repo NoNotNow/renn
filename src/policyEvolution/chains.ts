@@ -1,6 +1,6 @@
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { createRng, type Rng } from '@/avEvolution/core/rng'
-import { adversarialStyle, ADV_SEED, ADV_VARIANT, ADVERSARIAL_KINDS, buildSetupCourse, CHAIN_KINDS, COURSE_LENGTH, COURSE_START, courseKey, isV3NewKind, parseCourseKey, V3_KINDS, type Course, type CourseKind } from './courses'
+import { adversarialStyle, ADV_SEED, ADV_VARIANT, ADVERSARIAL_KINDS, buildSetupCourse, CHAIN_KINDS, COURSE_LENGTH, COURSE_START, courseKey, cruxClass, cruxEmb, isV3NewKind, parseCourseKey, V3_KINDS, type Course, type CourseKind } from './courses'
 import { generateCruxChains } from './cruxChains'
 import { generateV3Chains } from './v3Chains'
 
@@ -933,13 +933,40 @@ export function adversarialSetupKeys(kinds: readonly CourseKind[] = ADVERSARIAL_
   return out
 }
 
+/**
+ * The crux HARD band (TRAIN-only append, the crux:1010~1 lesson, 2026-10-13): the KEPT focus candidate clears the whole
+ * standard crux train band (76/76) and 9 of 10 holdout setups, but fails the holdout setup crux:1010~1 (NC2 LATERAL) on
+ * every failing chain - a mid-corner slide into a gap stub during the start swing (frac ~0.42-0.46, residual speed
+ * 0-2 m/s, slip -63..-81 deg, noise-independent). Holdout setups are never trained on (holdout integrity), so the
+ * pattern is covered by TRAIN setups: PINNED reserved-band keys (seeds 2001+, variant >= 2 - like the adversarial keys
+ * these never collide with any standard scan: train scans variant 0, holdout variant 1) whose accepted chains the
+ * candidate fails the same way. Found by scanning the deterministic NC2-lateral draws (seeds = 2 mod 4 fix class 1
+ * embodiment 0) x variants 2..8 - 350 worlds, 4 honest failures, ALL WEST like crux:1010~1 (a direction-biased
+ * weakness); the three 6-chain ones are pinned here. The keys are PINNED, not scanned at runtime: a pinned key that
+ * ever fails the chain gates throws LOUD - the band never silently loses its edge. Anti-gaming: scoring is inherited
+ * (leg-wise chain progress + finish only).
+ */
+export const CRUX_HARD_SETUPS: readonly string[] = ['crux:2066~8', 'crux:2106~3', 'crux:2114~3']
+export function cruxHardSetupKeys(kinds: readonly CourseKind[] = V3_KINDS): string[] {
+  if (!kinds.includes('crux')) return []
+  for (const key of CRUX_HARD_SETUPS) {
+    const { kind, seed, variant } = parseCourseKey(key)
+    if (kind !== 'crux' || cruxClass(seed) !== 1 || cruxEmb(seed) !== 0)
+      throw new Error(`crux hard setup ${key}: not an NC2 lateral setup (class / embodiment are seed-fixed)`)
+    if (variant < 2) throw new Error(`crux hard setup ${key}: variant ${variant} collides with the standard band scans (needs variant >= 2)`)
+    if (chainsForSetup(key).length < MIN_CHAINS) throw new Error(`crux hard setup ${key} no longer passes the chain gates`)
+  }
+  return [...CRUX_HARD_SETUPS]
+}
+
 /** v3 TRAIN setups (seeds 1..) of the given kinds (any v3 kind), episode keys with the `v3` flag, grouped by setup. */
 export function trainV3Episodes(perKind = 6, kinds: readonly CourseKind[] = V3_KINDS): SetupChains[] {
   const standard = groupBySetup(acceptedSetupKeys(perKind, kinds, 1), true)
   // the failure-mined adversarial setups of the adversarial kinds in `kinds` are APPENDED to the standard band (train only; holdout stays
-  // untouched). Runtime consumers (run-islands / ship / diagnose) group by kind and rotate windows, so the appended setups flow into every
-  // generation's batch without any consumer change.
-  return [...standard, ...groupBySetup(adversarialSetupKeys(kinds), true)]
+  // untouched), and the crux kinds get the pinned hard band appended (crux:1010~1 pattern coverage, see cruxHardSetupKeys). Runtime
+  // consumers (run-islands / ship / diagnose) group by kind and rotate windows, so the appended setups flow into every generation's
+  // batch without any consumer change - and every existing setup id stays stable (appends only).
+  return [...standard, ...groupBySetup(adversarialSetupKeys(kinds), true), ...groupBySetup(cruxHardSetupKeys(kinds), true)]
 }
 
 /** v3 HOLDOUT setups (seeds 1001.., random start variant) of the given kinds, grouped by setup. */

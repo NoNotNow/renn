@@ -195,3 +195,36 @@ User request: "die crux kandidaten auch im dialog zugänglich und abspielbar - g
 - **Dialog**: `MazeTrainingDialog` is parameterized by a `trainingSet` prop (`TrainingSet`: worlds, car ids, watch labels, tile texts) — the SAME component serves "Training Mazes" (default) and "Training Crux" (`CRUX_TRAINING_SET`, File menu, own localStorage slots, `crux-training-*` testids, `crux.score`/`crux.seg` live labels, base/jitter chain tiles, "chain" wording). The same `candidates.json` chips swap the drive-stage weights of the loaded world (`applyMazeCandidate` is world-agnostic); the Builder focuses via `focusMazeRoute` / `focusCruxChain` (world id prefix `crux_`).
 - **Tests** `src/test/scenarios/crux-training-worlds.test.ts`: registry == live band enumeration, on-disk == exporter output for all 25, meta + candidate-aware (RENN_V3_GENOME_FILE), score-stage finish freeze + LOS gate, `focusCruxChain`, tile files; headless drive runs env-gated (`CRUX_TRAIN_SIM=1`) — the crux progress gate, green when a candidate clears every chain.
 - **Trial**: `train-ctl.mjs trial` exports BOTH world sets with the pinned candidate and runs BOTH on-disk gates (verdict lines per gate); the auto-trial watcher inherits this (it calls `trial`).
+
+## Crux hard band (2026-10-13): the crux:1010~1 pattern covered by TRAIN setups
+
+After the first KEPT focus cycle the full-band gate showed train 76/76 but holdout 51/54: the ONLY failing holdout
+setup is `crux:1010~1` (NC2 LATERAL, cls 1 emb 0, dir -1; all 3 failing chains) — a mid-corner slide into a gap stub
+during the start swing (frac 0.42-0.46, residual speed 0-2 m/s, slip -63..-81 deg, cone ray ~4.3 m one second before,
+fwd AND back ray inf, noise-independent — it crashes identically with sensor noise 0). It passed at the checkpoint
+(gen 3575) and broke during the focus cycles; the old holdout fails (1003~1/1005~1/1007~1) are fixed. Holdout setups are
+never trained on, so the lever is the TRAIN band (`chains.ts`).
+
+**Analysis** (seeds/variants probed read-only, 350 worlds): the failure is NOT a course-parameter outlier and NOT a
+start-jitter outlier — the candidate passes 25 natural NC2-lateral draws at variant 2 (canonical) and again at
+variant 3 (jittered), and passes natural seeds 18-40 (their NC2 laterals 18/22/26/30/34/38 all clear; it fails natural
+NC1 seeds 23/27/33 instead — a count bump would sharpen NC1, not this pattern). The failing dimension is the specific
+(route x start-pose) combination of a jittered chain variant. The empirical selector found 4 setups in a RESERVED
+band whose accepted chains the candidate fails with the 1010 signature — ALL WEST like crux:1010~1 (the weakness is
+direction-biased, an echo of the v3nose bearing-error sign bias).
+
+**Implementation** (`chains.ts`): `CRUX_HARD_SETUPS = ['crux:2066~8', 'crux:2106~3', 'crux:2114~3']` (the three 6-chain
+honest failures; `crux:2178~3` also fails but has only 3 chains) + `cruxHardSetupKeys(kinds)` — PINNED keys (not scanned
+at runtime; a key that ever fails the chain gates throws loud), reserved-band keyed (seeds 2001+, variant >= 2 — like
+the adversarial keys these never collide with any standard scan: train scans variant 0, holdout variant 1), NC2-lateral
+by the seed-fixed class/embodiment formulas. `trainV3Episodes` APPENDS them (after the adversarial append) — every
+existing setup id stays stable, holdout untouched; the trainer / diagnose / ship gate / focus driver all pick them up
+through `trainV3Episodes` with NO flag or count change. The 25 dialog worlds stay at the standard 15/10
+(`cruxTraining.ts` pins `acceptedSetupKeys`, not `trainV3Episodes`; exporting new dialog worlds would write
+`public/exampleWorlds/**` — deliberately not done here).
+
+**Verification**: the validated candidate on the sharpened band — train 18 setups / 94 chains, 90 finished; the 4
+failures are EXACTLY the new hard setups' chains (`crux:2066~8#1/#2`, `crux:2106~3#5`, `crux:2114~3#3`), signatures
+matching 1010~1 (frac 0.43-0.46, v 1.3-1.9 m/s, slip -69..-73 deg, cone 4.3-4.4 m, contact 17-22 deg); the old 76
+chains all still pass; holdout unchanged 51/54. `crux.test.ts` pins the appended band and runs the full structural
+invariants (chain gates, NO DEAD ZEROS pursuit baseline, NC2-lateral signatures) over the hard setups too.

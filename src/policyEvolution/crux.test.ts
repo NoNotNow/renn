@@ -6,6 +6,8 @@ import {
   chainEpisodeKey,
   chainsForSetup,
   CLEARANCE,
+  CRUX_HARD_SETUPS,
+  cruxHardSetupKeys,
   flattenChainKeys,
   hausdorff,
   holdoutV3Episodes,
@@ -108,12 +110,24 @@ describe('crux class band', () => {
   it('train / holdout episodes are disjoint, v3-flagged and grouped by setup', { timeout: 120_000 }, () => {
     const train = trainV3Episodes(15, ['crux'])
     const hold = holdoutV3Episodes(10, ['crux'])
-    expect(train.map((g) => g.setupKey)).toEqual([...TRAIN15])
+    // the pinned hard band (the crux:1010~1 pattern coverage) is APPENDED after the standard scan: stable ids
+    expect(train.map((g) => g.setupKey)).toEqual([...TRAIN15, ...CRUX_HARD_SETUPS])
+    expect(cruxHardSetupKeys(['crux'])).toEqual([...CRUX_HARD_SETUPS])
+    expect(cruxHardSetupKeys(['maze'])).toEqual([])
     expect(hold.map((g) => g.setupKey)).toEqual([...HOLDOUT10])
     expect(flattenChainKeys(train).some((k) => flattenChainKeys(hold).includes(k))).toBe(false)
     for (const g of [...train, ...hold]) {
       expect(g.keys).toEqual(v3EpisodeKeys(g.setupKey))
       for (const k of g.keys) expect(parseChainEpisodeKey(k).v3, k).toBe(true)
+    }
+    // the hard band is NC2 LATERAL, reserved-band keyed (variant >= 2, collision-free) and all WEST like crux:1010~1
+    for (const k of CRUX_HARD_SETUPS) {
+      const { seed, variant } = parseCourseKey(k)
+      expect(variant, `${k} reserved band`).toBeGreaterThanOrEqual(2)
+      expect(cruxClass(seed), `${k} class`).toBe(1)
+      expect(cruxEmb(seed), `${k} embodiment`).toBe(0)
+      expect(cruxDir(seed), `${k} direction`).toBe(-1)
+      expect(parseCourseKey(k).seed, `${k} reserved seed band`).toBeGreaterThanOrEqual(2001)
     }
   })
 })
@@ -128,7 +142,7 @@ describe('crux chain gates', () => {
 
   it('every setup: 2-6 chains (mostly 6), clear of the walls, detour-bounded, distinct but near the base path', { timeout: 300_000 }, () => {
     const counts: number[] = []
-    for (const k of [...TRAIN15, ...HOLDOUT10]) {
+    for (const k of [...TRAIN15, ...CRUX_HARD_SETUPS, ...HOLDOUT10]) {
       const chains = chainsForSetup(k)
       counts.push(chains.length)
       expect(chains.length, `${k}`).toBeGreaterThanOrEqual(MIN_CHAINS)
@@ -156,8 +170,8 @@ describe('crux chain gates', () => {
   })
 
   it('NO DEAD ZEROS: the pure-pursuit baseline finishes EVERY chain of every enumerated setup (the acceptance gate ran it)', { timeout: 300_000 }, async () => {
-    const keys = [...TRAIN15, ...HOLDOUT10].flatMap((k) => v3EpisodeKeys(k))
-    expect(keys.length).toBeGreaterThanOrEqual(MIN_CHAINS * 25)
+    const keys = [...TRAIN15, ...CRUX_HARD_SETUPS, ...HOLDOUT10].flatMap((k) => v3EpisodeKeys(k))
+    expect(keys.length).toBeGreaterThanOrEqual(MIN_CHAINS * 28)
     // sequential (one episode at a time, like the gate): concurrent episodes share the global determinism patch
     let fin = 0
     const outcomes: string[] = []
@@ -270,7 +284,7 @@ describe('crux class signatures', () => {
   })
 
   it('NC2 LATERAL start: first leg ~90 deg off the start heading, gate at CRUX_GATE_M, every chain carries offM 16', { timeout: 120_000 }, () => {
-    for (const k of ['crux:2', 'crux:6', 'crux:10', 'crux:14']) {
+    for (const k of ['crux:2', 'crux:6', 'crux:10', 'crux:14', ...CRUX_HARD_SETUPS]) {
       const course = buildSetupCourse(k)
       const L = course.layout!
       expect(L.cls).toBe(1)
@@ -278,9 +292,13 @@ describe('crux class signatures', () => {
       expect(L.gate).toBe(CRUX_GATE_M)
       const start = course.startAt ?? [0, 0]
       const first = course.waypoints[0]!
-      const angle = angleBetweenDeg(headingDeg(start, first), course.startYawDeg ?? 0)
-      expect(angle, `${k} first leg vs start heading`).toBeGreaterThanOrEqual(70)
-      expect(angle, `${k} first leg vs start heading`).toBeLessThanOrEqual(110)
+      // the canonical start (variant 0) faces the first leg at ~90 deg; a jittered start (variant >= 1, the hard band)
+      // can lean up to START_JITTER.crux's 8 deg toward it - the angle band only holds canonically (same as the pocket test)
+      if (!k.includes('~')) {
+        const angle = angleBetweenDeg(headingDeg(start, first), course.startYawDeg ?? 0)
+        expect(angle, `${k} first leg vs start heading`).toBeGreaterThanOrEqual(70)
+        expect(angle, `${k} first leg vs start heading`).toBeLessThanOrEqual(110)
+      }
       // the first leg sits ~8-16 m off the start heading (the M2 lateral start)
       expect(Math.abs(first[0] - start[0]), `${k} lateral offset`).toBeGreaterThanOrEqual(8)
       expect(Math.abs(first[0] - start[0]), `${k} lateral offset`).toBeLessThanOrEqual(16)
