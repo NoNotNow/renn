@@ -63,6 +63,7 @@ const batch = num('batch', 6)
 const validateGens = num('validate-gens', 50)
 const maxRounds = num('max-rounds', 5)
 const maxFocusChunks = num('max-focus-chunks', 40)
+const focusMargin = num('focus-margin', 2)
 const workers = num('workers', Math.max(1, cpus().length - 1))
 
 const log = (s) => console.log(`[focus ${new Date().toISOString()}] ${s}`)
@@ -215,7 +216,7 @@ if (!ds) {
   if (flag('dry-run')) {
     log(`DRY RUN - no focus state written (only the read-only diagnose artifacts). Plan:`)
     log(`  checkpoint: cp ${basename(src)} -> ${basename(state)} (the source stays the untouched rollback point)`)
-    log(`  focus chunks: trainer --focus-setups "${focusSetups.join(',')}" in one-epoch chunks until focusPass.allPass (max ${maxFocusChunks} chunks)`)
+    log(`  focus chunks: trainer --focus-setups "${focusSetups.join(',')}" in one-epoch chunks until allPass holds ${focusMargin} consecutive epoch checks (max ${maxFocusChunks} chunks)`)
     log(`  validate: trainer --no-focus-setups --gens ${validateGens} (ALL setups re-included), then diagnose the epoch-best candidate; a verdict failing ONLY on focus chains iterates (up to ${maxRounds} rounds, next round = the residual failing setups), anything else keeps/rolls back`)
     process.exit(0)
   }
@@ -246,16 +247,17 @@ for (;;) {
       invalidateStaleFocusState()
     }
     const spec = ds.focusSetups.join(',')
-    log(`round ${ds.round}/${ds.maxRounds}: phase FOCUS - train ONLY [${spec}] (${ds.focusSetups.length} setups, all their chains) until every focus chain passes (max ${maxFocusChunks} epoch chunks)`)
-    let passed = focusPass()?.allPass === true
-    for (let chunk = 1; !passed && chunk <= maxFocusChunks; chunk++) {
+    log(`round ${ds.round}/${ds.maxRounds}: phase FOCUS - train ONLY [${spec}] (${ds.focusSetups.length} setups, all their chains) until every focus chain has passed ${focusMargin} CONSECUTIVE epoch checks (max ${maxFocusChunks} epoch chunks)`)
+    let passStreak = 0
+    for (let chunk = 1; passStreak < focusMargin && chunk <= maxFocusChunks; chunk++) {
       const cg = chunkToEpoch()
       log(`focus chunk ${chunk}/${maxFocusChunks}: ${cg} gens from gen ${readJson(state).state?.gen} (--focus-setups "${spec}")`)
       assertNoTrainer()
       runTrainer(['--focus-setups', spec], cg)
-      passed = focusPass()?.allPass === true
-      log(`focus pass check after chunk ${chunk}: ${fmtPass(focusPass())}`)
+      passStreak = focusPass()?.allPass === true ? passStreak + 1 : 0
+      log(`focus pass check after chunk ${chunk} (streak ${passStreak}/${focusMargin}): ${fmtPass(focusPass())}`)
     }
+    const passed = passStreak >= focusMargin
     if (passed) {
       const p = focusPass()
       log(`FOCUS PASSED at gen ${p.gen}: ${fmtPass(p)}`)
