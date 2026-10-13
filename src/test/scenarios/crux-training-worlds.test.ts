@@ -248,7 +248,7 @@ describe('crux training score stage: finish freeze and LOS gate', () => {
       state,
       api,
     )
-  const scoreOf = (api: ReturnType<typeof mkApi>) => Number(/(\d+)/.exec(api.getWatch()['crux.score']!)![1])
+  const scoreOf = (api: ReturnType<typeof mkApi>) => Number(/([\d.]+)/.exec(api.getWatch()['crux.score']!)![1])
 
   it('freezes the score at the goal: touch penalties after the finish change nothing', () => {
     const state: Record<string, unknown> = {}
@@ -347,7 +347,7 @@ describe.skipIf(process.env.CRUX_TRAIN_SIM !== '1')('crux training worlds: headl
             let score: number | null = null
             let seg: number | null = null
             for (const e of getTransformerWatchEntries().values()) {
-              if (e.entityId === cruxCarId(i) && e.label === 'crux.score') score = Number(/(\d+)/.exec(String(e.value))![1])
+              if (e.entityId === cruxCarId(i) && e.label === 'crux.score') score = Number(/([\d.]+)/.exec(String(e.value))![1])
               if (e.entityId === cruxCarId(i) && e.label === 'crux.seg') seg = Number(e.value)
             }
             console.log(`[crux-train] ${spec.id}: chain ${i} (${i === 0 ? 'base' : 'jitter'}): reached ${reachedAt[i] !== null} at ${reachedAt[i]?.toFixed(1) ?? t.toFixed(1)} s, score ${score}, seg ${seg}`)

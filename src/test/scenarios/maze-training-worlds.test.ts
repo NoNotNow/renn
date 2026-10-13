@@ -261,7 +261,7 @@ describe('maze training score stage: finish freeze', () => {
       state,
       api,
     )
-  const scoreOf = (api: ReturnType<typeof mkApi>) => Number(/(\d+)/.exec(api.getWatch()['maze.score']!)![1])
+  const scoreOf = (api: ReturnType<typeof mkApi>) => Number(/([\d.]+)/.exec(api.getWatch()['maze.score']!)![1])
 
   it('freezes the score at the goal: touch penalties after the finish change nothing', () => {
     const state: Record<string, unknown> = {}
@@ -284,14 +284,15 @@ describe('maze training score stage: finish freeze', () => {
     const api = mkApi()
     stepAt(state, api, 20, false)
     expect(state.done).toBeUndefined()
-    expect(scoreOf(api)).toBe(24)
-    // 2 s of wall contact at 12 pt/s: 29.1 m nose progress + ~10 pts speed bonus - 24 pts penalty = 15 pts of RUN score
+    expect(scoreOf(api)).toBe(24.2)
+    // 2 s of wall contact at 12 pt/s: 29.1 m nose progress + along-chain bonus - 24 pts penalty = ~15 pts of RUN score
     for (let k = 0; k < 2 / DEFAULT_DT; k++) stepAt(state, api, 25, true)
     expect(state.done).toBeUndefined()
-    // the run score still pays (the penalty accumulates), but the SHOWN score is the high-water mark: 29 pts from the
-    // moment the nose progress jumped to 29.1 m — it never dropped to the drained run value of 15
+    // the run score still pays (the penalty accumulates), but the SHOWN score is the high-water mark: 29.1 pts (the
+    // nose progress; the along-chain bonus up to that point rounds away) from the moment the progress jumped there —
+    // it never dropped to the drained run value of ~15
     expect(state.penalty as number).toBeCloseTo(24, 6)
-    expect(scoreOf(api)).toBe(29)
+    expect(scoreOf(api)).toBe(29.1)
     expect(api.getWatch()['maze.prog']).toBe('29.1 / 50 m')
   })
 
@@ -305,10 +306,12 @@ describe('maze training score stage: finish freeze', () => {
     // 8 s of standing against the wall: -96 pts of run-score drain would clamp the raw score to 0
     for (let k = 0; k < 8 / DEFAULT_DT; k++) stepAt(state, api, 25, true)
     expect(scoreOf(api)).toBe(high)
-    expect(state.best).toBe(high)
-    // the run score itself is drained past the floor (clamped to 0); only the shown / snapshotted value keeps the peak
+    // state.best is the CONTINUOUS peak, the watch shows it with 1 decimal (scoreOf parses that) — same value within
+    // the display rounding
+    expect(state.best as number).toBeCloseTo(high, 1)
+    // the run score itself is drained past the clamp (0); only the shown / snapshotted value keeps the peak
     const raw = (state.s as number) + (state.bonus as number) - (state.penalty as number)
-    expect(Math.max(0, Math.floor(raw))).toBe(0)
+    expect(Math.max(0, raw)).toBe(0)
   })
 })
 
@@ -373,7 +376,7 @@ describe('maze training score stage: line-of-sight gate', () => {
       state,
       api,
     )
-  const scoreOf = (api: ReturnType<typeof mkApi>) => Number(/(\d+)/.exec(api.getWatch()['maze.score']!)![1])
+  const scoreOf = (api: ReturnType<typeof mkApi>) => Number(/([\d.]+)/.exec(api.getWatch()['maze.score']!)![1])
 
   it('(i) an occluded chain projection gives NO progress credit: the previous credit stands', () => {
     const state: Record<string, unknown> = {}
@@ -421,7 +424,9 @@ describe('maze training score stage: line-of-sight gate', () => {
     // 8 s occluded against the wall: no credit, -96 pts of run-score drain — the shown score keeps the peak
     for (let k = 0; k < 8 / DEFAULT_DT; k++) stepAt(state, api, 20, 8, true)
     expect(scoreOf(api)).toBe(high)
-    expect(state.best).toBe(high)
+    // state.best is the CONTINUOUS peak, the watch shows it with 1 decimal (scoreOf parses that) — same value within
+    // the display rounding
+    expect(state.best as number).toBeCloseTo(high, 1)
     expect(state.s).toBeCloseTo(14.1, 6)
   })
 })
@@ -509,7 +514,7 @@ describe.skipIf(process.env.MAZE_TRAIN_SIM !== '1')('maze training worlds: headl
             let score: number | null = null
             let seg: number | null = null
             for (const e of getTransformerWatchEntries().values()) {
-              if (e.entityId === mazeCarId(i) && e.label === 'maze.score') score = Number(/(\d+)/.exec(String(e.value))![1])
+              if (e.entityId === mazeCarId(i) && e.label === 'maze.score') score = Number(/([\d.]+)/.exec(String(e.value))![1])
               if (e.entityId === mazeCarId(i) && e.label === 'maze.seg') seg = Number(e.value)
             }
             console.log(`[maze-train] ${spec.id}: route ${i} (${routes[i]!.reversed ? 'rev' : 'fwd'}): reached ${reachedAt[i] !== null} at ${reachedAt[i]?.toFixed(1) ?? t.toFixed(1)} s, score ${score}, seg ${seg}`)

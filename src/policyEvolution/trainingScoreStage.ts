@@ -89,13 +89,14 @@ function transform(input, dt, params, state, api) {
     state.bonus += (alongV / vRef) * dt * (params.bonusRate || 5)
     state.penalty += dt * (wallT ? (params.wallPenaltyPerS || 12) : objT ? (params.objectPenaltyPerS || 4) : 0)
   }
-  var score = Math.floor(state.s + state.bonus - state.penalty)
+  var score = state.s + state.bonus - state.penalty
   if (score < 0) score = 0
   // high-water mark: the run score above still drains on touches, but the shown / snapshotted score is its maximum
-  // over time — a stall against a wall can no longer zero out the points earned on the way
+  // over time — a stall against a wall can no longer zero out the points earned on the way. NOT rounded: a continuous
+  // score is the finer signal (sub-point crawling progress, tie-break between candidates with equal integer scores).
   if (score > state.best) state.best = score
   if (params.hud) api.setScore(state.best)
-  api.watch('${prefix}.score', state.best + ' pts')
+  api.watch('${prefix}.score', state.best.toFixed(1) + ' pts')
   api.watch('${prefix}.prog', state.s.toFixed(1) + ' / ' + total.toFixed(0) + ' m')
   api.watch('${prefix}.speed', v.toFixed(1) + ' m/s')
   api.watch('${prefix}.seg', String(state.seg))

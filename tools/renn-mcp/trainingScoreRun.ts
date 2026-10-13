@@ -8,6 +8,7 @@
  */
 import { getTransformerWatchEntries, setAgentObservationWatchActive } from '../../src/runtime/transformerWatchBridge'
 import { WallLos } from '../../src/policyEvolution/wallLos'
+import { NOSE_M } from '../../src/policyEvolution/policy'
 import { DEFAULT_DT, WorldSimulator } from '../../src/test/helpers/worldSimulator'
 import type { RennWorld } from '../../src/types/world'
 import type { V2 } from '../../src/avEvolution/eval/geometry'
@@ -25,7 +26,7 @@ function watchValues(entityId: string): Record<string, string> {
   return out
 }
 
-/** Same scoring rule as the in-world stage (monotone chain progress + speed bonus, incl. the wall line-of-sight gate on the progress credit), as a cross-check of the watch value. */
+/** Same scoring rule as the in-world stage (nose-anchored monotone chain progress + ALONG-CHAIN speed bonus incl. the wall line-of-sight gate on the credit, no rounding), as a cross-check of the watch value. `px`/`pz` are the NOSE (center + fwd * NOSE_M). */
 function identicalScorer(chain: number[][], walls: V2[][], vRef: number, bonusRate: number) {
   const cum = [0]
   for (let q = 1; q < chain.length; q++) cum.push(cum[q - 1]! + Math.hypot(chain[q]![0] - chain[q - 1]![0], chain[q]![1] - chain[q - 1]![1]))
@@ -34,7 +35,7 @@ function identicalScorer(chain: number[][], walls: V2[][], vRef: number, bonusRa
   let seg = 0
   const los = new WallLos(walls)
   return {
-    step(px: number, pz: number, vx: number, vz: number, dt: number): number {
+    step(px: number, pz: number, dt: number): number {
       let bestD = Infinity
       let bestS = s
       let bestSeg = seg
@@ -57,9 +58,13 @@ function identicalScorer(chain: number[][], walls: V2[][], vRef: number, bonusRa
         }
       }
       seg = bestSeg
+      const sPrev = s
       if (bestS > s && !los.blocked(px, pz, bestPX, bestPZ)) s = bestS
-      bonus += (Math.min(Math.hypot(vx, vz), vRef) / vRef) * dt * bonusRate
-      return Math.floor(s + bonus)
+      // along-chain speed bonus: the frame's CREDITED progress dS/dt (capped at vRef); raw speed pays nothing while
+      // the credit is LOS-frozen (mirrors the in-world stage)
+      const alongV = dt > 0 ? Math.min((s - sPrev) / dt, vRef) : 0
+      bonus += (alongV / vRef) * dt * bonusRate
+      return s + bonus
     },
   }
 }
@@ -105,11 +110,15 @@ export async function scoreTrainingWorld(
       for (let i = 0; i < K; i++) {
         if (reachedAt[i] !== null) continue
         const p = sim.getPosition(opts.carId(i))
-        const v = sim.getVelocity(opts.carId(i))
-        snapshot[i] = scorers[i]!.step(p[0], p[2], v[0], v[2], DEFAULT_DT)
+        // the scorer projects the car NOSE like the in-world stage (center + fwd * NOSE_M, fwd from the quaternion)
+        const q = sim.getRotation(opts.carId(i))
+        const fx = -(2 * (q.x * q.z + q.w * q.y))
+        const fz = -(1 - 2 * (q.x * q.x + q.y * q.y))
+        const fl = Math.hypot(fx, fz) || 1
+        snapshot[i] = scorers[i]!.step(p[0] + (fx / fl) * NOSE_M, p[2] + (fz / fl) * NOSE_M, DEFAULT_DT)
         if (Math.hypot(p[0] - goalPos[i]![0]!, p[2] - goalPos[i]![2]!) < opts.goalReachM) {
           reachedAt[i] = t
-          const m = /(\d+)/.exec(String(watchValues(opts.carId(i))[opts.watchLabel] ?? ''))
+          const m = /([\d.]+)/.exec(String(watchValues(opts.carId(i))[opts.watchLabel] ?? ''))
           if (m) {
             snapshot[i] = Number(m[1])
             fromWatch[i] = true
@@ -122,7 +131,7 @@ export async function scoreTrainingWorld(
     }
     return reachedAt.map((reached, i) => {
       if (reached !== null) return { reached: true, seconds: reached, score: snapshot[i]!, fromWatch: fromWatch[i]! }
-      const m = /(\d+)/.exec(String(watchValues(opts.carId(i))[opts.watchLabel] ?? ''))
+      const m = /([\d.]+)/.exec(String(watchValues(opts.carId(i))[opts.watchLabel] ?? ''))
       return { reached: false, seconds: t, score: m ? Number(m[1]) : snapshot[i]!, fromWatch: Boolean(m) }
     })
   } finally {

@@ -8,7 +8,7 @@
     "gen": 3000,
     "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/.trial-snapshot.json"
   },
-  "bestScore": 52,
+  "bestScore": 52.9,
   "cls": 1,
   "emb": 0,
   "dir": -1,
@@ -91,7 +91,7 @@
             115.9
           ]
         ],
-        "score": 52
+        "score": 52.9
       },
       {
         "pts": [
@@ -160,7 +160,7 @@
             110.6
           ]
         ],
-        "score": 52
+        "score": 52.2
       },
       {
         "pts": [
@@ -225,7 +225,7 @@
             114.3
           ]
         ],
-        "score": 51
+        "score": 51.3
       },
       {
         "pts": [
@@ -286,7 +286,7 @@
             115.2
           ]
         ],
-        "score": 51
+        "score": 51.7
       },
       {
         "pts": [
@@ -351,7 +351,7 @@
             113.4
           ]
         ],
-        "score": 52
+        "score": 52.9
       },
       {
         "pts": [
@@ -416,7 +416,7 @@
             114
           ]
         ],
-        "score": 51
+        "score": 51.3
       }
     ]
   }

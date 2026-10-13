@@ -109,7 +109,7 @@ function parseLiveWatchEntries(entries: readonly TransformerWatchEntry[], watch:
   let seg: number | null = null
   for (const entry of entries) {
     if (entry.label === watch.score) {
-      const match = /(\d+)/.exec(entry.value)
+      const match = /([\d.]+)/.exec(entry.value)
       if (match) score = Number(match[1])
     } else if (entry.label === watch.seg) {
       const parsed = Number(entry.value)
