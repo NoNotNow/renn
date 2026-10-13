@@ -28,6 +28,10 @@
  *   --sigma --lr --seed --batch N (18) --train-per-kind N (30) --holdout-per-kind N (20) --workers N --out FILE --resume
  *   --no-variants --no-curriculum --curriculum-start D (0) --lex-eps E --csa
  *   --train-per-kind-<kind> N / --holdout-per-kind-<kind> N override the count of that one kind (v2/v3; others keep the plain flags' defaults).
+ * --focus-setups "crux:5,crux:12#2v3,.." (v3, see agent-context/focus-curriculum.md): the failure-focus mode - train ONLY these
+ *   setups (setup keys, or the chain keys a diagnose --list prints, mapped to their setups; ALL chains of each, the normal variant
+ *   rotation) until every focus chain passes; the epoch-end island ranking runs on them too. The passing setups are fully excluded,
+ *   not down-weighted. Given at creation or resume; persisted like speedCap (a resume keeps the stored set), --no-focus-setups clears it.
  * --lex-eps E (v3, creation only - persisted in config like speedCap): rank-tie tolerance for the lex vector ranks; near-tie
  *   candidates share their rank instead of getting opposite ranks off evaluation noise. 0/absent = strict (old behaviour).
  *   Calibration: the per-gen log prints `lex ties F`, the share of candidate pairs sharing a rank (starves the gradient when high).
@@ -46,6 +50,7 @@ import { chainReportByKind, formatChainReport, parseKinds, v2GenomeFromFile } fr
 import { CHAIN_KINDS, COURSE_KINDS, COURSE_LENGTH, holdoutCourseKeys, parseCourseKey, trainCourseKeys, withVariant } from '@/policyEvolution/courses'
 import { parseChainEpisodeKey } from '@/policyEvolution/chains'
 import { applyCurriculum, DEFAULT_CURRICULUM, initialCurriculum, updateCurriculum, type CurriculumState } from '@/policyEvolution/curriculum'
+import { focusBatch, focusPassReport, parseFocusSetups, type FocusPassReport } from '@/policyEvolution/focusSetups'
 import { aggregateEvenness, aggregateFitness, aggregateKindMin, beatsBest, DEFAULT_ES_CONFIG, episodeValues, type EsConfig, type FitnessFn, type FitnessVecFn } from '@/policyEvolution/es'
 import { DEFAULT_ISLANDS, FOCUS_MAX_EPOCHS, initialIslands, IslandEs, sigmaBoost, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
 import { createRng } from '@/avEvolution/core/rng'
@@ -81,6 +86,10 @@ interface RunFile {
   speedCap?: number
   /** opt-in per-island cumulative step-size adaptation (Hansen CSA), persisted so --resume keeps it; absent = off */
   csa?: boolean
+  /** failure-focus mode (v3): the ONLY setups trained/ranked on (all their chains); persisted so a resume keeps it, --no-focus-setups clears it */
+  focusSetups?: string[]
+  /** last epoch-end focus pass check (the driver's phase-exit signal): per-setup finished chains on the canonical focus episodes */
+  focusPass?: FocusPassReport
   stage?: StageState | null
   config: EsConfig
   islands: IslandsConfig
@@ -117,6 +126,12 @@ async function main() {
   const v3 = resumed ? !!file!.v3 : !!args.v3
   const v2 = v3 || (resumed ? !!file!.v2 : !!args.v2)
   const kinds = parseKinds(args.kinds, v3 ? V3_KINDS : v2 ? CHAIN_KINDS : COURSE_KINDS)
+  // --focus-setups (v3 failure-focus mode): parsed here so a bad spec fails BEFORE any training; a resume without the
+  // flag keeps the stored set (crash-safe, like speedCap), --no-focus-setups clears it (the validation phase of the driver)
+  let focusSetups: string[] | undefined
+  if (args['focus-setups'] !== undefined) focusSetups = parseFocusSetups(String(args['focus-setups']), kinds)
+  else if (!args['no-focus-setups'] && resumed && file!.focusSetups?.length) focusSetups = file!.focusSetups
+  if (focusSetups && !v3) throw new Error('--focus-setups needs --v3')
   let warm = args.warm ? v2GenomeFromFile(JSON.parse(fs.readFileSync(String(args.warm), 'utf8'))) : undefined
   if (warm && !v2) throw new Error('--warm needs --v2')
   if (args.hidden !== undefined && !v2) throw new Error('--hidden needs --v2')
@@ -221,6 +236,9 @@ async function main() {
       history: [],
     }
   }
+  // the effective focus set is part of the run file (like speedCap): a plain resume of a focused run stays focused
+  if (focusSetups) file!.focusSetups = focusSetups
+  else delete file!.focusSetups
   const isl = new IslandEs(file!.config, file!.islands, file!.state, fitness, fitnessVec, csa)
   const pool = new PolicyPool(workers)
   const evaluate = pool.evaluator()
@@ -259,6 +277,9 @@ async function main() {
   const statsEvery = Math.max(1, num(args['stats-every'], 20))
   let centers: number[] = []
   let lastEpoch: Record<string, unknown> | null = null
+  // the last epoch-end focus pass check (v3 failure-focus mode); echoed into latest-stats for display - the DRIVER
+  // reads the persisted file.focusPass of the state file (authoritative across restarts)
+  let lastFocusPass: FocusPassReport | null = null
   const writeLatestStats = (why: string) => {
     fs.writeFileSync(
       latestStats,
@@ -288,6 +309,9 @@ async function main() {
           },
           ...(file.stage ? { stage: { share: file.stage.share, ema: file.stage.ema } } : {}),
           ...(file.curriculum ? { curriculum: { difficulty: file.curriculum.difficulty, ema: file.curriculum.ema } } : {}),
+          // failure-focus mode (v3 --focus-setups): the setups trained on and the last epoch-end pass check of the
+          // best island on them (canonical episodes, the diagnose ones) - allPass is the phase-exit signal
+          ...(focusSetups ? { focusSetups: lastFocusPass ?? { gen: isl.state.gen, set: [...focusSetups], perSetup: [], allPass: false } } : {}),
           epoch: lastEpoch,
           ...(file.best ? { best: { gen: file.best.gen, train: file.best.train, holdout: file.best.holdout, ...(file.best.trainVec ? { worst3: file.best.trainVec.slice(0, 3) } : {}) } } : {}),
           why,
@@ -303,7 +327,9 @@ async function main() {
     for (let i = 0; i < gens; i++) {
       const g = isl.state.gen
       let keys: string[]
-      if (v3) keys = flattenChainKeys(v3Setups(num(args.batch, 1), g, file.stage ? file.stage.share : null, args['no-variants'] ? null : g + 1, kinds))
+      // focus mode: the batch holds ALL chains of exactly the focus setups (the standard variant rotation); the
+      // passing setups are fully excluded - the stage/batch window machinery is bypassed entirely
+      if (v3) keys = flattenChainKeys(focusSetups ? focusBatch(focusSetups, args['no-variants'] ? null : g + 1) : v3Setups(num(args.batch, 1), g, file.stage ? file.stage.share : null, args['no-variants'] ? null : g + 1, kinds))
       else if (v2) keys = flattenChainKeys(setupBatch(trainGroups, num(args.batch, 6), g, args['no-variants'] ? null : g + 1, file.curriculum))
       else {
         keys = Array.from({ length: Math.min(batch, train.length) }, (_, j) => train[(g * batch + j) % train.length]!)
@@ -326,6 +352,7 @@ async function main() {
         const f = isl.state.focus
         line += `  FOCUS islands [${f.set.join(' ')}] (epoch ${f.epochs + 1}/${FOCUS_MAX_EPOCHS} since gen ${f.sinceGen}, paused [${paused.join(' ')}])`
       }
+      if (focusSetups) line += `  FOCUS-SETUPS [${focusSetups.join(' ')}]`
       if (v3 && file.stage) {
         const freeRuns = reports.flatMap((r) => (r.centerMetrics ?? []).filter((m) => parseCourseKey(parseChainEpisodeKey(m.key).setupKey).kind === 'free'))
         if (freeRuns.length) file.stage = updateStage(file.stage, freeRuns.filter((m) => m.outcome === 'finish').length / freeRuns.length)
@@ -338,9 +365,10 @@ async function main() {
         line += `  field difficulty ${file.curriculum.difficulty.toFixed(2)} (route fraction ema ${file.curriculum.ema.toFixed(2)})`
       }
       if (isl.isEpochEnd()) {
-        // rank the islands on fresh courses at full difficulty, then reproduce
+        // rank the islands on fresh courses at full difficulty, then reproduce (focus mode: the fresh courses are the
+        // focus setups' own jittered starts - the objective IS the focus set)
         const rankKeys = v3
-          ? flattenChainKeys(v3Setups(num(args['rank-setups'], 2), g, file.stage ? file.stage.share : null, 9000 + g, kinds))
+          ? flattenChainKeys(focusSetups ? focusBatch(focusSetups, 9000 + g) : v3Setups(num(args['rank-setups'], 2), g, file.stage ? file.stage.share : null, 9000 + g, kinds))
           : v2
           ? flattenChainKeys(setupBatch(trainGroups, num(args['rank-setups'], 12), g, 9000 + g, null))
           : Array.from({ length: 36 }, (_, j) => withVariant(train[(g * 36 + j) % train.length]!, 9000 + g))
@@ -367,6 +395,17 @@ async function main() {
         // scalar min above stays the display number)
         const trainVec = fitnessVec ? fitnessVec(tr) : [trainFit]
         const holdoutVec = fitnessVec ? fitnessVec(ho) : [holdFit]
+        // focus mode exit criterion: the BEST island of this epoch on the CANONICAL focus chains (variant 0, exactly
+        // the episodes diagnose-v3 measures on the train split). Persisted as file.focusPass - the driver reads it
+        // between its one-epoch chunks; allPass is the loud phase-exit signal.
+        if (v3 && focusSetups) {
+          const fm = await evaluate(theta, flattenChainKeys(focusBatch(focusSetups, null)))
+          lastFocusPass = focusPassReport(fm, focusSetups, isl.state.gen)
+          file!.focusPass = lastFocusPass
+          entry.focusPass = lastFocusPass.allPass
+          line += `\n  FOCUS-SETUPS ${lastFocusPass.perSetup.map((p) => `${p.setupKey} ${p.finished}/${p.chains}`).join(' ')}`
+          if (lastFocusPass.allPass) line += `\n  FOCUS-SETUPS ALL PASS at gen ${isl.state.gen}`
+        }
         const fin = (m: typeof tr) => `${m.filter((x) => x.outcome === 'finish').length}/${m.length}`
         line += `\n  EPOCH scores [${scores.map((s) => s.toFixed(3)).join(' ')}] best island ${best}${event ? `, replaced island ${event.replaced} by ${event.with}` : ''}  | TRAIN ${trainFit.toFixed(3)} (${fin(tr)}) HOLDOUT ${holdFit.toFixed(3)} (${fin(ho)})`
         if (v3) line += `\n  HOLDOUT per kind:\n    ${formatV3Report(v3ReportByKind(ho, kinds))}`

@@ -7,15 +7,19 @@
  *   node tools/policy-evolution/train-ctl.mjs start         # start / resume the training (the documented resume command)
  *   node tools/policy-evolution/train-ctl.mjs restart       # stop + start
  *   node tools/policy-evolution/train-ctl.mjs ship          # stop -> ship.ts (HOLDOUT finish-count gate) -> start, verdict printed
+ *   node tools/policy-evolution/train-ctl.mjs focus         # start the failure-focus curriculum driver (job FOCUS, see
+ *                                                           # focus-curriculum.mjs: diagnose -> checkpoint copy -> focused training
+ *                                                           # -> 50-gen validation -> keep or roll back; refuses while training runs)
  *   node tools/policy-evolution/train-ctl.mjs trial [FILE]  # deploy the best candidate (default latest-best.json) into the
  *                                                           # maze + crux training worlds (--score exports) + both on-disk gates, verdicts printed
  *
- * Known jobs: the v3cruxnose policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee)
- * and the vite dev server. Detection is by command line + repo path, never a blanket pkill pattern.
+ * Known jobs: the v3cruxnose policy-evolution training (bash run-v3.sh -> npm exec tsx run-islands.ts, log via tee),
+ * the focus-curriculum driver (own v3cruxnose-focus.* state / log files) and the vite dev server.
+ * Detection is by command line + repo path, never a blanket pkill pattern.
  */
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, readFileSync, statSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -35,6 +39,14 @@ const WATCH = {
   why: 'auto-trial watcher: deploys the newest candidate into the maze + crux training worlds every 2 min (skips cycles without a new best)',
   start: 'nohup node tools/policy-evolution/auto-trial.mjs --every 120 > training-data/policy-evolution/auto-trial.log 2>&1 &',
 }
+const FOCUS = {
+  state: resolve(root, 'training-data/policy-evolution/v3cruxnose-focus.json'),
+  driverState: resolve(root, 'training-data/policy-evolution/v3cruxnose-focus.driver.json'),
+  stats: resolve(root, 'training-data/policy-evolution/v3cruxnose-focus.latest-stats.json'),
+  log: resolve(root, 'training-data/policy-evolution/v3cruxnose-focus.nohup.log'),
+  why: 'failure-focus curriculum (Crux-Fokus-Modus, focus-curriculum.mjs / agent-context/focus-curriculum.md): diagnose the current best on the crux band -> CHECKPOINT-copy of v3cruxnose.json -> focused training on ONLY the failing train setups (--focus-setups, all chains) until every focus chain passes -> 50 full-band validation generations -> keep (validated copy = new lineage) or roll back to the untouched checkpoint. The driver NEVER writes v3cruxnose.json; promote a KEPT copy manually.',
+  start: 'nohup caffeinate -is node tools/policy-evolution/focus-curriculum.mjs > training-data/policy-evolution/v3cruxnose-focus.nohup.log 2>&1 &',
+}
 const VITE_WHY = 'vite dev server (localhost preview) - the test / play workflow'
 
 const ps = () => spawnSync('ps', ['-Ao', 'pid,ppid,pcpu,etime,command'], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
@@ -42,7 +54,7 @@ const ps = () => spawnSync('ps', ['-Ao', 'pid,ppid,pcpu,etime,command'], { encod
 /** All processes belonging to a job; absolute repo path OR the repo-relative launcher paths (bash run-v3.sh / tee are started relative). */
 function findProcs(pattern) {
   const me = String(process.pid)
-  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|tools\/policy-evolution\/auto-trial\.mjs|caffeinate -is bash tools\/policy-evolution\/run-v3|training-data\/policy-evolution\/v3cruxnose.log/
+  const rel = /tools\/policy-evolution\/run-v3\.sh|tools\/policy-evolution\/run-islands|tools\/policy-evolution\/auto-trial\.mjs|tools\/policy-evolution\/focus-curriculum\.mjs|caffeinate -is bash tools\/policy-evolution\/run-v3|training-data\/policy-evolution\/v3cruxnose.log/
   return ps()
     .map((l) => {
       const m = l.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\S+)\s+(.*)$/)
@@ -54,7 +66,11 @@ function findProcs(pattern) {
     .filter(Boolean)
 }
 
-const trainProcs = () => findProcs(/run-islands|run-v3\.sh|caffeinate|v3cruxnose.log/)
+// the FOCUS job: the driver AND its own trainer chunks (--out ...-focus.json / --latest-* ...-focus.latest-*.json)
+const FOCUS_PROC = /focus-curriculum\.mjs|-focus\./
+const focusProcs = () => findProcs(FOCUS_PROC)
+// the REAL training only: the focus job's processes are excluded (they would otherwise show up as the v3cruxnose run)
+const trainProcs = () => findProcs(/run-islands|run-v3\.sh|caffeinate|v3cruxnose.log/).filter((p) => !FOCUS_PROC.test(p.cmd))
 const watchProcs = () => findProcs(/auto-trial\.mjs/)
 const viteProcs = () => findProcs(/node_modules\/\.bin\/vite|vite\.js/).filter((p) => /vite/.test(p.cmd) && p.cmd.includes(root))
 
@@ -150,6 +166,31 @@ function status() {
     console.log(`  control: node tools/policy-evolution/train-ctl.mjs start`)
   }
   console.log('')
+  const fo = focusProcs()
+  const focusPhase = () => {
+    try {
+      const d = JSON.parse(readFileSync(FOCUS.driverState, 'utf8'))
+      const focusPart = Array.isArray(d.focusSetups) ? ` setups [${d.focusSetups.join(' ')}]` : ''
+      return `phase ${d.phase ?? '?'}${focusPart} (driver state ${basename(FOCUS.driverState)}, updated ${d.updatedAt ?? '?'})`
+    } catch {
+      return null
+    }
+  }
+  if (fo.length) {
+    console.log(`FOCUS CURRICULUM  RUNNING  ${focusPhase() ?? ''}`)
+    console.log(`  why:    ${FOCUS.why}`)
+    try {
+      const st = JSON.parse(readFileSync(FOCUS.stats, 'utf8'))
+      const f = st.focusSetups
+      console.log(`  stats:  gen ${st.gen ?? '?'}  ${f ? `focus pass ${f.allPass ? 'ALL' : f.perSetup?.map((p) => `${p.setupKey} ${p.finished}/${p.chains}`).join(' ') ?? 'pending'}` : 'full band'}  (${st.why ?? '?'} at ${st.updatedAt ?? '?'})`)
+    } catch {}
+    for (const p of fo) console.log(`  pid ${p.pid}  cpu ${p.cpu}%  up ${p.etime}  ${p.cmd.slice(0, 120)}`)
+    console.log(`  control: node tools/policy-evolution/train-ctl.mjs stop (log: training-data/policy-evolution/v3cruxnose-focus.nohup.log)`)
+  } else {
+    console.log(`FOCUS CURRICULUM  not running  ${focusPhase() ?? '(no driver state yet)'}`)
+    console.log(`  control: node tools/policy-evolution/train-ctl.mjs focus`)
+  }
+  console.log('')
   const wa = watchProcs()
   if (wa.length) {
     console.log(`AUTO-TRIAL  RUNNING`)
@@ -167,11 +208,12 @@ function status() {
   return { running: tr.length > 0 }
 }
 
-/** Stop right after a gen line: the state file saves every finished gen, so at most the in-flight gen is lost. Also stops the auto-trial watcher. */
+/** Stop right after a gen line: the state file saves every finished gen, so at most the in-flight gen is lost. Also stops the auto-trial watcher and the FOCUS driver (with its trainer chunk - its state file saves every gen too, and the driver restarts into the phase it stopped in). */
 function stop() {
   const tr = trainProcs()
   const watch = watchProcs()
-  if (!tr.length && !watch.length) {
+  const focus = focusProcs()
+  if (!tr.length && !watch.length && !focus.length) {
     console.log('training is not running')
     return
   }
@@ -191,12 +233,37 @@ function stop() {
       spawnSync('sleep', ['0.25'])
     }
   }
-  const pids = [...tr, ...watch].map((p) => p.pid)
+  const pids = [...tr, ...watch, ...focus].map((p) => p.pid)
   spawnSync('kill', pids)
   spawnSync('sleep', ['2'])
-  const left = [...trainProcs(), ...watchProcs()]
+  const left = [...trainProcs(), ...watchProcs(), ...focusProcs()]
   if (left.length) spawnSync('kill', ['-9', ...left.map((p) => p.pid)])
   console.log(`training stopped (pids ${pids.join(' ')}); state gen ${before} -> ${trainGen()}`)
+}
+
+/**
+ * Start the failure-focus curriculum driver (job FOCUS): the phase loop of focus-curriculum.mjs
+ * (diagnose -> checkpoint copy -> focused training -> validation -> keep / roll back), as a nohup background
+ * job like the others. Refuses while the real training runs (the focus chunks need the cores and must not
+ * race the real run); the driver itself refuses while any trainer runs.
+ */
+function focusStart() {
+  if (focusProcs().length) {
+    console.log('the focus curriculum driver is already running')
+    return
+  }
+  if (trainProcs().length) {
+    console.log('the v3cruxnose training is RUNNING - stop it first (node tools/policy-evolution/train-ctl.mjs stop): the focus run needs the cores and must not race the real run')
+    process.exitCode = 1
+    return
+  }
+  spawnSync('bash', ['-c', FOCUS.start], { cwd: root, stdio: 'ignore' })
+  let up = false
+  for (let i = 0; i < 20 && !up; i++) {
+    spawnSync('sleep', ['0.5'])
+    up = focusProcs().length > 0
+  }
+  console.log(up ? `focus curriculum driver started (log: training-data/policy-evolution/v3cruxnose-focus.nohup.log; state: training-data/policy-evolution/v3cruxnose-focus.json - the real v3cruxnose.json is never written by it)` : 'focus start FAILED: no process came up, check training-data/policy-evolution/v3cruxnose-focus.nohup.log')
 }
 
 function start() {
@@ -299,8 +366,9 @@ else if (cmd === 'stop') stop()
 else if (cmd === 'start') start()
 else if (cmd === 'restart') { stop(); start() }
 else if (cmd === 'ship') ship()
+else if (cmd === 'focus') focusStart()
 else if (cmd === 'trial') trial(process.argv[3])
 else {
-  console.log('usage: train-ctl.mjs [status|stop|start|restart|ship|trial [file]]')
+  console.log('usage: train-ctl.mjs [status|stop|start|restart|ship|focus|trial [file]]')
   process.exit(1)
 }
