@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="339" height="220" viewBox="0 0 339 220">
+<rect x="0" y="0" width="339" height="220" fill="#10131a"/>
+<rect x="10.1" y="208.2" width="64.7" height="1.8" fill="#444a55"/>
+<rect x="10.1" y="10" width="64.7" height="1.8" fill="#444a55"/>
+<rect x="10.1" y="10.9" width="1.8" height="198.2" fill="#444a55"/>
+<rect x="73.1" y="10.9" width="1.8" height="198.2" fill="#444a55"/>
+<rect x="11.9" y="143" width="47.3" height="1.8" fill="#444a55"/>
+<rect x="26.6" y="107" width="46.5" height="1.8" fill="#444a55"/>
+<polyline points="40.6,188.1 62.8,153.6 64.4,148.9 63.7,144 60.2,135.2 58.2,132 55.1,129.7 28.1,116.2 24.4,113 22.5,108.5 22.8,103.6 45.5,31.5" fill="none" stroke="#ff8c42" stroke-width="1.5" stroke-opacity="0.9"/>
+<circle cx="40.6" cy="188.1" r="5" fill="#ffd24a"/>
+<circle cx="45.5" cy="31.5" r="5" fill="#ff4444"/>
+<rect x="97.8" y="208.2" width="64.7" height="1.8" fill="#444a55"/>
+<rect x="97.8" y="10" width="64.7" height="1.8" fill="#444a55"/>
+<rect x="97.8" y="10.9" width="1.8" height="198.2" fill="#444a55"/>
+<rect x="160.8" y="10.9" width="1.8" height="198.2" fill="#444a55"/>
+<rect x="99.6" y="143" width="47.3" height="1.8" fill="#444a55"/>
+<rect x="114.3" y="107" width="46.5" height="1.8" fill="#444a55"/>
+<polyline points="128.3,188.1 151.8,151.6 153,148.9 153.4,145.9 153.4,143.8 152.2,139.2 148.9,135.9 114.3,115.9 111.1,113.1 109.3,109.2 109.2,104.9 122.7,31.5" fill="none" stroke="#42a5ff" stroke-width="1.5" stroke-opacity="0.9"/>
+<circle cx="128.3" cy="188.1" r="5" fill="#7cf2ff"/>
+<circle cx="122.7" cy="31.5" r="5" fill="#ff4444"/>
+<rect x="185.6" y="208.2" width="64.7" height="1.8" fill="#444a55"/>
+<rect x="185.6" y="10" width="64.7" height="1.8" fill="#444a55"/>
+<rect x="185.6" y="10.9" width="1.8" height="198.2" fill="#444a55"/>
+<rect x="248.5" y="10.9" width="1.8" height="198.2" fill="#444a55"/>
+<rect x="187.3" y="143" width="47.3" height="1.8" fill="#444a55"/>
+<rect x="202" y="107" width="46.5" height="1.8" fill="#444a55"/>
+<polyline points="216,188.1 239.5,151.6 240.7,148.9 241.2,145.9 241.2,143.8 239.9,139.3 236.5,136 201.6,117.6 198.8,115.4 196.9,112.4 196.1,108.9 195.7,103.7 195.9,100.9 196.9,98.2 231.5,31.5" fill="none" stroke="#ff4a6e" stroke-width="1.5" stroke-opacity="0.9"/>
+<circle cx="216" cy="188.1" r="5" fill="#ffb0c2"/>
+<circle cx="231.5" cy="31.5" r="5" fill="#ff4444"/>
+<rect x="273.3" y="208.2" width="64.7" height="1.8" fill="#444a55"/>
+<rect x="273.3" y="10" width="64.7" height="1.8" fill="#444a55"/>
+<rect x="273.3" y="10.9" width="1.8" height="198.2" fill="#444a55"/>
+<rect x="336.2" y="10.9" width="1.8" height="198.2" fill="#444a55"/>
+<rect x="275" y="143" width="47.3" height="1.8" fill="#444a55"/>
+<rect x="289.8" y="107" width="46.5" height="1.8" fill="#444a55"/>
+<polyline points="303.8,188.1 327.3,150.7 328.5,148 328.9,145.1 328.9,142.9 327.6,138.4 324.2,135.3 289.1,117.7 286,115.4 284,112.1 283.3,108.3 283.3,107.8 284.1,103.8 286.4,100.5 289.9,98.5 293.3,97.2 297.3,94.7 299.8,90.6 319.2,31.5" fill="none" stroke="#7dff5c" stroke-width="1.5" stroke-opacity="0.9"/>
+<circle cx="303.8" cy="188.1" r="5" fill="#c9ffb0"/>
+<circle cx="319.2" cy="31.5" r="5" fill="#ff4444"/>
+</svg>

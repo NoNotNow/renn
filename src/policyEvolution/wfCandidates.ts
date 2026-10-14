@@ -12,8 +12,8 @@
 import type { RennWorld } from '@/types/world'
 import { POLICY_CAR_ID } from './episode'
 
-/** Kinds exported per candidate: the widen-freeze kinds (where final and baseline differ most) + the key originals. */
-export const WF_CANDIDATE_KINDS: readonly string[] = ['rslalom', 'deadend', 'gates', 'dense', 'maze', 'crux', 'bay', 'crowd', 'free']
+/** Kinds exported per candidate: the widen-freeze kinds (where final and baseline differ most) + the key originals + the obstacle-fluency detour kinds (blockade / blocks, commit 8673d411). */
+export const WF_CANDIDATE_KINDS: readonly string[] = ['rslalom', 'deadend', 'gates', 'dense', 'maze', 'crux', 'bay', 'crowd', 'free', 'blockade', 'blocks']
 
 /** Holdout setups per kind — the same band the powered evals report on (holdoutV3Episodes(3, kinds)). */
 export const WF_HOLDOUTS_PER_KIND = 3
