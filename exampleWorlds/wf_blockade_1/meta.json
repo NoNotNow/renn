@@ -1,0 +1,58 @@
+{
+  "id": "wf_blockade_1",
+  "kind": "blockade",
+  "setupKey": "blockade:1001~1",
+  "setupIndex": 1,
+  "name": "WF blockade 1",
+  "candidate": {
+    "label": "WF32 final (gen 1500)",
+    "gen": 1500
+  },
+  "bestScore": 50,
+  "chains": 3,
+  "tileSvg": {
+    "w": 85,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            40.6,
+            188.1
+          ],
+          [
+            45.6,
+            31.5
+          ]
+        ],
+        "score": 50
+      },
+      {
+        "pts": [
+          [
+            40.6,
+            188.1
+          ],
+          [
+            35,
+            31.5
+          ]
+        ],
+        "score": 50
+      },
+      {
+        "pts": [
+          [
+            40.6,
+            188.1
+          ],
+          [
+            56.1,
+            31.5
+          ]
+        ],
+        "score": 50
+      }
+    ]
+  }
+}

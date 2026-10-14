@@ -1,0 +1,58 @@
+{
+  "id": "wf_blocks_1",
+  "kind": "blocks",
+  "setupKey": "blocks:1001~1",
+  "setupIndex": 1,
+  "name": "WF blocks 1",
+  "candidate": {
+    "label": "WF32 final (gen 1500)",
+    "gen": 1500
+  },
+  "bestScore": 73,
+  "chains": 3,
+  "tileSvg": {
+    "w": 99,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            48.1,
+            186.3
+          ],
+          [
+            50.9,
+            33.2
+          ]
+        ],
+        "score": 69
+      },
+      {
+        "pts": [
+          [
+            48.1,
+            186.3
+          ],
+          [
+            39.5,
+            33.2
+          ]
+        ],
+        "score": 67
+      },
+      {
+        "pts": [
+          [
+            48.1,
+            186.3
+          ],
+          [
+            62.3,
+            33.2
+          ]
+        ],
+        "score": 73
+      }
+    ]
+  }
+}
