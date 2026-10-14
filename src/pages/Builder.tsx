@@ -13,9 +13,10 @@ import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import MazeTrainingDialog, { type MazeTrainingLiveRun } from '@/components/MazeTrainingDialog'
-import { CRUX_TRAINING_SET } from '@/components/trainingSets'
+import { CRUX_TRAINING_SET, WF_TRAINING_SET } from '@/components/trainingSets'
 import { applyMazeCandidate, type MazeCandidate } from '@/policyEvolution/mazeCandidates'
 import { focusMazeRoute } from '@/policyEvolution/mazeTraining'
+import { focusWfWorldRoute } from '@/policyEvolution/wfCandidates'
 import { focusCruxChain } from '@/policyEvolution/cruxTraining'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar from '@/components/PropertySidebar'
@@ -169,6 +170,9 @@ export default function Builder() {
   const [cruxTrainingOpen, setCruxTrainingOpen] = useState(false)
   /** Training-crux world+chain currently loaded and driving in the builder (live overlay in the crux dialog). */
   const [cruxTrainingLive, setCruxTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
+  const [wfTrainingOpen, setWfTrainingOpen] = useState(false)
+  /** Widen-freeze world+chain currently loaded and driving in the builder (live overlay in the wf dialog). */
+  const [wfTrainingLive, setWfTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
   const [avEvolutionOpen, setAvEvolutionOpen] = useState(false)
   useEffect(() => installAvEvolutionAgentApi(getAvEvolutionStore()), [])
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
@@ -444,6 +448,7 @@ export default function Builder() {
     (worldJson: Parameters<typeof handleOpenExampleWorldBase>[0], name: string, assets?: Map<string, Blob>) => {
       setMazeTrainingLive(null)
       setCruxTrainingLive(null)
+      setWfTrainingLive(null)
       handleOpenExampleWorldBase(worldJson, name, assets)
     },
     [handleOpenExampleWorldBase],
@@ -463,12 +468,13 @@ export default function Builder() {
       try {
         const { world, assets } = await loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', worldId)
         const crux = worldId.startsWith('crux_')
-        let next = crux ? focusCruxChain(world, routeIndex) : focusMazeRoute(world, routeIndex)
+        const wf = worldId.startsWith('wf_')
+        let next = crux ? focusCruxChain(world, routeIndex) : wf ? focusWfWorldRoute(world, routeIndex) : focusMazeRoute(world, routeIndex)
         if (candidate) next = applyMazeCandidate(next, candidate)
         handleOpenExampleWorld(next, worldId, assets)
-        ;(crux ? setCruxTrainingLive : setMazeTrainingLive)({ worldId, routeIndex })
+        ;(crux ? setCruxTrainingLive : wf ? setWfTrainingLive : setMazeTrainingLive)({ worldId, routeIndex })
         setShowGameHud(true)
-        uiLogger.select('Builder', crux ? 'Load training crux into builder' : 'Load training maze into builder', {
+        uiLogger.select('Builder', crux ? 'Load training crux into builder' : wf ? 'Load widen-freeze world into builder' : 'Load training maze into builder', {
           worldName: worldId,
           routeIndex,
           candidate: candidate?.id ?? 'deployed',
@@ -703,7 +709,7 @@ export default function Builder() {
   const canRedoHistory = canRedoTextureMaker || editorCanRedo
 
   const traceActive = selectedEntityIds.length === 1 && workspaceOpen
-  const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || mazeTrainingOpen || cruxTrainingOpen
+  const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || mazeTrainingOpen || cruxTrainingOpen || wfTrainingOpen
   useEffect(() => {
     if (traceActive) {
       setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
@@ -826,6 +832,10 @@ export default function Builder() {
           setCruxTrainingOpen(true)
           uiLogger.click('Builder', 'Open Training Crux dialog', {})
         }}
+        onOpenWfTraining={() => {
+          setWfTrainingOpen(true)
+          uiLogger.click('Builder', 'Open Widen-freeze Worlds dialog', {})
+        }}
       />
         </div>
 
@@ -890,6 +900,18 @@ export default function Builder() {
         liveRun={
           cruxTrainingLive && currentProject.id === null && currentProject.name === cruxTrainingLive.worldId
             ? cruxTrainingLive
+            : null
+        }
+      />
+
+      <MazeTrainingDialog
+        trainingSet={WF_TRAINING_SET}
+        isOpen={wfTrainingOpen}
+        onClose={() => setWfTrainingOpen(false)}
+        onPlayExampleWorld={handlePlayExampleWorld}
+        liveRun={
+          wfTrainingLive && currentProject.id === null && currentProject.name === wfTrainingLive.worldId
+            ? wfTrainingLive
             : null
         }
       />

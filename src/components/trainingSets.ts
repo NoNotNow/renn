@@ -1,14 +1,20 @@
 /**
- * Training-set descriptors of the shared training dialog (`MazeTrainingDialog`): "Training Mazes" and "Training Crux"
- * are the SAME parameterized panel — the descriptor carries everything per-set (worlds list, car ids, watch labels,
- * tile / badge texts) so the component file exports only the component (react-refresh) and the two sets cannot drift
- * apart. Shared contract with the world builders: `src/policyEvolution/mazeTraining.ts` + `cruxTraining.ts`.
+ * Training-set descriptors of the shared training dialog (`MazeTrainingDialog`): "Training Mazes", "Training Crux"
+ * and "Widen-freeze Worlds" are the SAME parameterized panel — the descriptor carries everything per-set (worlds
+ * list, car ids, watch labels, tile / badge texts) so the component file exports only the component (react-refresh)
+ * and the sets cannot drift apart. Shared contract with the world builders: `src/policyEvolution/mazeTraining.ts` +
+ * `cruxTraining.ts` + `wfCandidates.ts` (the wf worlds: `wfCandidateWorlds.ts`).
  */
 import { MAZE_TRAINING_WORLDS, mazeCarId, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
 import { CRUX_TRAINING_WORLDS, cruxCarId, cruxTrainingInfo, type CruxTrainingMeta } from '@/policyEvolution/cruxTraining'
+import {
+  wfCarId,
+  wfTrainingWorldViews,
+  type WfTrainingMeta,
+} from '@/policyEvolution/wfCandidates'
 
-/** Meta.json of either training set (the shared dialog reads the common fields; the per-set helpers narrow the rest). */
-export type TrainingMeta = MazeTrainingMeta | CruxTrainingMeta
+/** Meta.json of any training set (the shared dialog reads the common fields; the per-set helpers narrow the rest). */
+export type TrainingMeta = MazeTrainingMeta | CruxTrainingMeta | WfTrainingMeta
 
 /** One world row of a training set (the parameterized view of a spec: id, name and the secondary info chip). */
 export interface TrainingWorldView {
@@ -25,10 +31,10 @@ export interface TrainingWorldView {
  * panels are independent), `testid` prefixes every data-testid (`${testid}-training-...`).
  */
 export interface TrainingSet {
-  key: 'maze' | 'crux'
+  key: 'maze' | 'crux' | 'wf'
   /** panel title and aria label ("Training Mazes" / "Training Crux") */
   title: string
-  testid: 'maze' | 'crux'
+  testid: 'maze' | 'crux' | 'wf'
   worlds: TrainingWorldView[]
   /** car entity id of copy i (mazeCarId / cruxCarId — the live watch + focus target) */
   carId: (copy: number) => string
@@ -45,7 +51,8 @@ export interface TrainingSet {
 }
 
 const isMazeMeta = (meta: TrainingMeta): meta is MazeTrainingMeta => 'seed' in meta
-const isCruxMeta = (meta: TrainingMeta): meta is CruxTrainingMeta => 'setupKey' in meta
+const isCruxMeta = (meta: TrainingMeta): meta is CruxTrainingMeta => 'setupKey' in meta && !('kind' in meta)
+const isWfMeta = (meta: TrainingMeta): meta is WfTrainingMeta => 'kind' in meta
 
 /** "3 ways · 1 reversed"; null when an older meta.json predates the routes field. */
 function routesLabel(meta: MazeTrainingMeta): string | null {
@@ -86,5 +93,24 @@ export const CRUX_TRAINING_SET: TrainingSet = {
       ? { name: `Chain ${i + 1}`, short: '(base)', long: 'base path' }
       : { name: `Chain ${i + 1}`, short: '(jitter)', long: 'jittered variant' },
   badge: (meta) => (isCruxMeta(meta) && meta.chains ? `${meta.chains.base + meta.chains.jittered} chains` : null),
+  noun: 'chain',
+}
+
+/**
+ * The widen-freeze candidate worlds set: the holdout setups of the eval band (wf_<kind>_<n>, the pipeline-A final
+ * H=32 baked in), one tile per chain; the candidate chips (candidates.json: WF32 / WF24 / later stretches) swap the
+ * driving net at load time. Car ids + world loading go through the same paths as the maze set; the worlds carry no
+ * score stage (live score stays "-", the headless tile scores come from meta.json).
+ */
+export const WF_TRAINING_SET: TrainingSet = {
+  key: 'wf',
+  title: 'Widen-freeze Worlds',
+  testid: 'wf',
+  worlds: wfTrainingWorldViews(),
+  carId: wfCarId,
+  watch: { score: 'wf.score', seg: 'wf.seg' },
+  tileCount: (meta) => (isWfMeta(meta) ? meta.chains : 0),
+  tileText: (_meta, i) => ({ name: `Chain ${i + 1}`, short: '(v3)', long: 'v3 chain of this holdout setup' }),
+  badge: (meta) => (isWfMeta(meta) ? `${meta.chains} chains · ${meta.setupKey}` : null),
   noun: 'chain',
 }

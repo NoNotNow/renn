@@ -27,6 +27,7 @@ vi.mock('@/utils/discoverExampleWorldIds', () => ({
     'maze_train_1',
     'policy_chains_maze',
     'policy_v3_free',
+    'wf_maze_1',
     'world1',
   ],
 }))
@@ -73,6 +74,26 @@ describe('BuilderHeader example worlds menu', () => {
     expect(screen.queryByText('policy_chains_maze')).not.toBeInTheDocument()
     expect(screen.queryByText('policy_v3_free')).not.toBeInTheDocument()
     expect(screen.queryByText('maze_train_1')).not.toBeInTheDocument()
+    // widen-freeze candidate worlds live in the Widen-freeze Worlds dialog only, never in the global menu
+    expect(screen.queryByText('wf_maze_1')).not.toBeInTheDocument()
+  })
+
+  it('offers "Widen-freeze Worlds…" which calls onOpenWfTraining', async () => {
+    const user = userEvent.setup()
+    const onOpenWfTraining = vi.fn()
+    render(
+      <BuilderHeader
+        {...baseProps}
+        gizmoMode="translate"
+        onGizmoModeChange={noop}
+        onOpenWfTraining={onOpenWfTraining}
+      />,
+    )
+    await openFileMenu(user)
+    const item = screen.getByRole('menuitem', { name: /Widen-freeze Worlds…/ })
+    expect(item).toBeInTheDocument()
+    await user.click(item)
+    expect(onOpenWfTraining).toHaveBeenCalledTimes(1)
   })
 
   it('offers "Training Mazes…" which calls onOpenMazeTraining', async () => {

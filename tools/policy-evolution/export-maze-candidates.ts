@@ -29,6 +29,7 @@ import {
   cruxCarId,
 } from '../../src/policyEvolution/cruxTraining'
 import { warmCruxGate } from '../../src/policyEvolution/cruxChains'
+import { readWfCandidates } from '../../src/policyEvolution/wfCandidateWorlds'
 import {
   MAZE_GOAL_PREFIX,
   MAZE_GOAL_REACH_M,
@@ -121,6 +122,19 @@ async function main(): Promise<void> {
       gen: genMatch ? Number(genMatch[1]) : null,
       genome: ensureV3Inputs(shipped.genome),
       detail: 'shippedPolicyV3.json (the shipped policy)',
+    })
+  }
+
+  // widen-freeze candidates (public/policy-evolution/wf-candidates.json): the trained pipeline-A final, the warm
+  // baseline and later stretches — entries whose genome file does not exist yet (a stretch still training) are
+  // skipped here too, so re-running this script is all it takes once the stretch wrote its candidate file
+  for (const wf of readWfCandidates()) {
+    candidates.push({
+      id: wf.id,
+      label: wf.chipLabel ?? wf.label,
+      gen: wf.gen,
+      genome: wf.genome,
+      detail: `widen-freeze candidate · ${wf.detail ?? wf.label}`,
     })
   }
 

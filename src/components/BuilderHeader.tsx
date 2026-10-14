@@ -24,6 +24,7 @@ import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPubl
 import { setExampleWorldUrlParam } from '@/utils/exampleWorldUrlParam'
 import { MAZE_TRAINING_WORLDS } from '@/policyEvolution/mazeTraining'
 import { CRUX_TRAINING_WORLDS } from '@/policyEvolution/cruxTraining'
+import { isWfCandidateWorldId } from '@/policyEvolution/wfCandidates'
 
 const BUILDER_BASE_URL = import.meta.env.BASE_URL || '/'
 
@@ -71,6 +72,8 @@ export interface BuilderHeaderProps {
   onOpenMazeTraining?: () => void
   /** Opens the training-crux gallery dialog (File menu → "Training Crux…"; the same parameterized dialog). */
   onOpenCruxTraining?: () => void
+  /** Opens the widen-freeze candidate-worlds gallery dialog (File menu → "Widen-freeze Worlds…"; the same parameterized dialog). */
+  onOpenWfTraining?: () => void
 }
 
 export default function BuilderHeader({
@@ -110,6 +113,7 @@ export default function BuilderHeader({
   onOpenExampleWorld,
   onOpenMazeTraining,
   onOpenCruxTraining,
+  onOpenWfTraining,
 }: BuilderHeaderProps) {
   const {
     projects,
@@ -193,13 +197,14 @@ export default function BuilderHeader({
   )
 
   // Pure training worlds (policy_* exports) and the maze / crux training worlds (own dialog) stay out of
-  // the generic Example Worlds submenu.
+  // the generic Example Worlds submenu. The widen-freeze candidate worlds (wf_*) live in the Widen-freeze
+  // Worlds dialog only (same pattern as the training worlds — never in the global menu).
   const exampleWorldExcludedIds = useMemo(
     () => new Set([...MAZE_TRAINING_WORLDS, ...CRUX_TRAINING_WORLDS].map((spec) => spec.id)),
     [],
   )
   const visibleExampleWorldIds = exampleWorldIds.filter(
-    (id) => !id.startsWith('policy_') && !exampleWorldExcludedIds.has(id),
+    (id) => !id.startsWith('policy_') && !isWfCandidateWorldId(id) && !exampleWorldExcludedIds.has(id),
   )
   const exampleWorldsMenuItems: MenuItemConfig[] = visibleExampleWorldIds.map((id) => ({
     type: 'item' as const,
@@ -241,6 +246,12 @@ export default function BuilderHeader({
       label: 'Training Crux…',
       onClick: onOpenCruxTraining,
       disabled: !onOpenCruxTraining,
+    },
+    {
+      type: 'item',
+      label: 'Widen-freeze Worlds…',
+      onClick: onOpenWfTraining,
+      disabled: !onOpenWfTraining,
     },
     {
       type: 'item',
