@@ -19,7 +19,7 @@ import { focusMazeRoute } from '@/policyEvolution/mazeTraining'
 import { focusWfWorldRoute } from '@/policyEvolution/wfCandidates'
 import { focusCruxChain } from '@/policyEvolution/cruxTraining'
 import EntitySidebar from '@/components/EntitySidebar'
-import PropertySidebar from '@/components/PropertySidebar'
+import PropertySidebar, { type RightTab, VALID_RIGHT_TABS } from '@/components/PropertySidebar'
 import Workspace from '@/components/Workspace'
 import { LivePosesPoll, type LivePosesMap } from '@/components/LivePosesPoll'
 import { CopyProvider } from '@/contexts/CopyContext'
@@ -164,8 +164,7 @@ export default function Builder() {
   const [editNavigationMode, setEditNavigationMode] = useLocalStorageState('builderEditNavigationMode', false)
   const [gameFrozen, setGameFrozen] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
-  const [trainingOpen, setTrainingOpen] = useState(false)
-  /** Active tab of the merged training dialog (File → "Training…"): Mazes / Crux / Widen-freeze. */
+  /** Active set of the training section in the right sidebar (File → "Training…"): Mazes / Crux / Widen-freeze. */
   const [trainingSetKey, setTrainingSetKey] = useState<TrainingSet['key']>('maze')
   /** Training-maze world+route currently loaded and driving in the builder (live active-vector overlay in the dialog). */
   const [mazeTrainingLive, setMazeTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
@@ -389,6 +388,16 @@ export default function Builder() {
 
   const [showGameHud, setShowGameHud] = useLocalStorageState('builderShowGameHud', false)
   const [rightPanelDocked, setRightPanelDocked] = useLocalStorageState('rightSidebarDocked', false)
+  /** Active icon tab of the right sidebar (Properties / Code / Assets / Presets / Training); persisted. */
+  const [rightTabStored, setRightTabStored] = useLocalStorageState<RightTab>('builderRightSidebarTab', 'properties')
+  useEffect(() => {
+    if (!VALID_RIGHT_TABS.has(rightTabStored)) {
+      setRightTabStored('properties')
+    }
+  }, [rightTabStored, setRightTabStored])
+  const rightTab: RightTab = VALID_RIGHT_TABS.has(rightTabStored) ? rightTabStored : 'properties'
+  /** The training section is mounted (and its live watch fed) while its tab is the active one in the open drawer. */
+  const trainingTabActive = rightTab === 'training' && rightDrawerOpen
 
   const sceneCameraConfig = useMemo(
     () => ({
@@ -454,13 +463,13 @@ export default function Builder() {
     [handleOpenExampleWorldBase],
   )
 
-  // Training Mazes / Training Crux dialogs → load the exported example world into the builder (no play mode):
-  // the world sets world.debugTargetLineEntityId, so the guidance chain overlay renders in builder
-  // mode. The tile clicked in the dialog focuses the run on that way (target vector): camera,
-  // visualizeLine display entity and HUD score move to the selected copy's car (focusMazeRoute /
-  // focusCruxChain — the crux worlds carry crux_score_* stages, every other world id is a maze one).
-  // The dialog stays open; the game HUD is force-enabled so the score watch is visible.
-  // A selected candidate model (header chips) swaps the drive-stage weights of the LOADED world
+  // Training section (right sidebar "Training" tab: Mazes / Crux / Widen-freeze) → load the exported
+  // example world into the builder (no play mode): the world sets world.debugTargetLineEntityId, so the
+  // guidance chain overlay renders in builder mode. The tile clicked in the section focuses the run on that
+  // way (target vector): camera, visualizeLine display entity and HUD score move to the selected copy's car
+  // (focusMazeRoute / focusCruxChain — the crux worlds carry crux_score_* stages, every other world id is a
+  // maze one). The section stays mounted; the game HUD is force-enabled so the score watch is visible.
+  // A selected candidate model (chips row) swaps the drive-stage weights of the LOADED world
   // (applyMazeCandidate — the split drive stages are identical in both sets, so the swap is
   // world-agnostic) — the export on disk keeps the deployed best (on-disk gate untouched).
   const handlePlayExampleWorld = useCallback(
@@ -709,7 +718,7 @@ export default function Builder() {
   const canRedoHistory = canRedoTextureMaker || editorCanRedo
 
   const traceActive = selectedEntityIds.length === 1 && workspaceOpen
-  const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || trainingOpen
+  const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || trainingTabActive
   /** Live run of the ACTIVE tab's set (the dialog's live overlay only matches worlds of the open tab). */
   const activeTrainingLive =
     trainingSetKey === 'crux' ? cruxTrainingLive : trainingSetKey === 'wf' ? wfTrainingLive : mazeTrainingLive
@@ -758,6 +767,31 @@ export default function Builder() {
           void activateTextureStudioForEntity(id)
         }
       : undefined
+
+  // The training section of the right sidebar ("Training" tab): ONE panel with a set tab bar
+  // (Mazes / Crux / Widen-freeze) switching the TrainingSet — the key remounts the panel per tab so
+  // per-set state (fetched metas, candidate chips, world selection) is fresh. PropertySidebar renders
+  // this node while the training tab is active. The live overlay follows the world's own set.
+  const trainingPanelNode = (
+    <MazeTrainingDialog
+      key={trainingSetKey}
+      trainingSet={trainingSetByKey(trainingSetKey)}
+      tabs={{
+        sets: TRAINING_SETS,
+        activeKey: trainingSetKey,
+        onSelect: (key) => {
+          setTrainingSetKey(key)
+          uiLogger.click('Builder', 'Switch training section tab', { tab: key })
+        },
+      }}
+      onPlayExampleWorld={handlePlayExampleWorld}
+      liveRun={
+        activeTrainingLive && currentProject.id === null && currentProject.name === activeTrainingLive.worldId
+          ? activeTrainingLive
+          : null
+      }
+    />
+  )
 
   return (
     <EditorUndoProvider value={editorUndoApi}>
@@ -828,8 +862,9 @@ export default function Builder() {
         selectedEntityCount={selectedEntityIds.length}
         onOpenExampleWorld={handleOpenExampleWorld}
         onOpenTraining={() => {
-          setTrainingOpen(true)
-          uiLogger.click('Builder', 'Open Training dialog', {})
+          setRightDrawerOpen(true)
+          setRightTabStored('training')
+          uiLogger.click('Builder', 'Open Training section (right sidebar)', {})
         }}
       />
         </div>
@@ -874,31 +909,6 @@ export default function Builder() {
       <TransformerDocs
         isOpen={transformerDocsOpen}
         onClose={() => setTransformerDocsOpen(false)}
-      />
-
-      {/* The merged training dialog: ONE panel with a tab bar (Mazes / Crux / Widen-freeze) switching the
-          TrainingSet — the key remounts the panel per tab so per-set state (fetched metas, candidate chips,
-          world selection) is fresh; the panel's position / size / collapse state persist under one shared
-          localStorage slot (see MazeTrainingDialog). The live overlay follows the world's own set. */}
-      <MazeTrainingDialog
-        key={trainingSetKey}
-        isOpen={trainingOpen}
-        trainingSet={trainingSetByKey(trainingSetKey)}
-        tabs={{
-          sets: TRAINING_SETS,
-          activeKey: trainingSetKey,
-          onSelect: (key) => {
-            setTrainingSetKey(key)
-            uiLogger.click('Builder', 'Switch training dialog tab', { tab: key })
-          },
-        }}
-        onClose={() => setTrainingOpen(false)}
-        onPlayExampleWorld={handlePlayExampleWorld}
-        liveRun={
-          activeTrainingLive && currentProject.id === null && currentProject.name === activeTrainingLive.worldId
-            ? activeTrainingLive
-            : null
-        }
       />
 
       <div
@@ -1063,6 +1073,9 @@ export default function Builder() {
                     onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
                     livePoses={livePoses}
                     isOpen={rightDrawerOpen}
+                    activeTab={rightTab}
+                    onTabChange={setRightTabStored}
+                    trainingPanel={trainingPanelNode}
                     onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
                     dockLayout={false}
                     onDockLayoutChange={setRightPanelDocked}
@@ -1138,6 +1151,9 @@ export default function Builder() {
                     onResetPoseToSavedWorld={handleResetPoseToSavedWorld}
                     livePoses={livePoses}
                     isOpen={rightDrawerOpen}
+                    activeTab={rightTab}
+                    onTabChange={setRightTabStored}
+                    trainingPanel={trainingPanelNode}
                     onToggle={() => setRightDrawerOpen(!rightDrawerOpen)}
                     dockLayout
                     onDockLayoutChange={setRightPanelDocked}

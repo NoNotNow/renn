@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { EntityPanelIcons } from './EntityPanelIcons'
 import PropertyPanel from './PropertyPanel'
 import CodingTabPanel from './CodingTabPanel'
@@ -14,9 +15,16 @@ import Sidebar from './layout/Sidebar'
 import { SIDEBAR_MIN_WIDTH } from './layout/sidebarLayout'
 import { TabIcons } from './TabIcons'
 
-type RightTab = 'properties' | 'code' | 'assets' | 'presets'
+export type RightTab = 'properties' | 'code' | 'assets' | 'presets' | 'training'
 
-const VALID_RIGHT_TABS = new Set<RightTab>(['properties', 'code', 'assets', 'presets'])
+/** Valid right sidebar tabs (guarded by the Builder, which owns the persisted tab state). */
+export const VALID_RIGHT_TABS: ReadonlySet<RightTab> = new Set<RightTab>([
+  'properties',
+  'code',
+  'assets',
+  'presets',
+  'training',
+])
 
 export interface PropertySidebarProps {
   world: RennWorld
@@ -41,6 +49,14 @@ export interface PropertySidebarProps {
   livePoses?: Map<string, { position: Vec3; rotation: Rotation; scale?: Vec3 }> | null
   isOpen: boolean
   onToggle: () => void
+  /** Active icon tab (owned by the Builder — also drives the File → "Training…" focus). */
+  activeTab: RightTab
+  onTabChange: (tab: RightTab) => void
+  /**
+   * Content of the training tab: the training panel section (worlds / candidates chips / live overlay),
+   * composed by the Builder (it owns the training-set state, the play callback and the live run).
+   */
+  trainingPanel?: ReactNode
   /** When true, the inspector sits in the flex layout beside the canvas (not layered over it). */
   dockLayout?: boolean
   onDockLayoutChange?: (docked: boolean) => void
@@ -72,6 +88,9 @@ export default function PropertySidebar({
   livePoses,
   isOpen,
   onToggle,
+  activeTab,
+  onTabChange,
+  trainingPanel,
   dockLayout = false,
   onDockLayoutChange,
   onOpenTextureStudio,
@@ -80,19 +99,6 @@ export default function PropertySidebar({
   onSelectEntity,
   entityWorkHistory = [],
 }: PropertySidebarProps) {
-  const [rightTabStored, setRightTabStored] = useLocalStorageState<RightTab>(
-    'builderRightSidebarTab',
-    'properties',
-  )
-
-  useEffect(() => {
-    if (!VALID_RIGHT_TABS.has(rightTabStored)) {
-      setRightTabStored('properties')
-    }
-  }, [rightTabStored, setRightTabStored])
-
-  const rightTab: RightTab = VALID_RIGHT_TABS.has(rightTabStored) ? rightTabStored : 'properties'
-
   const [rightSidebarWidth, setRightSidebarWidth] = useLocalStorageState('rightSidebarWidth', 300)
 
   useEffect(() => {
@@ -104,7 +110,7 @@ export default function PropertySidebar({
   const handleTabChange = (tab: string) => {
     if (!VALID_RIGHT_TABS.has(tab as RightTab)) return
     uiLogger.click('Builder', 'Switch right panel tab', { tab })
-    setRightTabStored(tab as RightTab)
+    onTabChange(tab as RightTab)
   }
 
   const selectedResolvedEntities = selectedEntityIds
@@ -203,8 +209,9 @@ export default function PropertySidebar({
         { id: 'code', icon: TabIcons.scripts, label: 'Code' },
         { id: 'assets', icon: TabIcons.assets, label: 'Assets' },
         { id: 'presets', icon: TabIcons.presets, label: 'Presets' },
+        { id: 'training', icon: TabIcons.training, label: 'Training' },
       ]}
-      activeTab={rightTab}
+      activeTab={activeTab}
       onTabChange={handleTabChange}
       width={rightSidebarWidth}
       onWidthChange={setRightSidebarWidth}
@@ -215,7 +222,7 @@ export default function PropertySidebar({
         style={{
           flex: 1,
           minHeight: 200,
-          minWidth: rightTab === 'code' ? SIDEBAR_MIN_WIDTH : undefined,
+          minWidth: activeTab === 'code' ? SIDEBAR_MIN_WIDTH : undefined,
           overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',
@@ -226,13 +233,13 @@ export default function PropertySidebar({
             flex: 1,
             minHeight: 0,
             width: '100%',
-            minWidth: rightTab === 'code' ? SIDEBAR_MIN_WIDTH : 0,
+            minWidth: activeTab === 'code' ? SIDEBAR_MIN_WIDTH : 0,
             display: 'flex',
             flexDirection: 'column',
             overflow: undefined,
           }}
         >
-          {rightTab === 'properties' && (
+          {activeTab === 'properties' && (
             <PropertyPanel
               world={world}
               assets={assets}
@@ -254,7 +261,7 @@ export default function PropertySidebar({
               onSelectEntity={onSelectEntity}
             />
           )}
-          {rightTab === 'code' && (
+          {activeTab === 'code' && (
             <CodingTabPanel
               world={world}
               selectedEntityIds={selectedEntityIds}
@@ -265,7 +272,7 @@ export default function PropertySidebar({
               onSelectEntity={onSelectEntity}
             />
           )}
-          {rightTab === 'assets' && (
+          {activeTab === 'assets' && (
             <AssetPanel
               assets={assets}
               world={world}
@@ -273,12 +280,13 @@ export default function PropertySidebar({
               onWorldChange={onWorldChange}
             />
           )}
-          {rightTab === 'presets' && (
+          {activeTab === 'presets' && (
             <ModelPresetPanel
               selectedEntityIds={selectedEntityIds}
               onAfterPresetApply={onAfterModelPresetApply}
             />
           )}
+          {activeTab === 'training' && trainingPanel != null ? trainingPanel : null}
         </div>
       </div>
     </Sidebar>

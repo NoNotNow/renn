@@ -41,6 +41,7 @@ vi.mock('@/components/SceneView', () => ({
 }))
 
 vi.mock('@/components/PropertySidebar', () => ({
+  VALID_RIGHT_TABS: new Set(['properties', 'code', 'assets', 'presets', 'training']),
   default: function MockPropertySidebar() {
     return null
   },

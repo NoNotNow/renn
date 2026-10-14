@@ -36,6 +36,11 @@ const builderWorldChangeCapture = vi.hoisted(() => ({
   onWorldChange: null as ((world: RennWorld) => void) | null,
 }))
 
+/** Latest PropertySidebar props (mock) — the File → "Training…" test reads the tab/drawer state here. */
+const propertySidebarProps = vi.hoisted(() => ({
+  latest: null as Record<string, unknown> | null,
+}))
+
 const sceneViewProps: Record<string, unknown> = {}
 vi.mock('@/components/SceneView', () => ({
   default: forwardRef(function MockSceneView(props: Record<string, unknown>, ref) {
@@ -46,8 +51,10 @@ vi.mock('@/components/SceneView', () => ({
 }))
 
 vi.mock('@/components/PropertySidebar', () => ({
-  default: function MockPropertySidebar(props: { onWorldChange?: (world: RennWorld) => void }) {
+  VALID_RIGHT_TABS: new Set(['properties', 'code', 'assets', 'presets', 'training']),
+  default: function MockPropertySidebar(props: { onWorldChange?: (world: RennWorld) => void } & Record<string, unknown>) {
     builderWorldChangeCapture.onWorldChange = props.onWorldChange ?? null
+    propertySidebarProps.latest = props
     return null
   },
 }))
@@ -145,10 +152,12 @@ describe('Builder', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     builderWorldChangeCapture.onWorldChange = null
+    propertySidebarProps.latest = null
     Object.keys(sceneViewProps).forEach((k) => delete sceneViewProps[k])
     if (typeof localStorage?.removeItem === 'function') {
       localStorage.removeItem('builderShowGameHud')
       localStorage.removeItem('builderEditNavigationMode')
+      localStorage.removeItem('builderRightSidebarTab')
     }
   })
 
@@ -255,6 +264,28 @@ describe('Builder', () => {
     await waitFor(() => {
       expect(sceneViewProps.showGameHud).toBe(true)
     })
+  })
+
+  it('File → Training… opens the right sidebar on the training tab (no floating dialog)', async () => {
+    const user = userEvent.setup({ delay: null })
+    renderBuilder()
+    await act(async () => {
+      await Promise.resolve()
+    })
+    // default: the right sidebar shows the properties tab
+    expect(propertySidebarProps.latest?.activeTab).toBe('properties')
+    await user.click(screen.getByRole('button', { name: 'File' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Training…' }))
+    // the menu entry focuses the sidebar's training section: tab switched, drawer open, panel node passed
+    await waitFor(() => {
+      expect(propertySidebarProps.latest?.activeTab).toBe('training')
+    })
+    expect(propertySidebarProps.latest?.isOpen).toBe(true)
+    expect(propertySidebarProps.latest?.trainingPanel).not.toBeNull()
+    // the tab choice persists for the next session
+    if (typeof localStorage?.getItem === 'function') {
+      expect(localStorage.getItem('builderRightSidebarTab')).toBe('"training"')
+    }
   })
 
   it('persists shadowsEnabled false on world when Shadows is toggled off in World panel', async () => {

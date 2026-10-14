@@ -63,6 +63,15 @@ export const TabIcons = {
       <path d="M2 12l10 5 10-5" />
     </svg>
   ),
+  /** Training section of the right sidebar (a route with waypoint dots). */
+  training: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconStyle}>
+      <circle cx="5" cy="19" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="5" r="2" />
+      <path d="M6.5 17.5l3.9-4.1M13.7 10.3l3.8-3.8" />
+    </svg>
+  ),
   /** Right inspector floating over the canvas. */
   panelLayoutFloating: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconStyle}>

@@ -5,13 +5,8 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type PointerEvent as ReactPointerEvent,
 } from 'react'
-import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
-import { usePanelEdgeResize } from '@/hooks/usePanelEdgeResize'
-import { DRAWER_RESIZE_EDGES_ALL } from '@/components/workspace/floatingDrawerLayout'
-import FloatingDrawerResizeHandles from '@/components/workspace/FloatingDrawerResizeHandles'
 import { MAZE_TRAINING_SET, type TrainingMeta, type TrainingSet } from './trainingSets'
 import {
   fetchMazeCandidates,
@@ -32,9 +27,9 @@ export interface MazeTrainingLiveRun {
 }
 
 /**
- * Tab bar of the merged training dialog (File → "Training…"): one tab per training set, switching the set
- * through the Builder (`onSelect`). When present, pos / size / collapsed persist under ONE shared
- * localStorage slot (the panel is ONE dialog; the candidate slot stays per set).
+ * Tab bar of the training section of the right sidebar (File → "Training…"): one tab per training set,
+ * switching the set through the Builder (`onSelect`). When present, the candidates-row collapse persists
+ * under ONE shared localStorage slot (the section is ONE panel; the candidate slot stays per set).
  */
 export interface TrainingDialogTabs {
   sets: TrainingSet[]
@@ -43,14 +38,12 @@ export interface TrainingDialogTabs {
 }
 
 export interface MazeTrainingDialogProps {
-  isOpen: boolean
-  onClose: () => void
   /** Which training set the panel serves (worlds, car ids, watch labels, tile texts); default: the training mazes. */
   trainingSet?: TrainingSet
-  /** Tab bar of the merged training dialog (renders the set tabs; shared pos/size/collapsed localStorage slot). */
+  /** Tab bar of the training section (renders the set tabs; shared chips-row localStorage slot). */
   tabs?: TrainingDialogTabs
   /**
-   * Loads the example world into the builder focused on the selected route (Builder implements this; the dialog
+   * Loads the example world into the builder focused on the selected route (Builder implements this; the section
    * stays open). `candidate` is the model selected via the header chips — the Builder swaps the drive-stage
    * weights of the loaded world to it (null = the deployed candidate baked into the export).
    */
@@ -67,21 +60,19 @@ interface MazeCardState {
 
 const initialCardState: MazeCardState = { meta: null, failed: false }
 
-/** Half-transparent panel fill over `theme.bg.panel` (#1b1f2a at ~0.55 alpha). */
-const PANEL_BG_TRANSLUCENT = 'rgba(27, 31, 42, 0.55)'
-/** Denser translucent strip for the header over the blurred scene. */
+/** Denser translucent strip for the section's header rows over the sidebar background. */
 const HEADER_BG_TRANSLUCENT = theme.bg.modalGlassHeader
 
-/** localStorage key suffixes: `<set key>TrainingPanel<suffix>` per set (or `trainingPanel<suffix>` shared by the merged dialog); the candidate slot stays per set. */
+/** localStorage key suffixes: `<set key>TrainingPanel<suffix>` per set (or `trainingPanel<suffix>` shared by the merged section); the candidate slot stays per set. */
 const PANEL_CANDIDATE_KEY = 'TrainingPanelCandidate'
 
-const STRIP_HEIGHT = 38
-const DEFAULT_WIDTH = 540
-const DEFAULT_HEIGHT = 480
-const MIN_WIDTH = 260
-const MIN_HEIGHT = 120
-/** Pointer travel (px) beyond which a header press counts as a drag, not a click. */
-const DRAG_THRESHOLD_PX = 3
+/**
+ * Fallback section size for the responsive thumbnails when the section cannot be measured (jsdom tests;
+ * a real browser measures through the ResizeObserver immediately). Width matches the right sidebar's
+ * persisted default (300px), height a typical full-height section.
+ */
+const SECTION_FALLBACK_WIDTH = 300
+const SECTION_FALLBACK_HEIGHT = 600
 
 /**
  * Vertical panel chrome (header + tab strip + paddings + captions of one expanded tile row) subtracted
@@ -109,16 +100,6 @@ export function routeTileThumbHeightPx(panelWidth: number, panelHeight: number, 
   const byWidth = perTileWidth * 1.15
   const height = Math.min(byHeight, byWidth)
   return Math.round(Math.max(TILE_THUMB_MIN_PX, Math.min(TILE_THUMB_MAX_PX, height)))
-}
-
-interface PanelPos {
-  x: number
-  y: number
-}
-
-interface PanelSize {
-  width: number
-  height: number
 }
 
 /** meta.json url of one training world (same layout for both sets: public/exampleWorlds/<id>/meta.json). */
@@ -326,66 +307,11 @@ function persistJson(key: string, value: unknown): void {
   }
 }
 
-function readStoredPos(key: string): PanelPos | null {
-  const parsed = readStoredJson(key) as Partial<PanelPos> | null
-  if (
-    parsed &&
-    typeof parsed.x === 'number' &&
-    Number.isFinite(parsed.x) &&
-    typeof parsed.y === 'number' &&
-    Number.isFinite(parsed.y)
-  ) {
-    return { x: parsed.x, y: parsed.y }
-  }
-  return null
-}
-
-function readStoredSize(key: string): PanelSize | null {
-  const parsed = readStoredJson(key) as Partial<PanelSize> | null
-  if (
-    parsed &&
-    typeof parsed.width === 'number' &&
-    Number.isFinite(parsed.width) &&
-    parsed.width >= MIN_WIDTH &&
-    typeof parsed.height === 'number' &&
-    Number.isFinite(parsed.height) &&
-    parsed.height >= MIN_HEIGHT
-  ) {
-    return { width: parsed.width, height: parsed.height }
-  }
-  return null
-}
-
-function readStoredCollapsed(key: string): boolean {
-  return readStoredJson(key) !== false
-}
-
-function defaultPanelPos(width: number): PanelPos {
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 0
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 0
-  const x = vw > 0 ? Math.max(16, vw - width - 24) : 16
-  const y = vh > 0 ? Math.min(64, Math.max(0, vh - STRIP_HEIGHT - 16)) : 16
-  return { x, y }
-}
-
-function clampPosToViewport(pos: PanelPos, panel: { width: number; height: number }): PanelPos {
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 0
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 0
-  if (vw <= 0 || vh <= 0) return pos
-  return {
-    x: Math.min(Math.max(0, pos.x), Math.max(0, vw - panel.width)),
-    y: Math.min(Math.max(0, pos.y), Math.max(0, vh - panel.height)),
-  }
-}
-
-export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE_TRAINING_SET, tabs, onPlayExampleWorld, liveRun = null }: MazeTrainingDialogProps) {
-  // per-set localStorage slots (`mazeTrainingPanelPos` for the mazes, `cruxTrainingPanelPos` for the crux, ...);
-  // the merged (tabbed) dialog instead shares ONE slot (`trainingPanel*`) so the panel keeps its position,
-  // size and collapse state across tab switches. The candidate slot stays per set (different chips per set).
+export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, tabs, onPlayExampleWorld, liveRun = null }: MazeTrainingDialogProps) {
+  // per-set localStorage slots (`mazeTrainingPanelCandidate` for the mazes, `crux...` for the crux, ...);
+  // the merged (tabbed) section instead shares ONE chips-row slot (`trainingPanelCandidatesCollapsed`)
+  // across tab switches. The candidate slot stays per set (different chips per set).
   const layoutStoragePrefix = tabs ? 'trainingPanel' : `${trainingSet.key}TrainingPanel`
-  const posStorageKey = `${layoutStoragePrefix}Pos`
-  const sizeStorageKey = `${layoutStoragePrefix}Size`
-  const collapsedStorageKey = `${layoutStoragePrefix}Collapsed`
   const candidatesCollapsedStorageKey = `${layoutStoragePrefix}CandidatesCollapsed`
   const candidateStorageKey = `${trainingSet.key}${PANEL_CANDIDATE_KEY}`
   const [cardStates, setCardStates] = useState<Record<string, MazeCardState>>(() =>
@@ -396,31 +322,17 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null)
   /** Route tile per world that started the run (the accent border marks the started way; default route 0). */
   const [selectedRoutes, setSelectedRoutes] = useState<Record<string, number>>({})
-  const [collapsed, setCollapsed] = useState<boolean>(() => readStoredCollapsed(collapsedStorageKey))
   /**
-   * Chips row collapsed? The model-selector chips + Ø figures live in their OWN row under the header; this
-   * hides that row only (panel layout, chip selection and the loaded world are untouched). Default expanded.
+   * Chips row collapsed? The model-selector chips + Ø figures live in their OWN row under the title line;
+   * this hides that row only (section layout, chip selection and the loaded world are untouched).
+   * Default expanded.
    */
   const [candidatesCollapsed, setCandidatesCollapsed] = useState<boolean>(
     () => readStoredJson(candidatesCollapsedStorageKey) === true,
   )
-  /** Candidate model selected via the header chips (null = the deployed candidate baked into the export); persisted. */
+  /** Candidate model selected via the chips row (null = the deployed candidate baked into the export); persisted. */
   const [candidateId, setCandidateId] = useState<string | null>(() => readStoredJson(candidateStorageKey) as string | null)
   const [candidatesFile, setCandidatesFile] = useState<MazeCandidatesFile | null>(null)
-  const [size, setSize] = useState<PanelSize>(() => readStoredSize(sizeStorageKey) ?? { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
-  const [pos, setPos] = useState<PanelPos>(() => {
-    const stored = readStoredPos(posStorageKey)
-    return stored ?? defaultPanelPos(readStoredSize(sizeStorageKey)?.width ?? DEFAULT_WIDTH)
-  })
-
-  const posRef = useRef(pos)
-  posRef.current = pos
-  const panelRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number; moved: boolean } | null>(null)
-  /** Set when a header drag ended so the trailing click does not toggle the panel. */
-  const suppressClickRef = useRef(false)
-
-  const expanded = !collapsed
 
   // Live watch of the focused route's car (the set's watch labels, published by the in-world score stage).
   // The snapshot must be referentially stable between publishes: the derived value is cached in a ref keyed by
@@ -442,8 +354,36 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
   }, [liveCarId, trainingSet.watch])
   const liveWatch = useSyncExternalStore(subscribeTransformerWatch, getLiveWatchSnapshot)
 
+  // Section size for the responsive route thumbnails: the section fills the right sidebar's tab area, so
+  // the thumbnails scale with the measured element (ResizeObserver in the browser; jsdom tests keep the
+  // sidebar-default fallback below — a real measurement replaces it on the first callback).
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const [sectionSize, setSectionSize] = useState<{ width: number; height: number }>({
+    width: SECTION_FALLBACK_WIDTH,
+    height: SECTION_FALLBACK_HEIGHT,
+  })
   useEffect(() => {
-    if (!isOpen) return
+    const el = sectionRef.current
+    if (!el) return
+    const measure = () => {
+      const rect = el.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        setSectionSize((prev) =>
+          prev.width === rect.width && prev.height === rect.height ? prev : { width: rect.width, height: rect.height },
+        )
+      }
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure)
+      return () => window.removeEventListener('resize', measure)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
     for (const spec of trainingSet.worlds) {
       fetch(trainingMetaUrl(spec), { cache: 'no-cache' })
@@ -465,12 +405,11 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
     return () => {
       cancelled = true
     }
-  }, [isOpen, trainingSet.worlds])
+  }, [trainingSet.worlds])
 
   // Candidate models (island centers / best / shipped) exported next to the worlds; chips render only when the
   // file exists. A persisted selection that the file no longer lists is dropped (stale id after a re-export).
   useEffect(() => {
-    if (!isOpen) return
     let cancelled = false
     fetchMazeCandidates(BASE_URL).then((file) => {
       if (!cancelled) {
@@ -483,20 +422,12 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
     return () => {
       cancelled = true
     }
-  }, [isOpen])
+  }, [])
 
   const selectedCandidate = useMemo(
     () => candidatesFile?.candidates.find((c) => c.id === candidateId) ?? null,
     [candidatesFile, candidateId],
   )
-
-  const toggleCollapsed = useCallback(() => {
-    setCollapsed((prev) => {
-      const next = !prev
-      persistJson(collapsedStorageKey, next)
-      return next
-    })
-  }, [collapsedStorageKey])
 
   const toggleCandidatesRow = useCallback(() => {
     setCandidatesCollapsed((prev) => {
@@ -505,93 +436,6 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
       return next
     })
   }, [candidatesCollapsedStorageKey])
-
-  const handleHeaderPointerDown = useCallback(
-    (e: ReactPointerEvent<HTMLDivElement>) => {
-      if ((e.target as HTMLElement).closest('button')) return
-      e.preventDefault()
-      dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        startPosX: posRef.current.x,
-        startPosY: posRef.current.y,
-        moved: false,
-      }
-      e.currentTarget.setPointerCapture?.(e.pointerId)
-    },
-    [],
-  )
-
-  const handleHeaderPointerMove = useCallback(
-    (e: ReactPointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current
-      if (!drag) return
-      const dx = e.clientX - drag.startX
-      const dy = e.clientY - drag.startY
-      if (!drag.moved && Math.abs(dx) + Math.abs(dy) <= DRAG_THRESHOLD_PX) return
-      drag.moved = true
-      setPos(
-        clampPosToViewport(
-          { x: drag.startPosX + dx, y: drag.startPosY + dy },
-          { width: size.width, height: expanded ? size.height : STRIP_HEIGHT },
-        ),
-      )
-    },
-    [expanded, size.width, size.height],
-  )
-
-  const handleHeaderPointerUp = useCallback(
-    (e: ReactPointerEvent<HTMLDivElement>) => {
-      const drag = dragRef.current
-      if (!drag) return
-      dragRef.current = null
-      e.currentTarget.releasePointerCapture?.(e.pointerId)
-      if (drag.moved) {
-        suppressClickRef.current = true
-        persistJson(posStorageKey, posRef.current)
-      }
-    },
-    [posStorageKey],
-  )
-
-  const handleHeaderClick = useCallback(() => {
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false
-      return
-    }
-    toggleCollapsed()
-  }, [toggleCollapsed])
-
-  const handleHeaderKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        toggleCollapsed()
-      }
-    },
-    [toggleCollapsed],
-  )
-
-  // All-edges resize (shared hook + shared handle set): every edge and corner drags, pos+size stay
-  // clamped inside the viewport, and both persist to the panel's localStorage slots.
-  const handleResizeMouseDown = usePanelEdgeResize({
-    enabled: isOpen && expanded,
-    minWidth: MIN_WIDTH,
-    minHeight: MIN_HEIGHT,
-    start: { pos, size },
-    resolveStart: () => {
-      const rect = panelRef.current?.getBoundingClientRect()
-      // jsdom reports a zero rect -> fall back to the state values
-      if (!rect || rect.width <= 0 || rect.height <= 0) return null
-      return { pos: { x: rect.left, y: rect.top }, size: { width: rect.width, height: rect.height } }
-    },
-    onChange: (next) => {
-      setPos(next.pos)
-      setSize(next.size)
-      persistJson(posStorageKey, next.pos)
-      persistJson(sizeStorageKey, next.size)
-    },
-  })
 
   const handleCardClick = useCallback((id: string) => {
     setSelectedId(id)
@@ -628,8 +472,6 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
     e.currentTarget.style.display = 'none'
   }, [])
 
-  if (!isOpen) return null
-
   // Candidates-row best/worst (weakest link at a glance): the MEAN of every run's best score and of its worst
   // route score, rounded to integers (no decimals). Both figures follow the SELECTED candidate chip (its
   // headless per-world scores, scored by export-maze-candidates.ts over this same training set); without a
@@ -656,113 +498,47 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
     ? `Weakest-link health of the SELECTED candidate (${selectedCandidate.label}${selectedCandidate.scoredGen != null ? ` · scored gen ${selectedCandidate.scoredGen}` : ''}): Ø worst ÷ Ø best of its headless scores — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not scored yet`
     : 'Weakest-link health of the deployed candidate: Ø Worst ÷ Ø Best — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not measured yet'
 
-  // The model-selector chips + Ø figures row: its own collapsible line under the header (only while the
-  // panel is expanded; hidden entirely when there is nothing to show — no chips and no measured averages).
+  // The model-selector chips + Ø figures row: its own collapsible line under the title line (hidden entirely
+  // when there is nothing to show — no chips and no measured averages).
   const hasCandidates = candidatesFile != null && candidatesFile.candidates.length > 0
-  const showCandidatesRow = expanded && (hasCandidates || showHeaderStats)
+  const showCandidatesRow = hasCandidates || showHeaderStats
   const candidatesRowExpanded = !candidatesCollapsed
 
-  const panelHeight = expanded ? size.height : STRIP_HEIGHT
-
-  return createPortal(
+  return (
     <div
-      ref={panelRef}
+      ref={sectionRef}
       data-testid={`${trainingSet.testid}-training-panel`}
-      role="dialog"
       aria-label={trainingSet.title}
       style={{
-        position: 'fixed',
-        left: pos.x,
-        top: pos.y,
-        width: size.width,
-        height: panelHeight,
-        zIndex: theme.zIndex.floatingDialog,
-        background: PANEL_BG_TRANSLUCENT,
-        backdropFilter: 'blur(4px)',
-        border: `1px solid ${theme.border.default}`,
-        borderRadius: 8,
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+        flex: 1,
+        minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        pointerEvents: 'auto',
       }}
     >
       <div
         data-testid={`${trainingSet.testid}-training-panel-header`}
-        role="button"
-        tabIndex={0}
-        aria-expanded={expanded}
-        aria-label={trainingSet.title}
-        title="Drag to move — click to expand/collapse"
-        onPointerDown={handleHeaderPointerDown}
-        onPointerMove={handleHeaderPointerMove}
-        onPointerUp={handleHeaderPointerUp}
-        onPointerCancel={handleHeaderPointerUp}
-        onClick={handleHeaderClick}
-        onKeyDown={handleHeaderKeyDown}
         style={{
-          height: STRIP_HEIGHT,
           flexShrink: 0,
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '0 8px 0 10px',
+          padding: '8px 10px',
           background: HEADER_BG_TRANSLUCENT,
           borderBottom: `1px solid ${theme.border.default}`,
-          cursor: 'grab',
-          userSelect: 'none',
-          touchAction: 'none',
         }}
       >
-        <span
-          aria-hidden={true}
-          style={{
-            color: theme.text.muted,
-            fontSize: 11,
-            transform: expanded ? 'rotate(180deg)' : 'none',
-            transition: 'transform 0.15s ease',
-          }}
-        >
-          &#9662;
-        </span>
         <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary, whiteSpace: 'nowrap' }}>
           {trainingSet.title}
         </span>
         <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
           {trainingSet.worlds.length} runs
         </span>
-        <div style={{ flex: 1 }} />
-        <button
-          type="button"
-          data-testid={`${trainingSet.testid}-training-close`}
-          onClick={(e) => {
-            e.stopPropagation()
-            onClose()
-          }}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: theme.text.muted,
-            fontSize: 18,
-            lineHeight: 1,
-            cursor: 'pointer',
-            padding: 0,
-            width: 22,
-            height: 22,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 4,
-          }}
-          aria-label={`Close ${trainingSet.title}`}
-        >
-          ×
-        </button>
       </div>
 
-      {/* merged dialog: one tab per training set (visible while expanded; the tab content is the set below) */}
-      {tabs && expanded ? (
+      {/* training section: one tab per training set (the tab content is the set below) */}
+      {tabs ? (
         <div
           data-testid="training-tabs"
           role="tablist"
@@ -937,203 +713,195 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
         </div>
       ) : null}
 
-      {expanded ? (
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflow: 'auto',
-            padding: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-          }}
-        >
-          {trainingSet.worlds.map((spec) => {
-            const state = cardStates[spec.id] ?? initialCardState
-            const meta = state.meta
-            const exported = !state.failed && meta != null
-            const selected = selectedId === spec.id
-            const rowExpanded = expandedRowId === spec.id && exported
-            // thumbnails scale with the panel: small when vertical space is scarce, larger with room
-            const tileCount = rowExpanded && meta ? trainingSet.tileCount(meta) : 0
-            const thumbHeight = `${routeTileThumbHeightPx(size.width, size.height, tileCount)}px`
-            return (
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflow: 'auto',
+          padding: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        {trainingSet.worlds.map((spec) => {
+          const state = cardStates[spec.id] ?? initialCardState
+          const meta = state.meta
+          const exported = !state.failed && meta != null
+          const selected = selectedId === spec.id
+          const rowExpanded = expandedRowId === spec.id && exported
+          // thumbnails scale with the section (sidebar width + available height); clamped 40-176px
+          const tileCount = rowExpanded && meta ? trainingSet.tileCount(meta) : 0
+          const thumbHeight = `${routeTileThumbHeightPx(sectionSize.width, sectionSize.height, tileCount)}px`
+          return (
+            <div
+              key={spec.id}
+              data-testid={`${trainingSet.testid}-training-card-${spec.id}`}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: rowExpanded ? 6 : 0,
+                background: theme.bg.section,
+                border: `1px solid ${selected ? theme.button.pickBorder : theme.border.default}`,
+                borderRadius: 8,
+              }}
+            >
               <div
-                key={spec.id}
-                data-testid={`${trainingSet.testid}-training-card-${spec.id}`}
+                data-testid={`${trainingSet.testid}-training-row-${spec.id}`}
+                role="button"
+                tabIndex={0}
+                aria-label={spec.name}
+                aria-pressed={selected}
+                aria-expanded={rowExpanded}
+                onClick={() => handleCardClick(spec.id)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCardClick(spec.id)}
+                title={exported ? 'Click to show/hide the run thumbnail' : undefined}
                 style={{
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: rowExpanded ? 6 : 0,
-                  background: theme.bg.section,
-                  border: `1px solid ${selected ? theme.button.pickBorder : theme.border.default}`,
-                  borderRadius: 8,
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 8px',
+                  cursor: 'pointer',
                 }}
               >
-                <div
-                  data-testid={`${trainingSet.testid}-training-row-${spec.id}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={spec.name}
-                  aria-pressed={selected}
-                  aria-expanded={rowExpanded}
-                  onClick={() => handleCardClick(spec.id)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCardClick(spec.id)}
-                  title={exported ? 'Click to show/hide the run thumbnail' : undefined}
+                <span
+                  aria-hidden={true}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 8px',
-                    cursor: 'pointer',
+                    color: theme.text.muted,
+                    fontSize: 10,
+                    transform: rowExpanded ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.15s ease',
                   }}
                 >
-                  <span
-                    aria-hidden={true}
-                    style={{
-                      color: theme.text.muted,
-                      fontSize: 10,
-                      transform: rowExpanded ? 'rotate(180deg)' : 'none',
-                      transition: 'transform 0.15s ease',
-                    }}
-                  >
-                    &#9662;
-                  </span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary, whiteSpace: 'nowrap' }}>
-                    {spec.name}
-                  </span>
-                  <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>{spec.info}</span>
-                  <div style={{ flex: 1 }} />
-                  {exported && meta ? (
-                    <>
-                      <span
-                        data-testid={`${trainingSet.testid}-training-row-health-${spec.id}`}
-                        aria-hidden={true}
-                        title={
-                          selectedCandidate
-                            ? `Weakest-link health of the SELECTED candidate (${selectedCandidate.label}): the run's worst route score ÷ its best under that model — green = the stuck route scores as well as the run's best, red = stuck at zero, gray = not scored yet`
-                            : "Weakest-link health: the run's worst route score ÷ its best score — green = the stuck route scores as well as the run's best, red = stuck at zero, gray = not measured yet"
-                        }
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          flexShrink: 0,
-                          background: selectedCandidate ? candidateRowHealthColor(selectedCandidate, spec.id) : rowHealthColor(meta),
-                        }}
-                      />
-                      <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>
-                        {bestScoreLabel(meta)}
+                  &#9662;
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: theme.text.primary, whiteSpace: 'nowrap' }}>
+                  {spec.name}
+                </span>
+                <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>{spec.info}</span>
+                <div style={{ flex: 1 }} />
+                {exported && meta ? (
+                  <>
+                    <span
+                      data-testid={`${trainingSet.testid}-training-row-health-${spec.id}`}
+                      aria-hidden={true}
+                      title={
+                        selectedCandidate
+                          ? `Weakest-link health of the SELECTED candidate (${selectedCandidate.label}): the run's worst route score ÷ its best under that model — green = the stuck route scores as well as the run's best, red = stuck at zero, gray = not scored yet`
+                          : "Weakest-link health: the run's worst route score ÷ its best score — green = the stuck route scores as well as the run's best, red = stuck at zero, gray = not measured yet"
+                      }
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                        background: selectedCandidate ? candidateRowHealthColor(selectedCandidate, spec.id) : rowHealthColor(meta),
+                      }}
+                    />
+                    <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>
+                      {bestScoreLabel(meta)}
+                    </span>
+                    <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>
+                      {worstScoreLabel(meta, trainingSet.noun)}
+                    </span>
+                    {trainingSet.badge(meta) ? (
+                      <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
+                        {trainingSet.badge(meta)}
                       </span>
-                      <span style={{ fontSize: 11, color: theme.text.secondary, whiteSpace: 'nowrap' }}>
-                        {worstScoreLabel(meta, trainingSet.noun)}
-                      </span>
-                      {trainingSet.badge(meta) ? (
-                        <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
-                          {trainingSet.badge(meta)}
-                        </span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>not exported yet</span>
-                  )}
-                </div>
-                {rowExpanded && meta ? (
-                  <div style={{ padding: '0 8px 8px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                      {Array.from({ length: tileCount }, (_, i) => {
-                        const tile = trainingSet.tileText(meta, i)
-                        const tileSelected = (selectedRoutes[spec.id] ?? 0) === i
-                        const isLiveTile = liveRun != null && liveRun.worldId === spec.id && liveRun.routeIndex === i
-                        return (
-                          <div
-                            key={i}
-                            data-testid={`${trainingSet.testid}-training-route-tile-${spec.id}-${i}`}
-                            role="button"
-                            tabIndex={0}
-                            aria-pressed={tileSelected}
-                            aria-label={`${spec.name} ${tile.name.toLowerCase()} (${tile.long})`}
-                            title={`${tile.name} (${tile.long}) — start the run on this ${trainingSet.noun}`}
-                            onClick={() => handleTileClick(spec.id, i)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleTileClick(spec.id, i)}
+                    ) : null}
+                  </>
+                ) : (
+                  <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>not exported yet</span>
+                )}
+              </div>
+              {rowExpanded && meta ? (
+                <div style={{ padding: '0 8px 8px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+                    {Array.from({ length: tileCount }, (_, i) => {
+                      const tile = trainingSet.tileText(meta, i)
+                      const tileSelected = (selectedRoutes[spec.id] ?? 0) === i
+                      const isLiveTile = liveRun != null && liveRun.worldId === spec.id && liveRun.routeIndex === i
+                      return (
+                        <div
+                          key={i}
+                          data-testid={`${trainingSet.testid}-training-route-tile-${spec.id}-${i}`}
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={tileSelected}
+                          aria-label={`${spec.name} ${tile.name.toLowerCase()} (${tile.long})`}
+                          title={`${tile.name} (${tile.long}) — start the run on this ${trainingSet.noun}`}
+                          onClick={() => handleTileClick(spec.id, i)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleTileClick(spec.id, i)}
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            padding: 3,
+                            background: theme.bg.surface,
+                            border: `2px solid ${tileSelected ? theme.accent : theme.border.default}`,
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 3,
+                          }}
+                        >
+                          <div style={{ position: 'relative', width: '100%', height: thumbHeight }}>
+                            <img
+                              data-testid={`${trainingSet.testid}-training-thumb-${spec.id}-${i}`}
+                              src={trainingTileUrl(spec, i)}
+                              alt={`${spec.name} ${tile.name.toLowerCase()} (${tile.long}) thumbnail (all guidance vectors)`}
+                              style={{ width: '100%', height: thumbHeight, display: 'block', objectFit: 'contain', borderRadius: 4 }}
+                              onError={handleThumbError}
+                            />
+                            {isLiveTile && meta.tileSvg ? (
+                              <LiveRouteVectorOverlay
+                                tileSvg={meta.tileSvg}
+                                routeIndex={i}
+                                seg={liveWatch.seg}
+                                testId={`${trainingSet.testid}-training-live-vector-${spec.id}-${i}`}
+                              />
+                            ) : null}
+                          </div>
+                          <span
                             style={{
-                              flex: 1,
-                              minWidth: 0,
-                              padding: 3,
-                              background: theme.bg.surface,
-                              border: `2px solid ${tileSelected ? theme.accent : theme.border.default}`,
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 3,
+                              fontSize: 10,
+                              color: tileSelected ? theme.accent : theme.text.muted,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
                             }}
                           >
-                            <div style={{ position: 'relative', width: '100%', height: thumbHeight }}>
-                              <img
-                                data-testid={`${trainingSet.testid}-training-thumb-${spec.id}-${i}`}
-                                src={trainingTileUrl(spec, i)}
-                                alt={`${spec.name} ${tile.name.toLowerCase()} (${tile.long}) thumbnail (all guidance vectors)`}
-                                style={{ width: '100%', height: thumbHeight, display: 'block', objectFit: 'contain', borderRadius: 4 }}
-                                onError={handleThumbError}
-                              />
-                              {isLiveTile && meta.tileSvg ? (
-                                <LiveRouteVectorOverlay
-                                  tileSvg={meta.tileSvg}
-                                  routeIndex={i}
-                                  seg={liveWatch.seg}
-                                  testId={`${trainingSet.testid}-training-live-vector-${spec.id}-${i}`}
-                                />
-                              ) : null}
-                            </div>
-                            <span
-                              style={{
-                                fontSize: 10,
-                                color: tileSelected ? theme.accent : theme.text.muted,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                              }}
-                            >
-                              {tileSelected ? '\u25B8 ' : ''}{tile.name} {tile.short}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 10,
-                                color: theme.text.muted,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                              }}
-                            >
-                              {routeScoreLabel(meta, i)}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      <span style={{ fontSize: 11, color: theme.text.secondary }}>{meta.candidate.label}</span>
-                      {liveRun != null && liveRun.worldId === spec.id ? (
-                        <span style={{ fontSize: 11, color: theme.accent, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          {liveWatch.score == null ? 'Live: -' : `Live: ${liveWatch.score} pts`}
-                        </span>
-                      ) : null}
-                    </div>
+                            {tileSelected ? '\u25B8 ' : ''}{tile.name} {tile.short}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: theme.text.muted,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {routeScoreLabel(meta, i)}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      ) : null}
-
-      {/* resizable from EVERY side: all four edges + all four corners (shared handles; viewport-clamped) */}
-      {expanded ? (
-        <FloatingDrawerResizeHandles edges={DRAWER_RESIZE_EDGES_ALL} onResizeMouseDown={handleResizeMouseDown} />
-      ) : null}
-    </div>,
-    document.body,
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ fontSize: 11, color: theme.text.secondary }}>{meta.candidate.label}</span>
+                    {liveRun != null && liveRun.worldId === spec.id ? (
+                      <span style={{ fontSize: 11, color: theme.accent, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {liveWatch.score == null ? 'Live: -' : `Live: ${liveWatch.score} pts`}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }

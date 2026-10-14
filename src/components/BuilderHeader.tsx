@@ -68,7 +68,7 @@ export interface BuilderHeaderProps {
   onOpenWorkspace?: () => void
   selectedEntityCount?: number
   onOpenExampleWorld?: (worldJson: RennWorld, name: string, assets?: Map<string, Blob>) => void
-  /** Opens the merged training dialog (File menu → "Training…"; the tab bar switches the training set: Mazes / Crux / Widen-freeze). */
+  /** Opens the training section of the right sidebar (File menu → "Training…"; its tab bar switches the training set: Mazes / Crux / Widen-freeze). */
   onOpenTraining?: () => void
 }
 

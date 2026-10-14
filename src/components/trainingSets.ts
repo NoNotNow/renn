@@ -1,10 +1,10 @@
 /**
- * Training-set descriptors of the shared training dialog (`MazeTrainingDialog`): the tabs "Mazes", "Crux" and
- * "Widen-freeze" of ONE merged panel (File → "Training…") are the SAME parameterized view — the descriptor
- * carries everything per-set (worlds list, car ids, watch labels, tile / badge texts) so the component file
- * exports only the component (react-refresh) and the sets cannot drift apart. Shared contract with the world
- * builders: `src/policyEvolution/mazeTraining.ts` + `cruxTraining.ts` + `wfCandidates.ts` (the wf worlds:
- * `wfCandidateWorlds.ts`).
+ * Training-set descriptors of the training section of the right sidebar (`MazeTrainingDialog`): the tabs
+ * "Mazes", "Crux" and "Widen-freeze" of ONE merged section (File → "Training…" focuses it) are the SAME
+ * parameterized view — the descriptor carries everything per-set (worlds list, car ids, watch labels, tile /
+ * badge texts) so the component file exports only the component (react-refresh) and the sets cannot drift
+ * apart. Shared contract with the world builders: `src/policyEvolution/mazeTraining.ts` + `cruxTraining.ts`
+ * + `wfCandidates.ts` (the wf worlds: `wfCandidateWorlds.ts`).
  */
 import { MAZE_TRAINING_WORLDS, mazeCarId, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
 import { CRUX_TRAINING_WORLDS, cruxCarId, cruxTrainingInfo, type CruxTrainingMeta } from '@/policyEvolution/cruxTraining'
@@ -26,10 +26,10 @@ export interface TrainingWorldView {
 }
 
 /**
- * One training set the shared panel serves ("Training Mazes" / "Training Crux"): the worlds list, the per-copy car ids,
- * the in-world score stage's watch labels and the per-set tile / badge texts. Everything else (panel chrome, drag /
- * resize, candidate chips, live overlay, totals) is shared. `key` prefixes the localStorage slots (positions of the two
- * panels are independent), `testid` prefixes every data-testid (`${testid}-training-...`).
+ * One training set the shared section serves ("Training Mazes" / "Training Crux"): the worlds list, the
+ * per-copy car ids, the in-world score stage's watch labels and the per-set tile / badge texts. Everything
+ * else (section chrome, candidate chips, live overlay, totals) is shared. `key` prefixes the localStorage
+ * slots (the candidate slot is per set), `testid` prefixes every data-testid (`${testid}-training-...`).
  */
 export interface TrainingSet {
   key: 'maze' | 'crux' | 'wf'

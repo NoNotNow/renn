@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import MazeTrainingDialog from './MazeTrainingDialog'
+import MazeTrainingDialog, { routeTileThumbHeightPx } from './MazeTrainingDialog'
 import { CRUX_TRAINING_SET, TRAINING_SETS, WF_TRAINING_SET } from './trainingSets'
 import { theme } from '@/config/theme'
 import { MAZE_TRAINING_WORLDS, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
@@ -34,18 +34,6 @@ function normalizedBackground(css: string): string {
   const probe = document.createElement('span')
   probe.style.background = css
   return probe.style.background
-}
-
-/**
- * Simulates one edge/corner resize drag: mousedown on the handle, then mousemove/mouseup on document.
- * The move dispatch happens inside `act` so React flushes the pos/size re-render before assertions.
- */
-async function dragResize(handleTestId: string, from: { x: number; y: number }, to: { x: number; y: number }) {
-  fireEvent.mouseDown(screen.getByTestId(handleTestId), { clientX: from.x, clientY: from.y })
-  await act(async () => {
-    document.dispatchEvent(new MouseEvent('mousemove', { clientX: to.x, clientY: to.y }))
-    document.dispatchEvent(new MouseEvent('mouseup'))
-  })
 }
 
 /** Tile fixture: shared svg pixel size, one chain polyline (6 points) per route, per-route scores. */
@@ -142,28 +130,31 @@ describe('MazeTrainingDialog', () => {
     vi.unstubAllGlobals()
   })
 
-  it('renders the collapsed one-line strip by default (no thumbnails visible)', async () => {
+  it('renders the section immediately (sidebar mount): title line + rows fetch with no expand step and no floating chrome', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     const header = screen.getByTestId('maze-training-panel-header')
     expect(header).toBeInTheDocument()
-    expect(header).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByText('Training Mazes')).toBeInTheDocument()
     expect(screen.getByText(`${MAZE_TRAINING_WORLDS.length} runs`)).toBeInTheDocument()
-    // offline: no meta loaded -> no totals in the header strip
+    // sidebar section: no fixed positioning, no drag/resize handles, no close button of the old floating dialog
+    const panel = screen.getByTestId('maze-training-panel')
+    expect(panel.style.position).toBe('')
+    expect(screen.queryByTestId('maze-training-close')).not.toBeInTheDocument()
+    expect(screen.queryAllByTestId(/^resize-handle-/)).toHaveLength(0)
+    // offline: no meta loaded -> every row reports "not exported yet", no totals anywhere
+    await waitFor(() => {
+      expect(screen.getAllByText('not exported yet')).toHaveLength(MAZE_TRAINING_WORLDS.length)
+    })
     expect(screen.queryByTestId('maze-training-header-totals')).not.toBeInTheDocument()
     expect(screen.queryByTestId('maze-training-header-health')).not.toBeInTheDocument()
-    expect(screen.queryAllByTestId(/^maze-training-card-/)).toHaveLength(0)
-    // collapsed: no resize handles at all
-    expect(screen.queryAllByTestId(/^resize-handle-/)).toHaveLength(0)
+    expect(screen.queryAllByTestId(/^maze-training-row-health-/)).toHaveLength(0)
   })
 
-  it('expands into single-line run rows by default (no thumbnails visible)', async () => {
-    const user = userEvent.setup()
+  it('renders single-line run rows by default (no thumbnails visible)', async () => {
     stubFetchWithMeta((spec) => makeMeta(spec, spec.id === 'maze_train_3' ? null : 123, { forward: 3, reversed: 1 }))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
-    expect(screen.getByTestId('maze-training-panel-header')).toHaveAttribute('aria-expanded', 'true')
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
+    await screen.findAllByText('Best: 123 pts')
     for (const spec of MAZE_TRAINING_WORLDS) {
       expect(screen.getByTestId(`maze-training-card-${spec.id}`)).toBeInTheDocument()
       expect(screen.queryByTestId(`maze-training-thumb-${spec.id}`)).not.toBeInTheDocument()
@@ -188,11 +179,8 @@ describe('MazeTrainingDialog', () => {
     const green = normalizedBackground('hsl(120, 75%, 45%)')
     expect(rowDots.filter((dot) => dot.style.background === green)).toHaveLength(MAZE_TRAINING_WORLDS.length - 1)
     expect(rowDots.filter((dot) => dot.style.background === normalizedBackground(theme.text.muted))).toHaveLength(1)
-    // expanded: a handle on EVERY edge and corner (all-sides resize)
-    expect(screen.getAllByTestId(/^resize-handle-/)).toHaveLength(8)
-    for (const edge of ['left', 'right', 'bottom', 'top', 'corner', 'left-corner', 'top-corner', 'top-left-corner']) {
-      expect(screen.getByTestId(`resize-handle-${edge}`)).toBeInTheDocument()
-    }
+    // sidebar section: no resize handles (the sidebar's own edge resizes the drawer, not the section)
+    expect(screen.queryAllByTestId(/^resize-handle-/)).toHaveLength(0)
   })
 
   it('colors the header health dot red when the stuck routes score zero', async () => {
@@ -202,9 +190,7 @@ describe('MazeTrainingDialog', () => {
       ...makeMeta(spec, 100, { forward: 2, reversed: 0 }),
       tileSvg: { w: 206, h: 220, routes: [{ pts, score: 100 }, { pts, score: 0 }] },
     }))
-    const user = userEvent.setup()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findAllByText('Best: 100 pts')
     expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Ø Best: 100 pts · Ø Worst: 0 pts')
     expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground('hsl(0, 75%, 45%)'))
@@ -217,20 +203,19 @@ describe('MazeTrainingDialog', () => {
   it('a row click expands its route tiles (one per way); clicking a tile selects the way it started', async () => {
     const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 123, { forward: 3, reversed: 1 }))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findAllByText('Best: 123 pts')
     const row1 = screen.getByTestId('maze-training-row-maze_train_1')
     await user.click(row1)
     expect(row1).toHaveAttribute('aria-expanded', 'true')
-    // 4 tiles: 3 forward + 1 reversed, each with its own route image, panel-size-scaled thumbnail
-    // (default 540x480 panel -> 132px) and its own route score
+    // 4 tiles: 3 forward + 1 reversed, each with its own route image, section-size-scaled thumbnail
+    // (jsdom keeps the 300x600 sidebar fallback -> width-bound 65px) and its own route score
     for (let i = 0; i < 4; i++) {
       const tile = screen.getByTestId(`maze-training-route-tile-maze_train_1-${i}`)
       expect(tile).toBeInTheDocument()
       const img = screen.getByTestId(`maze-training-thumb-maze_train_1-${i}`)
       expect(img).toHaveAttribute('src', expect.stringContaining(`route_${i}.svg`))
-      expect(img).toHaveStyle({ height: '132px' })
+      expect(img).toHaveStyle({ height: '65px' })
     }
     expect(screen.getByTestId('maze-training-route-tile-maze_train_1-3')).toHaveAttribute(
       'aria-label',
@@ -270,8 +255,7 @@ describe('MazeTrainingDialog', () => {
     const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }))
     const onPlay = vi.fn()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
     await screen.findAllByText('Best: 10 pts')
     // There is no default-route-0 start: a run can only be started through a tile.
     await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
@@ -289,21 +273,19 @@ describe('MazeTrainingDialog', () => {
     expect(onPlay).toHaveBeenCalledTimes(3)
   })
 
-  it('starting a run via a tile keeps the panel open and expanded', async () => {
+  it('starting a run via a tile keeps the section mounted and the row selected', async () => {
     const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 3, reversed: 1 }))
     const onPlay = vi.fn()
-    const onClose = vi.fn()
-    render(<MazeTrainingDialog isOpen onClose={onClose} onPlayExampleWorld={onPlay} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
     await screen.findAllByText('Best: 10 pts')
     expect(screen.getByTestId('maze-training-row-maze_train_3')).toHaveAttribute('aria-pressed', 'false')
     await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-0'))
     expect(onPlay).toHaveBeenCalledTimes(1)
     expect(onPlay).toHaveBeenCalledWith('maze_train_3', 0, null)
-    expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByTestId('maze-training-panel-header')).toHaveAttribute('aria-expanded', 'true')
+    // the section stays exactly as it was: rows mounted, the started row selected
+    expect(screen.getByTestId('maze-training-panel')).toBeInTheDocument()
     expect(screen.getByTestId('maze-training-row-maze_train_3')).toHaveAttribute('aria-pressed', 'true')
   })
 
@@ -312,9 +294,8 @@ describe('MazeTrainingDialog', () => {
     const candidates = [makeCandidate('island-0', 'I1'), makeCandidate('island-1', 'I2'), makeCandidate('island-2', 'I3'), makeCandidate('best', 'Best'), makeCandidate('shipped', 'Shipped')]
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     const onPlay = vi.fn()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
     // the chips live in their own row under the header: expand the panel first
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByTestId('maze-training-candidates')
     for (const c of candidates) {
       expect(screen.getByTestId(`maze-training-candidate-chip-${c.id}`)).toHaveTextContent(c.label)
@@ -340,11 +321,9 @@ describe('MazeTrainingDialog', () => {
   })
 
   it('the model chips + Ø figures render in their OWN collapsible row under the header (expanded by default)', async () => {
-    const user = userEvent.setup()
     const candidates = [makeCandidate('island-0', 'I1'), makeCandidate('best', 'Best')]
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findAllByText('Best: 10 pts')
     // the row sits under the header, EXPANDED by default, carrying the chips AND the Ø figures
     const row = screen.getByTestId('maze-training-candidates-row')
@@ -366,8 +345,7 @@ describe('MazeTrainingDialog', () => {
     const candidates = [makeCandidate('island-0', 'I1'), makeCandidate('best', 'Best')]
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     const onPlay = vi.fn()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
     await screen.findAllByTestId('maze-training-candidates')
     await user.click(screen.getByTestId('maze-training-candidate-chip-island-0'))
     // collapse the row: chips and Ø figures hide; only the toggle + a one-chip summary of the selection stay
@@ -394,15 +372,13 @@ describe('MazeTrainingDialog', () => {
     const user = userEvent.setup()
     const candidates = [makeCandidate('best', 'Best')]
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
-    const { unmount } = render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    const { unmount } = render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findAllByTestId('maze-training-candidates')
     await user.click(screen.getByTestId('maze-training-candidates-toggle'))
     expect(window.localStorage.getItem('mazeTrainingPanelCandidatesCollapsed')).toBe(JSON.stringify(true))
     unmount()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    // the remounted panel itself is expanded (the first expand persisted trainingPanelCollapsed=false);
-    // the chips ROW starts collapsed from its own persisted slot
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
+    // the remounted section renders its rows right away; the chips ROW starts collapsed from its own persisted slot
     await screen.findAllByText('Best: 10 pts')
     expect(screen.getByTestId('maze-training-candidates-toggle')).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByTestId('maze-training-candidates')).not.toBeInTheDocument()
@@ -415,8 +391,7 @@ describe('MazeTrainingDialog', () => {
     const candidates = [makeCandidate('island-0', 'I1', scores), makeCandidate('island-1', 'I2')]
     stubFetchWithMeta((spec) => makeMeta(spec, 123, { forward: 2, reversed: 0 }), candidates)
     const user = userEvent.setup()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findAllByText('Best: 123 pts')
     const headerDot = () => screen.getByTestId('maze-training-header-health')
     const rowDots = () => screen.getAllByTestId(/^maze-training-row-health-/)
@@ -456,8 +431,7 @@ describe('MazeTrainingDialog', () => {
       candidates,
     )
     const user = userEvent.setup()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findAllByText('Best: 201 pts')
     const totals = () => screen.getByTestId('maze-training-header-totals')
     // means, rounded to integers, no decimal places anywhere in the line
@@ -478,10 +452,9 @@ describe('MazeTrainingDialog', () => {
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     const onPlay = vi.fn()
     render(
-      <MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} liveRun={{ worldId: 'maze_train_2', routeIndex: 1 }} />,
+      <MazeTrainingDialog onPlayExampleWorld={onPlay} liveRun={{ worldId: 'maze_train_2', routeIndex: 1 }} />,
     )
     // the chips live in their own row under the header: expand the panel first
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByTestId('maze-training-candidates')
     await user.click(screen.getByTestId('maze-training-candidate-chip-best'))
     expect(onPlay).toHaveBeenCalledTimes(1)
@@ -501,9 +474,8 @@ describe('MazeTrainingDialog', () => {
     const candidates = [makeCandidate('island-2', 'I3'), makeCandidate('best', 'Best')]
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     const onPlay = vi.fn()
-    const { unmount } = render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    const { unmount } = render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
     // the chips live in their own row under the header: expand the panel first
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByTestId('maze-training-candidates')
     expect(screen.getByTestId('maze-training-candidate-chip-island-2')).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
@@ -513,26 +485,22 @@ describe('MazeTrainingDialog', () => {
     storage.set('mazeTrainingPanelCandidate', JSON.stringify('island-9'))
     unmount()
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), [makeCandidate('best', 'Best')])
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
     await screen.findByTestId('maze-training-candidate-chip-best')
     expect(screen.getByTestId('maze-training-candidate-chip-best')).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('renders no candidate chips when candidates.json is missing (older deploy)', async () => {
-    const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findByTestId('maze-training-header-totals')
     expect(screen.queryByTestId('maze-training-candidates')).not.toBeInTheDocument()
   })
 
   it('shows "not exported yet" and renders no route tiles (no way to start the run) when meta fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
-    const user = userEvent.setup()
     const onPlay = vi.fn()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
     await waitFor(() => {
       expect(screen.getAllByText('not exported yet')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     })
@@ -543,33 +511,9 @@ describe('MazeTrainingDialog', () => {
     expect(onPlay).not.toHaveBeenCalled()
   })
 
-  it('close X calls onClose', async () => {
-    const user = userEvent.setup()
-    const onClose = vi.fn()
-    render(<MazeTrainingDialog isOpen onClose={onClose} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-close'))
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('collapses back to the strip on a second strip click and persists the state', async () => {
-    const user = userEvent.setup()
-    stubFetchWithMeta((spec) => makeMeta(spec, 5))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    const header = screen.getByTestId('maze-training-panel-header')
-    await user.click(header)
-    await screen.findAllByText('Best: 5 pts')
-    expect(screen.getAllByTestId(/^maze-training-card-/)).toHaveLength(MAZE_TRAINING_WORLDS.length)
-    await user.click(header)
-    expect(screen.queryAllByTestId(/^maze-training-card-/)).toHaveLength(0)
-    expect(header).toHaveAttribute('aria-expanded', 'false')
-    expect(window.localStorage.getItem('mazeTrainingPanelCollapsed')).toBe(JSON.stringify(true))
-  })
-
   it('renders cards when the meta.json predates the routes field', async () => {
     stubFetchWithMeta((spec) => makeMeta(spec, 77))
-    const user = userEvent.setup()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findAllByText('Best: 77 pts')
     expect(screen.queryByText(/reversed/)).not.toBeInTheDocument()
     // no per-route scores -> no worst score either
@@ -591,8 +535,7 @@ describe('MazeTrainingDialog', () => {
     // 2 forward + 2 reversed routes; TILE_SCORES applies in tile order (null = unmeasured is ignored)
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }))
     const user = userEvent.setup()
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findAllByText('Best: 10 pts')
     // min over the measured routes: 140 at index 3 -> "Worst: 140 pts · way 4" (the reversed way 4)
     expect(screen.getAllByText('Worst: 140 pts · way 4')).toHaveLength(MAZE_TRAINING_WORLDS.length)
@@ -609,13 +552,10 @@ describe('MazeTrainingDialog', () => {
     stubFetchWithMeta((spec) => makeMeta(spec, 123, { forward: 3, reversed: 1 }))
     render(
       <MazeTrainingDialog
-        isOpen
-        onClose={() => {}}
         onPlayExampleWorld={() => {}}
         liveRun={{ worldId: 'maze_train_1', routeIndex: 1 }}
       />,
     )
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByText('Best: 123 pts')
     await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
     // live score line next to the candidate label, only in the live world's expanded row
@@ -636,13 +576,10 @@ describe('MazeTrainingDialog', () => {
     stubFetchWithMeta((spec) => makeMeta(spec, 123, { forward: 3, reversed: 1 }))
     render(
       <MazeTrainingDialog
-        isOpen
-        onClose={() => {}}
         onPlayExampleWorld={() => {}}
         liveRun={{ worldId: 'maze_train_1', routeIndex: 1 }}
       />,
     )
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByText('Best: 123 pts')
     await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
     expect(screen.getByText('Live: -')).toBeInTheDocument()
@@ -657,9 +594,8 @@ describe('MazeTrainingDialog', () => {
     const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 123, { forward: 3, reversed: 1 }))
     const { rerender } = render(
-      <MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />,
+      <MazeTrainingDialog onPlayExampleWorld={() => {}} />,
     )
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByText('Best: 123 pts')
     await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
     expect(screen.queryByText(/Live:/)).not.toBeInTheDocument()
@@ -667,8 +603,6 @@ describe('MazeTrainingDialog', () => {
     // liveRun pointing at another world: maze_train_1 stays non-live
     rerender(
       <MazeTrainingDialog
-        isOpen
-        onClose={() => {}}
         onPlayExampleWorld={() => {}}
         liveRun={{ worldId: 'maze_train_2', routeIndex: 0 }}
       />,
@@ -718,7 +652,6 @@ describe('MazeTrainingDialog (Training Crux set)', () => {
   }
 
   it('renders the Training Crux panel: own title, crux testids, class info chips, chain badge', async () => {
-    const user = userEvent.setup()
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: unknown) => {
@@ -730,14 +663,14 @@ describe('MazeTrainingDialog (Training Crux set)', () => {
         return { ok: true, json: async () => makeCruxMeta(id, 43) }
       }),
     )
-    render(<MazeTrainingDialog isOpen trainingSet={CRUX_TRAINING_SET} onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    render(<MazeTrainingDialog trainingSet={CRUX_TRAINING_SET} onPlayExampleWorld={() => {}} />)
     // the maze panel testids stay absent; the crux ones carry the crux prefix + the crux title
     expect(screen.queryByTestId('maze-training-panel')).not.toBeInTheDocument()
     const header = screen.getByTestId('crux-training-panel-header')
     expect(header).toBeInTheDocument()
     expect(screen.getByText('Training Crux')).toBeInTheDocument()
     expect(screen.getByText(`${CRUX_TRAINING_WORLDS.length} runs`)).toBeInTheDocument()
-    await user.click(header)
+    await screen.findAllByText('6 chains')
     for (const spec of CRUX_TRAINING_WORLDS) {
       expect(screen.getByTestId(`crux-training-card-${spec.id}`)).toBeInTheDocument()
       expect(screen.getByText(spec.name)).toBeInTheDocument()
@@ -772,8 +705,7 @@ describe('MazeTrainingDialog (Training Crux set)', () => {
       }),
     )
     const onPlay = vi.fn()
-    render(<MazeTrainingDialog isOpen trainingSet={CRUX_TRAINING_SET} onClose={() => {}} onPlayExampleWorld={onPlay} />)
-    await user.click(screen.getByTestId('crux-training-panel-header'))
+    render(<MazeTrainingDialog trainingSet={CRUX_TRAINING_SET} onPlayExampleWorld={onPlay} />)
     await screen.findAllByText('6 chains')
     await user.click(screen.getByTestId('crux-training-row-crux_train_1'))
     // 6 tiles: the base path first (green start), then the jittered variants
@@ -809,14 +741,11 @@ describe('MazeTrainingDialog (Training Crux set)', () => {
     )
     render(
       <MazeTrainingDialog
-        isOpen
         trainingSet={CRUX_TRAINING_SET}
-        onClose={() => {}}
         onPlayExampleWorld={() => {}}
         liveRun={{ worldId: 'crux_train_1', routeIndex: 2 }}
       />,
     )
-    await user.click(screen.getByTestId('crux-training-panel-header'))
     await screen.findAllByText('6 chains')
     await user.click(screen.getByTestId('crux-training-row-crux_train_1'))
     expect(screen.getByText('Live: 37 pts')).toBeInTheDocument()
@@ -885,15 +814,10 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     const onSelect = vi.fn()
     render(
       <MazeTrainingDialog
-        isOpen
-        onClose={() => {}}
         onPlayExampleWorld={() => {}}
         tabs={{ sets: TRAINING_SETS, activeKey: 'maze', onSelect }}
       />,
     )
-    // collapsed strip first: the tab bar appears with the expanded panel
-    expect(screen.queryByTestId('training-tabs')).not.toBeInTheDocument()
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     const tabs = screen.getByTestId('training-tabs')
     expect(tabs.getAttribute('role')).toBe('tablist')
     expect(tabs.querySelectorAll('button')).toHaveLength(3)
@@ -911,22 +835,18 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
 
-  it('regression: the wf training worlds ARE loadable inside the dialog (active tab, rows and tile plays)', async () => {
+  it('regression: the wf training worlds ARE loadable inside the section (active tab, rows and tile plays)', async () => {
     const user = userEvent.setup()
     stubFetchWithWfMeta()
     const onPlay = vi.fn()
     // the Builder remounts the panel per tab (key={set}); the wf tab mounts the WF set with wf testids
     render(
       <MazeTrainingDialog
-        isOpen
         trainingSet={WF_TRAINING_SET}
         tabs={{ sets: TRAINING_SETS, activeKey: 'wf', onSelect: () => {} }}
-        onClose={() => {}}
         onPlayExampleWorld={onPlay}
       />,
     )
-    expect(screen.queryByTestId('training-tab-wf')).not.toBeInTheDocument() // collapsed strip shows no tabs yet
-    await user.click(screen.getByTestId('wf-training-panel-header'))
     expect(screen.getByTestId('training-tab-wf')).toHaveAttribute('aria-selected', 'true')
     for (const spec of WF_TRAINING_SET.worlds) {
       expect(screen.getByTestId(`wf-training-card-${spec.id}`)).toBeInTheDocument()
@@ -939,107 +859,34 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     expect(screen.getAllByText('3 chains · maze:1001~a')).toHaveLength(3)
   })
 
-  it('shares ONE layout slot across tabs: collapse persists under trainingPanelCollapsed, not per set', async () => {
-    const user = userEvent.setup()
-    stubFetchWithMeta((spec) => makeMeta(spec, 5))
-    render(
-      <MazeTrainingDialog
-        isOpen
-        onClose={() => {}}
-        onPlayExampleWorld={() => {}}
-        tabs={{ sets: TRAINING_SETS, activeKey: 'maze', onSelect: () => {} }}
-      />,
-    )
-    const header = screen.getByTestId('maze-training-panel-header')
-    await user.click(header)
-    await screen.findAllByText('Best: 5 pts')
-    await user.click(header)
-    expect(header).toHaveAttribute('aria-expanded', 'false')
-    // the merged dialog persists its collapse state in the SHARED slot (per-set slots untouched)
-    expect(window.localStorage.getItem('trainingPanelCollapsed')).toBe(JSON.stringify(true))
-    expect(window.localStorage.getItem('mazeTrainingPanelCollapsed')).toBeNull()
-  })
-
   it('shares ONE chips-row collapse slot across tabs: trainingPanelCandidatesCollapsed, not per set', async () => {
     const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 5))
     render(
       <MazeTrainingDialog
-        isOpen
-        onClose={() => {}}
         onPlayExampleWorld={() => {}}
         tabs={{ sets: TRAINING_SETS, activeKey: 'maze', onSelect: () => {} }}
       />,
     )
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByText('Best: 5 pts')
     await user.click(screen.getByTestId('maze-training-candidates-toggle'))
-    // the merged dialog persists the chips-row collapse in the SHARED slot (per-set slots untouched)
+    // the merged section persists the chips-row collapse in the SHARED slot (per-set slots untouched)
     expect(window.localStorage.getItem('trainingPanelCandidatesCollapsed')).toBe(JSON.stringify(true))
     expect(window.localStorage.getItem('mazeTrainingPanelCandidatesCollapsed')).toBeNull()
   })
 
-  it('resizes from EVERY side: right, top and top-left drags change size and position, clamped into the viewport', async () => {
-    const user = userEvent.setup()
-    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 1 }))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
-    const panel = screen.getByTestId('maze-training-panel')
-    // jsdom default viewport 1024x768 -> default pos x = 1024-540-24 = 460, y = 64
-    expect(panel.style.width).toBe('540px')
-    expect(panel.style.height).toBe('480px')
-
-    // RIGHT edge: grows the width; the clamp keeps the grown panel inside the viewport (x 460 -> 424)
-    await dragResize('resize-handle-right', { x: 500, y: 300 }, { x: 560, y: 300 })
-    expect(panel.style.width).toBe('600px')
-    expect(panel.style.left).toBe('424px')
-
-    // TOP edge: grows the height and moves the panel UP with it (y 64 -> 4)
-    await dragResize('resize-handle-top', { x: 400, y: 100 }, { x: 400, y: 40 })
-    expect(panel.style.height).toBe('540px')
-    expect(panel.style.top).toBe('4px')
-
-    // TOP-LEFT corner: widens + heightens; the left edge drags x right along, y clamps at the viewport top
-    await dragResize('resize-handle-top-left-corner', { x: 440, y: 20 }, { x: 400, y: -20 })
-    expect(panel.style.width).toBe('640px')
-    expect(panel.style.height).toBe('580px')
-    expect(panel.style.left).toBe('384px')
-    expect(panel.style.top).toBe('0px')
-
-    // LEFT edge shrink below MIN_WIDTH clamps at the minimum
-    await dragResize('resize-handle-left', { x: 400, y: 300 }, { x: 2000, y: 300 })
-    expect(panel.style.width).toBe('260px')
-
-    // pos AND size persist under the panel's localStorage slots
-    expect(window.localStorage.getItem('mazeTrainingPanelSize')).toBe(JSON.stringify({ width: 260, height: 580 }))
-    expect(JSON.parse(window.localStorage.getItem('mazeTrainingPanelPos') ?? '{}').y).toBe(0)
-  })
-
-  it('layers ABOVE the top menu (z-index above the header)', () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    const panel = screen.getByTestId('maze-training-panel')
-    expect(Number(panel.style.zIndex)).toBeGreaterThan(Number(theme.zIndex.header))
-    // but below the portaled header menus, so File→ menus opened afterwards stay usable on top
-    expect(Number(panel.style.zIndex)).toBeLessThan(Number(theme.zIndex.menu))
-  })
-
-  it('scales the route thumbnails with the panel size (min clamp when vertical space is scarce, growing on resize)', async () => {
-    // tiny persisted panel: barely any vertical room -> the thumbnails clamp to the minimum
-    window.localStorage.setItem('mazeTrainingPanelSize', JSON.stringify({ width: 300, height: 200 }))
-    const user = userEvent.setup()
-    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 3, reversed: 1 }))
-    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
-    await user.click(screen.getByTestId('maze-training-panel-header'))
-    await screen.findAllByText('Best: 10 pts')
-    await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
-    expect(screen.getByTestId('maze-training-thumb-maze_train_1-0')).toHaveStyle({ height: '40px' })
-
-    // growing the panel through the bottom-right corner grows the thumbnails with it (capped at max;
-    // the height clamps at the viewport: 200 + 680 = 880 -> 768)
-    await dragResize('resize-handle-corner', { x: 300, y: 260 }, { x: 900, y: 940 })
-    expect(screen.getByTestId('maze-training-panel').style.width).toBe('900px')
-    expect(screen.getByTestId('maze-training-panel').style.height).toBe('768px')
-    expect(screen.getByTestId('maze-training-thumb-maze_train_1-0')).toHaveStyle({ height: '176px' })
+  it('routeTileThumbHeightPx scales with the sidebar width (clamped at both ends)', () => {
+    // sidebar defaults (300px wide section, full height): 4 tiles -> width-bound 65px
+    expect(routeTileThumbHeightPx(300, 600, 4)).toBe(65)
+    // narrowest sidebar (SIDEBAR_MIN_WIDTH 180px): the width share sinks below the clamp -> the 40px minimum
+    expect(routeTileThumbHeightPx(180, 600, 4)).toBe(40)
+    // a wide docked sidebar gives each tile more width -> larger thumbnails
+    expect(routeTileThumbHeightPx(540, 600, 4)).toBe(134)
+    // however wide, the thumbnails never exceed the 176px cap
+    expect(routeTileThumbHeightPx(1200, 1200, 4)).toBe(176)
+    // vertical scarcity also shrinks the thumbnails: a short section caps the height-bound share (below
+    // the width share of the same width) and the 40px floor still catches extreme cases
+    expect(routeTileThumbHeightPx(600, 350, 4)).toBe(77)
+    expect(routeTileThumbHeightPx(600, 220, 4)).toBe(40)
   })
 })
