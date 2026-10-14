@@ -543,7 +543,12 @@ export const SIMPLIFY_M = 1.5
 const LOOSE_KIND_M: Partial<Record<CourseKind, { simplify: number; arcStep: number }>> = {
   gates: { simplify: 2.5, arcStep: 6 },
   dense: { simplify: 5, arcStep: 6 },
-  crowd: { simplify: 2.5, arcStep: 6 },
+  // crowd curves: the SECOND loosening (2026-10-15, user request "zu viele waypoints in den kurven — schlampiger,
+  // damit das netz seinen job beweist"): arcStep 6 -> 10 only — the turn arcs are sampled half as densely, so the
+  // curve legs carry fewer waypoints and more of the steering is the net's own work. simplify stays 2.5 (the
+  // pinned v2 example world crowd:1002 rejects above it); measured train band: 55.0 -> 54.5 pts/chain (crowd
+  // corners are shallow arcs, so the sampling saving is small per corner), variant acceptance 32/32 unchanged.
+  crowd: { simplify: 2.5, arcStep: 10 },
   blockade: { simplify: 5, arcStep: 6 },
   blocks: { simplify: 5, arcStep: 6 },
 }
