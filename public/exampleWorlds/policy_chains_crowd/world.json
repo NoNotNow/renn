@@ -2273,12 +2273,8 @@
             -376.5872461042333
           ],
           [
-            342.6051265591633,
-            -381.1343511288579
-          ],
-          [
-            340.0539726491723,
-            -385.00327556694384
+            341.5180931068592,
+            -383.1931382091878
           ],
           [
             336.22703158295,
@@ -17746,9 +17742,9 @@
         "depth": 3
       },
       "position": [
-        342.6051265591633,
+        341.5180931068592,
         9,
-        -381.1343511288579
+        -383.1931382091878
       ],
       "rotation": [
         0,
@@ -17767,35 +17763,6 @@
     {
       "id": "chain_marker_3_63",
       "name": "Chain 3 marker 63",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 3,
-        "height": 0.3,
-        "depth": 3
-      },
-      "position": [
-        340.0539726491723,
-        9,
-        -385.00327556694384
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "material": {
-        "color": [
-          0.3,
-          0.95,
-          0.4
-        ],
-        "opacity": 0.9
-      }
-    },
-    {
-      "id": "chain_marker_3_64",
-      "name": "Chain 3 marker 64",
       "bodyType": "static",
       "shape": {
         "type": "box",
@@ -17823,8 +17790,8 @@
       }
     },
     {
-      "id": "chain_marker_3_65",
-      "name": "Chain 3 marker 65",
+      "id": "chain_marker_3_64",
+      "name": "Chain 3 marker 64",
       "bodyType": "static",
       "shape": {
         "type": "box",

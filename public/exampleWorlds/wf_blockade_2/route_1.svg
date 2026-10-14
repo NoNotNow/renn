@@ -7,7 +7,7 @@
 <rect x="26.5" y="143.8" width="46.3" height="1.7" fill="#444a55"/>
 <rect x="12.1" y="108.3" width="45.8" height="1.7" fill="#444a55"/>
 <rect x="25.7" y="65.8" width="47.1" height="1.7" fill="#444a55"/>
-<polyline points="45.8,188.9 21.8,152.2 20.6,149.5 20.1,146.6 20.1,143.8 20.8,140.3 22.6,137.3 25.4,135.2 59.6,117.7 62.4,115.6 64.2,112.6 64.9,109.2 64.9,108.7 63.7,103.9 60.3,100.2 24.3,76.5 21.2,73.1 19.8,68.7 19.5,64.2 19.7,61.2 20.9,58.4 37,30.7" fill="none" stroke="#42a5ff" stroke-width="1.5" stroke-opacity="0.9"/>
+<polyline points="45.8,188.9 37,30.7" fill="none" stroke="#42a5ff" stroke-width="1.5" stroke-opacity="0.9"/>
 <circle cx="45.8" cy="188.9" r="5" fill="#7cf2ff"/>
 <circle cx="37" cy="30.7" r="5" fill="#ff4444"/>
 </svg>

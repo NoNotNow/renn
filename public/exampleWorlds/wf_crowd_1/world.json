@@ -1401,12 +1401,8 @@
             -386.7078685842704
           ],
           [
-            66.61246401178332,
-            -390.1681773766971
-          ],
-          [
-            62.96471567849252,
-            -391.9941867268672
+            64.91459741256604,
+            -391.33290250109155
           ],
           [
             58.9,
@@ -8765,9 +8761,9 @@
         "depth": 3
       },
       "position": [
-        66.61246401178332,
+        64.91459741256604,
         9,
-        -390.1681773766971
+        -391.33290250109155
       ],
       "rotation": [
         0,
@@ -8786,35 +8782,6 @@
     {
       "id": "chain_marker_1_48",
       "name": "Chain 1 marker 48",
-      "bodyType": "static",
-      "shape": {
-        "type": "box",
-        "width": 3,
-        "height": 0.3,
-        "depth": 3
-      },
-      "position": [
-        62.96471567849252,
-        9,
-        -391.9941867268672
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "material": {
-        "color": [
-          0.2,
-          0.55,
-          1
-        ],
-        "opacity": 0.9
-      }
-    },
-    {
-      "id": "chain_marker_1_49",
-      "name": "Chain 1 marker 49",
       "bodyType": "static",
       "shape": {
         "type": "box",
@@ -8842,8 +8809,8 @@
       }
     },
     {
-      "id": "chain_marker_1_50",
-      "name": "Chain 1 marker 50",
+      "id": "chain_marker_1_49",
+      "name": "Chain 1 marker 49",
       "bodyType": "static",
       "shape": {
         "type": "box",
