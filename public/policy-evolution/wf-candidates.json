@@ -37,6 +37,15 @@
       "gen": 400,
       "hidden": 32,
       "detail": "stretch-3 candidate (focus maze/gates/rslalom + full-fitness release) \u2014 maze 86% (= baseline), gates 100%, mean finish 81.9%; reverse kinds regressed (bay 8%, deadend 67%)"
+    },
+    {
+      "id": "wf32_stretch4",
+      "label": "WF32 stretch4",
+      "chipLabel": "S4",
+      "genome": "test-results/policy-evolution/widen-freeze/wf-stretch4.candidate.json",
+      "gen": 400,
+      "hidden": 32,
+      "detail": "stretch-4 candidate (focus bay/deadend/crux + full-fitness release) \u2014 mean finish 91.4%, maze 86% (= baseline), gates 100%, crux 100%; ship candidate"
     }
   ]
 }

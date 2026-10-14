@@ -349,3 +349,16 @@ lineage) is widened to H=32 with the old core FROZEN, the new units evolved on h
     reverse-heavy kinds the release could not fully re-repair (bay 8 %, deadend 67 %, crux 76 %). S3 is the best net for the
     north star; next lever: a bay/deadend/crux-focused stretch warm from S3 (same recipe), then release. S3 chip selectable
     in the training dialogs; wf worlds still bake the pipeline-A final.
+- **STRETCH 4 (2026-10-14, `wf-stretch4{a,b}.json`)** — the pump pattern fully worked: mean finish **91.4 %** (S3: 81.9),
+  no kind below 75 %.
+  - Setup: warm from S3; FOCUS on bay(5)/deadend(4)/crux(4), 400 gens, lr 0.015, pairs 8; mid eval; RELEASE full fitness 400 gens,
+    lr 0.012. Driver: `continue-stretch4.sh` under `caffeinate`.
+  - Focus mid-eval: bay 100 %, deadend 100 %, crux 96 % (maze held 86 %) — with the usual hard drift (gates -78 pp, field/slalom/
+    crowd/dense ~-30 pp); the release REPAIRED the drift this time while holding the gains.
+  - Final (8 holdouts/kind, vs S3): free 78 % (+6), **bay 92 % (+84)**, corridor 100 %, field 92 % (-4), slalom 93 % (-7),
+    **maze 86 % (= baseline, held)**, crowd 96 %, grid 100 %, **crux 100 % (+24, > the 94 % baseline)**, rslalom 75 % (+4),
+    deadend 83 % (+16), **gates 100 % (held)**, dense 93 %. Touch: crux 33→16 %, maze 24→19 %, rslalom 46→42 %, bay/free 0 %.
+    Reverse usage intact (bay 67 %, deadend 63 %, rslalom 98 %, free 39 %).
+  - Verdict: S4 is the best net so far — the widen-freeze strategy's end-to-end result (warm H=24 at maze 86 %, H=32 with new
+    kinds + collision avoidance + reverse robustness at 91.4 % mean). SHIP CANDIDATE. S4 chip selectable in the training
+    dialogs; remaining polish: slalom 93 %, field 92 %, gates touch 39 %.
