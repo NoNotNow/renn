@@ -51,7 +51,8 @@ describe('wf candidate manifest', () => {
     expect(baked.genome).toHaveLength(29 * 32 + 2)
   })
 
-  it('exports the SAME holdout band the powered evals report on (holdoutV3Episodes)', () => {
+  // the crux kind's band enumeration runs the pursuit gate — heavy under the full suite's parallel load
+  it('exports the SAME holdout band the powered evals report on (holdoutV3Episodes)', { timeout: 180_000 }, () => {
     for (const kind of WF_CANDIDATE_KINDS) {
       const keys = wfKindSetupKeys(kind)
       expect(keys).toHaveLength(WF_HOLDOUTS_PER_KIND)

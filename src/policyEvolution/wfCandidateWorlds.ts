@@ -2,7 +2,7 @@
  * Widen-freeze candidate example worlds: the manifest's BAKED candidate (public/policy-evolution/
  * wf-candidates.json, `bakeWorlds: true` — the pipeline-A final H=32) driving the HOLDOUT setups of the kinds
  * where the candidates differ most, one world per kind x setup (`wf_<kind>_<n>`, n = 1..3 = the kind's first
- * accepted holdout seeds — the SAME band the powered eval reports use, eval-candidate.ts --holdout-per-kind 3 /
+ * accepted holdout seeds — the first 3 of the decision-grade eval band (eval-candidate.ts --holdout-per-kind 8) /
  * holdoutV3Episodes). Every chain of the setup drives in its own copy of the course (one car per chain, chain
  * markers above, reverse legs purple) — the same shape as the policy_v3_* worlds (buildPolicyChainsExampleWorld),
  * so what the user watches matches the reported per-kind numbers.

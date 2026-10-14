@@ -7,6 +7,10 @@
   {"key":"neuralVMax","label":"Neural speed cap","type":"number","default":30,"min":0,"unit":"m/s","group":"Neural","description":"Upper bound of the net target speed while it drives."},
   {"key":"neuralGain","label":"Neural pedal gain","type":"number","default":1200,"min":1,"group":"Neural","description":"Actuator acceleration per unit pedal the net was trained on (power / mass of the 4 x 8 car).","advanced":true},
   {"key":"neuralWeights","label":"Neural weights","type":"json","group":"Neural","description":"Flat genome (29 H + 2 numbers, H hidden units inferred from the length; 292 for H = 10, 698 for H = 24; legacy 24-input genomes are zero-padded onto the two touch inputs); default = the weights shipped in the stage params (v2: `w`, v3: `wV3`).","advanced":true},
+  {"key":"w","label":"v2 weights (shipped)","type":"json","group":"Neural","description":"Flat genome of the promoted v2 net shipped in the stage params (29 H + 2 numbers).","advanced":true},
+  {"key":"wV3","label":"v3 weights (shipped)","type":"json","group":"Neural","description":"Flat genome of the leg-trained v3 net shipped in the stage params (H 24).","advanced":true},
+  {"key":"noise","label":"Sensor noise (deg)","type":"number","default":0,"min":0,"unit":"deg","group":"Neural","description":"Ray noise applied to the net inputs while it drives.","advanced":true},
+  {"key":"noiseSeed","label":"Noise seed","type":"number","default":1,"min":0,"group":"Neural","description":"Seed of the sensor noise RNG.","advanced":true},
   {"key":"neuralLmin","label":"Aim distance (min)","type":"number","default":8,"min":0,"unit":"m","group":"Neural","advanced":true},
   {"key":"neuralTau","label":"Aim distance per speed","type":"number","default":0.6,"min":0,"unit":"s","group":"Neural","advanced":true},
   {"key":"neuralPeriod","label":"Aim refresh period","type":"number","default":0.5,"min":0,"unit":"s","group":"Neural","advanced":true},
@@ -28,7 +32,18 @@
   {"key":"neuralStallM","label":"Stall: min progress along the command","type":"number","default":2,"min":0,"unit":"m","group":"Neural watchdog","advanced":true},
   {"key":"neuralAebT","label":"AEB fail: continuous braking","type":"number","default":0.3,"min":0,"unit":"s","group":"Neural watchdog","advanced":true},
   {"key":"neuralDebugDraw","label":"Draw neural aim line","type":"boolean","default":true,"group":"Debug","advanced":true},
-  {"key":"neuralTint","label":"Tint car while the policy drives","type":"boolean","default":true,"group":"Debug","description":"In-play visual indicator: tint the car mesh violet while the neural policy drives (transformer color output; restored on switch-off)."}
+  {"key":"neuralTint","label":"Tint car while the policy drives","type":"boolean","default":true,"group":"Debug","description":"In-play visual indicator: tint the car mesh violet while the neural policy drives (transformer color output; restored on switch-off)."},
+  {"key":"chain","label":"Command chain polyline","type":"json","group":"Neural command","description":"[x,z] points of the course the neural policy follows; set by the training driver / example-world export, not a UI param.","advanced":true},
+  {"key":"legEnds","label":"Chain indices where legs end","type":"json","group":"Neural command","description":"Indices into `chain` that split it into legs (v3 leg runner); engine-fed.","advanced":true},
+  {"key":"cmd","label":"Command config","type":"json","group":"Neural command","description":"Aim config of the command (seed, period, lmin, tau, noiseDeg); engine-fed.","advanced":true},
+  {"key":"offM","label":"Leg lateral offset","type":"number","default":6,"min":0,"unit":"m","group":"Neural command","description":"Lateral offset along the current leg (v3 leg runner).","advanced":true},
+  {"key":"v3","label":"Course policy is v3","type":"boolean","group":"Neural command","description":"Course-run flag: the chain runner drives the v3 leg logic (default off = v2 forward-only pursuit).","advanced":true},
+  {"key":"noRev","label":"Course: never reverse","type":"boolean","group":"Neural command","description":"Course-run flag: floor the net target speed at 0 (default off).","advanced":true},
+  {"key":"vMax","label":"Course speed cap","type":"number","min":0,"unit":"m/s","group":"Neural command","description":"Course-run flag: cap on the net target speed (unset = no extra cap).","advanced":true},
+  {"key":"gain","label":"Course pedal gain","type":"number","default":1200,"min":1,"group":"Neural command","description":"Course-run actuator acceleration per unit pedal (fallback 1200 = the 4 x 8 training car).","advanced":true},
+  {"key":"goalTolerance","label":"Course goal tolerance","type":"number","default":3.5,"min":0,"unit":"m","group":"Neural command","description":"Distance at which the course run counts the goal reached.","advanced":true},
+  {"key":"holdAtGoal","label":"Course: hold at goal","type":"boolean","default":true,"group":"Neural command","description":"Stop at the goal when reached (default on; set false to keep driving).","advanced":true},
+  {"key":"fixThreatRange","label":"Course threat fix range","type":"number","default":90,"min":0,"unit":"m","group":"Neural command","description":"Ray range of the fixed-threat sensing in course runs (fallback 90).","advanced":true}
 ]
 */
 var ANGLES = [0,0.17453292519943295,-0.17453292519943295,0.3490658503988659,-0.3490658503988659,0.6108652381980153,-0.6108652381980153,0.9599310885968813,-0.9599310885968813,1.3962634015954636,-1.3962634015954636,2.0943951023931953,-2.0943951023931953,3.141592653589793]

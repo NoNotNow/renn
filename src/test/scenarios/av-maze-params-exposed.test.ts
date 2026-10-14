@@ -24,10 +24,12 @@ async function run(name: string, extra: Record<string, unknown>): Promise<string
 
 /** Extreme values (default in the comment). */
 /** `base`: params the comparison run also carries (a constant only matters in a regime the defaults never enter, e.g. a low cruise speed). */
-const BASES: Record<string, Record<string, number | boolean>> = {
+const BASES: Record<string, Record<string, number | boolean | string>> = {
   nearTouchDist: { obstacleSlowRadius: 30, obstacleSlowFactor: 0.2, cruiseSpeed: 12 },
   stuckSpeed: { cruiseSpeed: 2, stuckTime: 0.2 },
   nearHitExtra: { revSweepCusp: true },
+  // the shipped car binds style: 'escape', whose reverse runs brake with maneuverDecel instead — force the comfort regime that reads maneuverRunDecel
+  maneuverRunDecel: { style: 'comfort' },
   maneuverEntryStopSpeed: { revVotes: 6 },
   mazeTurnCos: { mazeModule: true },
   mazeWpMin: { mazeModule: true },

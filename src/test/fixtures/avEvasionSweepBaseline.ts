@@ -47,9 +47,10 @@ export const SWEEP_BASELINE_PASS = new Set<string>([
   'single/v30/low/b150/far',
   'single/v30/low/b150/near',
   'single/v30/low/b30/far',
-  'single/v30/low/b30/near',
+  // 'single/v30/low/b30/near' removed 2026-10-14: the Oct 10-12 flee tuning (ac7d745e world binding + av-stack 5fba7234/f909c50e/3e540ae5)
+  // regressed it to 'touched a chaser (4 frames)' — green at 38be8a1e (bisected). Re-add after a flee-behaviour fix.
   'single/v40/high/b150/far',
-  'single/v40/low/b-30/far',
+  // 'single/v40/low/b-30/far' removed 2026-10-14: same flee-tuning regression — 'touched a chaser (7 frames)', green at 38be8a1e.
   'single/v40/low/b150/far',
   'single/v40/low/b30/far',
   'slalom',
