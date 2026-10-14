@@ -321,3 +321,17 @@ lineage) is widened to H=32 with the old core FROZEN, the new units evolved on h
   - State: `wf-pipeline-A.json` (gen 1500, H=32) is RESUMABLE for a longer phase-2-style stretch; NOT shipped (maze regression,
     gates 0 %). Sigma-boost was maxed (4x) for most of phase 2 — the 13-kind weakest-link fitness makes late progress slow;
     consider `--pairs` increase or kind-subset phases for the next stretch.
+- **STRETCH 2 (2026-10-14, `wf-stretch2.json`, artifacts in the same dir)** — the current best candidate:
+  - Setup: pairs is creation-only, so a NEW run warm from pipeline-A epochBest (H=32, no widening), FULL fitness on all 13 kinds,
+    `--pairs 8` (was 4 — the fix for the maxed stagnation-boost), lr 0.015, 800 gens, then a powered eval (8 holdout setups/kind —
+    the reliable band). Driver: `continue-stretch2.sh` under `caffeinate` (the Mac sleeps after 1 min idle; the guard is load-bearing).
+  - Holdout finish rates (8 setups/kind, vs pipeline-A final at 3 setups): free 78 %, corridor 100 %, bay 58 % (was 22 %), field 77 %,
+    slalom 86 % (was 33 %), maze 71 % (was 57 %, baseline 86 % — RECOVERED MOSTLY), crowd 87 % (baseline 20 %), grid 76 %,
+    crux 89 % (stable), rslalom 67 % (was 33 %), deadend 88 %, **gates 61 % (was 0 % — CRACKED)**, dense 87 % (was 55 %).
+    Touch shares: bay 0 % (baseline 89 %), deadend 0 %, slalom 10 %, maze 38 % (baseline 71 %), crowd 39 % (baseline 70 %),
+    field 38 % (baseline 80 %). Reverse usage stays rich (free 38 %, bay 73 %, rslalom 97 %, deadend 69 %).
+  - Verdict: pairs 8 + lr 0.015 unblocked the stagnation — every kind improved or held; the remaining gaps are maze 71 vs 86 %
+    baseline and gates 61 % (best ever, not clean). WF32-stretch2 candidate is the best net so far; selectable as the S2 chip
+    (`export-maze-candidates.ts`; wf worlds still bake the pipeline-A final — flip `bakeWorlds` + re-export if it should default).
+  - Next lever for maze robustness (the north star): a maze/rslalom-heavy focused stretch warm from stretch-2, or more full-fitness
+    budget at pairs 8+; maze's 3-setup gate evals stay noisy — keep 8-setup evals for decisions.
