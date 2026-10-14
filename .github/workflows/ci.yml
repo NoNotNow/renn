@@ -1,0 +1,23 @@
+# Baseline guard: the two checks that define green in this repo, wired into CI (they existed as npm scripts but nothing ran them).
+# - npm run typecheck  -> tsc --noEmit -p tsconfig.app.json (exit 0)
+# - npm run test:run  -> vitest run (the export gates, scenario suites, param decls, gene defaults)
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:run
