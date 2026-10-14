@@ -7,6 +7,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { CopyContext } from './copyMenuContext'
+import { theme } from '@/config/theme'
 
 interface CopyMenuState {
   x: number
@@ -64,7 +65,7 @@ function ContextMenu({
         position: 'fixed',
         left: state.x,
         top: state.y,
-        zIndex: 10000,
+        zIndex: theme.zIndex.menu,
         background: '#1b1f2a',
         border: '1px solid #2f3545',
         borderRadius: 6,

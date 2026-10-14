@@ -9,7 +9,9 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
-import { useCornerBrResize } from '@/hooks/useCornerBrResize'
+import { usePanelEdgeResize } from '@/hooks/usePanelEdgeResize'
+import { DRAWER_RESIZE_EDGES_ALL } from '@/components/workspace/floatingDrawerLayout'
+import FloatingDrawerResizeHandles from '@/components/workspace/FloatingDrawerResizeHandles'
 import { MAZE_TRAINING_SET, type TrainingMeta, type TrainingSet } from './trainingSets'
 import {
   fetchMazeCandidates,
@@ -80,6 +82,34 @@ const MIN_WIDTH = 260
 const MIN_HEIGHT = 120
 /** Pointer travel (px) beyond which a header press counts as a drag, not a click. */
 const DRAG_THRESHOLD_PX = 3
+
+/**
+ * Vertical panel chrome (header + tab strip + paddings + captions of one expanded tile row) subtracted
+ * before the thumbnail height share; ~166px at the default layout.
+ */
+const TILE_THUMB_CHROME_PX = 166
+/** Share of the remaining vertical room the thumbnails claim (≈ the old fixed 8.4em at the default size). */
+const TILE_THUMB_HEIGHT_SHARE = 0.42
+/** Rough horizontal chrome of one tile row: content/card/tile padding + borders. */
+const TILE_THUMB_ROW_CHROME_PX = 56
+const TILE_THUMB_GAP_PX = 6
+/** Min/max clamps: tiny panels get compact tiles, roomy panels capped ones — no scrollbar hell at either end. */
+export const TILE_THUMB_MIN_PX = 40
+export const TILE_THUMB_MAX_PX = 176
+
+/**
+ * Responsive route-thumbnail height of the expanded tile row, derived from the panel size: a fixed
+ * share of the vertical room left after the panel chrome, capped by the width each tile gets in the
+ * row (the portrait tiles are width-bound). Small when vertical space is scarce, larger with room.
+ */
+export function routeTileThumbHeightPx(panelWidth: number, panelHeight: number, tileCount: number): number {
+  const tiles = Math.max(1, tileCount)
+  const byHeight = (panelHeight - TILE_THUMB_CHROME_PX) * TILE_THUMB_HEIGHT_SHARE
+  const perTileWidth = (panelWidth - TILE_THUMB_ROW_CHROME_PX - (tiles - 1) * TILE_THUMB_GAP_PX) / tiles
+  const byWidth = perTileWidth * 1.15
+  const height = Math.min(byHeight, byWidth)
+  return Math.round(Math.max(TILE_THUMB_MIN_PX, Math.min(TILE_THUMB_MAX_PX, height)))
+}
 
 interface PanelPos {
   x: number
@@ -170,12 +200,21 @@ function healthHueColor(best: number | null, worst: number | null): string {
 }
 
 /**
- * Header health dot color: the weakest-link aggregate as one glance — Σ Worst ÷ Σ Best (ratio 1 = every run's
- * stuck route scores as well as its best = green, 0 = stuck at zero = red; >1 clamps to green since the sums
+ * Mean of the measured values, rounded to an integer (null when nothing is measured) — the header
+ * best/worst figures are AVERAGES without decimal places.
+ */
+function meanRound(values: Array<number | null | undefined>): number | null {
+  const measured = values.filter((v): v is number => v != null && Number.isFinite(v))
+  return measured.length > 0 ? Math.round(measured.reduce((a, b) => a + b, 0) / measured.length) : null
+}
+
+/**
+ * Header health dot color: the weakest-link aggregate as one glance — Ø Worst ÷ Ø Best (ratio 1 = every run's
+ * stuck route scores as well as its best = green, 0 = stuck at zero = red; >1 clamping to green since the means
  * count different route sets). Gray while either side is unmeasured.
  */
-function headerHealthColor(sumBest: number | null, sumWorst: number | null): string {
-  return healthHueColor(sumBest, sumWorst)
+function headerHealthColor(avgBest: number | null, avgWorst: number | null): string {
+  return healthHueColor(avgBest, avgWorst)
 }
 
 /**
@@ -517,24 +556,25 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
     [toggleCollapsed],
   )
 
-  const resolveStartSize = useCallback(() => {
-    const rect = panelRef.current?.getBoundingClientRect()
-    return {
-      width: rect?.width ?? size.width,
-      height: rect?.height ?? size.height,
-    }
-  }, [size.width, size.height])
-
-  const resizeHandleProps = useCornerBrResize({
+  // All-edges resize (shared hook + shared handle set): every edge and corner drags, pos+size stay
+  // clamped inside the viewport, and both persist to the panel's localStorage slots.
+  const handleResizeMouseDown = usePanelEdgeResize({
     enabled: isOpen && expanded,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
-    size: { width: size.width, height: size.height },
-    onSizeChange: (next) => {
-      setSize(next)
-      persistJson(sizeStorageKey, next)
+    start: { pos, size },
+    resolveStart: () => {
+      const rect = panelRef.current?.getBoundingClientRect()
+      // jsdom reports a zero rect -> fall back to the state values
+      if (!rect || rect.width <= 0 || rect.height <= 0) return null
+      return { pos: { x: rect.left, y: rect.top }, size: { width: rect.width, height: rect.height } }
     },
-    resolveStartSize,
+    onChange: (next) => {
+      setPos(next.pos)
+      setSize(next.size)
+      persistJson(posStorageKey, next.pos)
+      persistJson(sizeStorageKey, next.size)
+    },
   })
 
   const handleCardClick = useCallback((id: string) => {
@@ -574,38 +614,31 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
 
   if (!isOpen) return null
 
-  // header totals across the runs (weakest link at a glance): the SUM of every run's best score and the SUM of
-  // every run's worst route score. Unmeasured values (null, not-yet-fetched) are skipped; nothing renders while
-  // no meta has loaded at all. The worst sum is the dialog-side weakest-link aggregate: it only grows when the
-  // stuck routes improve.
+  // Title-line best/worst (weakest link at a glance): the MEAN of every run's best score and of its worst
+  // route score, rounded to integers (no decimals). Both figures follow the SELECTED candidate chip (its
+  // headless per-world scores, scored by export-maze-candidates.ts over this same training set); without a
+  // chip they describe the deployed candidate baked into the exports. Unmeasured values (null,
+  // not-yet-fetched) are skipped; nothing renders while no side is measured at all.
   const metas = trainingSet.worlds.map((spec) => cardStates[spec.id]?.meta).filter((m): m is TrainingMeta => m != null)
-  const sumBest = metas.length && metas.some((m) => m.bestScore != null) ? metas.reduce((a, m) => a + (m.bestScore ?? 0), 0) : null
-  const worsts = metas.map((m) => worstRouteScore(m)).filter((w): w is { score: number; way: number } => w != null)
-  const sumWorst = worsts.length ? worsts.reduce((a, w) => a + w.score, 0) : null
-  const totalsLine =
-    sumBest != null || sumWorst != null
-      ? `${sumBest != null ? `Σ Best: ${sumBest} pts` : 'Σ Best: —'} · ${sumWorst != null ? `Σ Worst: ${sumWorst} pts` : 'Σ Worst: —'}`
-      : null
-
-  // health-dot aggregates follow the SELECTED candidate when a chip is active (its headless per-world scores,
-  // scored by export-maze-candidates.ts over this same training set); the numeric totals line keeps describing
-  // the DEPLOYED candidate. Gray until the candidate's scores cover at least one world of this set.
-  let dotSumBest: number | null = null
-  let dotSumWorst: number | null = null
+  let avgBest = meanRound(metas.map((m) => m.bestScore))
+  let avgWorst = meanRound(metas.map((m) => worstRouteScore(m)?.score ?? null))
   if (selectedCandidate) {
     const entries = selectedCandidate.scores
       ? trainingSet.worlds.map((spec) => selectedCandidate.scores?.[spec.id]).filter((s): s is { best: number; routes: Array<number | null> } => s != null)
       : []
-    dotSumBest = entries.length > 0 ? entries.reduce((a, s) => a + s.best, 0) : null
-    const dotWorsts = entries.map((s) => candidateWorstRoute(s.routes)).filter((w): w is number => w != null)
-    dotSumWorst = dotWorsts.length > 0 ? dotWorsts.reduce((a, w) => a + w, 0) : null
-  } else {
-    dotSumBest = sumBest
-    dotSumWorst = sumWorst
+    avgBest = meanRound(entries.map((s) => s.best))
+    avgWorst = meanRound(entries.map((s) => candidateWorstRoute(s.routes)))
   }
+  const totalsLine =
+    avgBest != null || avgWorst != null
+      ? `${avgBest != null ? `Ø Best: ${avgBest} pts` : 'Ø Best: —'} · ${avgWorst != null ? `Ø Worst: ${avgWorst} pts` : 'Ø Worst: —'}`
+      : null
+  // keep the header stats visible while a candidate chip is active even before its scores arrive:
+  // the dot goes gray and the figures show em dashes until the candidate is scored.
+  const showHeaderStats = totalsLine != null || selectedCandidate != null
   const healthTitle = selectedCandidate
-    ? `Weakest-link health of the SELECTED candidate (${selectedCandidate.label}${selectedCandidate.scoredGen != null ? ` · scored gen ${selectedCandidate.scoredGen}` : ''}): Σ worst ÷ Σ best of its headless scores — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not scored yet`
-    : 'Weakest-link health of the deployed candidate: Σ Worst ÷ Σ Best — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not measured yet'
+    ? `Weakest-link health of the SELECTED candidate (${selectedCandidate.label}${selectedCandidate.scoredGen != null ? ` · scored gen ${selectedCandidate.scoredGen}` : ''}): Ø worst ÷ Ø best of its headless scores — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not scored yet`
+    : 'Weakest-link health of the deployed candidate: Ø Worst ÷ Ø Best — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not measured yet'
 
   const panelHeight = expanded ? size.height : STRIP_HEIGHT
 
@@ -621,7 +654,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
         top: pos.y,
         width: size.width,
         height: panelHeight,
-        zIndex: theme.zIndex.popover,
+        zIndex: theme.zIndex.floatingDialog,
         background: PANEL_BG_TRANSLUCENT,
         backdropFilter: 'blur(4px)',
         border: `1px solid ${theme.border.default}`,
@@ -677,7 +710,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
         <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
           {trainingSet.worlds.length} runs
         </span>
-        {totalsLine ? (
+        {showHeaderStats ? (
           <>
             <span
               data-testid={`${trainingSet.testid}-training-header-health`}
@@ -688,22 +721,24 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
                 height: 8,
                 borderRadius: '50%',
                 flexShrink: 0,
-                background: headerHealthColor(dotSumBest, dotSumWorst),
+                background: headerHealthColor(avgBest, avgWorst),
               }}
             />
-            <span
-              data-testid={`${trainingSet.testid}-training-header-totals`}
-              title="Totals across the runs: sum of each run's best score and sum of its worst route score (the stuck routes)"
-              style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}
-            >
-              {totalsLine}
-            </span>
+            {totalsLine ? (
+              <span
+                data-testid={`${trainingSet.testid}-training-header-totals`}
+                title="Averages across the runs: mean of each run's best score and mean of its worst route score (the stuck routes) — follows the selected candidate chip"
+                style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}
+              >
+                {totalsLine}
+              </span>
+            ) : null}
           </>
         ) : null}
         {candidatesFile && candidatesFile.candidates.length > 0 ? (
           <span
             data-testid={`${trainingSet.testid}-training-candidates`}
-            title="Candidate models: a chip swaps the driving net of the loaded world (the exported file keeps the deployed best). The scores in this dialog describe the DEPLOYED candidate — the deployed model is what the auto-trial baked into the export."
+            title="Candidate models: a chip swaps the driving net of the loaded world (the exported file keeps the deployed best). The per-run rows describe the DEPLOYED candidate; the title-line averages follow the selected chip."
             style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
           >
             {candidatesFile.candidates.map((candidate) => {
@@ -833,6 +868,9 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
             const exported = !state.failed && meta != null
             const selected = selectedId === spec.id
             const rowExpanded = expandedRowId === spec.id && exported
+            // thumbnails scale with the panel: small when vertical space is scarce, larger with room
+            const tileCount = rowExpanded && meta ? trainingSet.tileCount(meta) : 0
+            const thumbHeight = `${routeTileThumbHeightPx(size.width, size.height, tileCount)}px`
             return (
               <div
                 key={spec.id}
@@ -917,7 +955,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
                 {rowExpanded && meta ? (
                   <div style={{ padding: '0 8px 8px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-                      {Array.from({ length: trainingSet.tileCount(meta) }, (_, i) => {
+                      {Array.from({ length: tileCount }, (_, i) => {
                         const tile = trainingSet.tileText(meta, i)
                         const tileSelected = (selectedRoutes[spec.id] ?? 0) === i
                         const isLiveTile = liveRun != null && liveRun.worldId === spec.id && liveRun.routeIndex === i
@@ -945,12 +983,12 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
                               gap: 3,
                             }}
                           >
-                            <div style={{ position: 'relative', width: '100%', height: '8.4em' }}>
+                            <div style={{ position: 'relative', width: '100%', height: thumbHeight }}>
                               <img
                                 data-testid={`${trainingSet.testid}-training-thumb-${spec.id}-${i}`}
                                 src={trainingTileUrl(spec, i)}
                                 alt={`${spec.name} ${tile.name.toLowerCase()} (${tile.long}) thumbnail (all guidance vectors)`}
-                                style={{ width: '100%', height: '8.4em', display: 'block', objectFit: 'contain', borderRadius: 4 }}
+                                style={{ width: '100%', height: thumbHeight, display: 'block', objectFit: 'contain', borderRadius: 4 }}
                                 onError={handleThumbError}
                               />
                               {isLiveTile && meta.tileSvg ? (
@@ -1004,21 +1042,9 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
         </div>
       ) : null}
 
+      {/* resizable from EVERY side: all four edges + all four corners (shared handles; viewport-clamped) */}
       {expanded ? (
-        <div
-          aria-hidden={true}
-          {...resizeHandleProps}
-          data-testid={`${trainingSet.testid}-training-resize-handle`}
-          style={{
-            position: 'absolute',
-            right: 0,
-            bottom: 0,
-            width: 16,
-            height: 16,
-            cursor: 'nwse-resize',
-            touchAction: 'none',
-          }}
-        />
+        <FloatingDrawerResizeHandles edges={DRAWER_RESIZE_EDGES_ALL} onResizeMouseDown={handleResizeMouseDown} />
       ) : null}
     </div>,
     document.body,

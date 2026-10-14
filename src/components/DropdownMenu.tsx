@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
+import { theme } from '@/config/theme'
 
 export interface MenuItemConfig {
   type: 'item' | 'separator' | 'submenu'
@@ -21,7 +23,11 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
   const [isOpen, setIsOpen] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(-1)
   const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null)
+  /** Fixed position of the open menu panel, derived from the toggle button (portaled to body). */
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  /** The portaled open menu panel (NOT a DOM child of `menuRef` — checked separately for outside clicks). */
+  const menuPanelRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const submenuRefs = useRef<Map<number, HTMLDivElement>>(new Map())
   const submenuCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -45,7 +51,10 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
     if (!isOpen) return
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const insideWrapper = menuRef.current && menuRef.current.contains(target)
+      const insidePanel = menuPanelRef.current && menuPanelRef.current.contains(target)
+      if (!insideWrapper && !insidePanel) {
         setIsOpen(false)
         onOpenChange?.(false)
       }
@@ -122,6 +131,24 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
     }
   }, [isOpen, focusedIndex, menuItems, onOpenChange, openSubmenuIndex])
 
+  // Portaled panel position: anchored below the toggle button and recomputed on resize/scroll. The
+  // panel is portaled to document.body so it escapes the header's stacking context and can layer
+  // ABOVE open dialogs (menus stay usable while a dialog is in front of the top menu).
+  useEffect(() => {
+    if (!isOpen) return
+    const update = () => {
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (rect) setMenuPos({ top: rect.bottom, left: rect.left })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [isOpen])
+
   const handleToggle = () => {
     const newIsOpen = !isOpen
     setIsOpen(newIsOpen)
@@ -163,18 +190,20 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
         {label}
       </button>
 
-      {isOpen && (
+      {isOpen && menuPos && createPortal(
         <div
+          ref={menuPanelRef}
           role="menu"
+          data-testid={`${label.toLowerCase()}-menu-panel`}
           style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
+            position: 'fixed',
+            top: menuPos.top,
+            left: menuPos.left,
             minWidth: '200px',
             background: '#1b1f2a',
             border: '1px solid #2f3545',
             boxShadow: '0 2px 12px rgba(0,0,0,0.55)',
-            zIndex: 1000,
+            zIndex: theme.zIndex.menu,
             padding: '4px 0',
           }}
         >
@@ -353,7 +382,8 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
               </div>
             )
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

@@ -136,6 +136,7 @@ export default function AvEvolutionPanel({ onClose, selectedEntityId }: AvEvolut
       minHeight={200}
       maxResizeHeight={800}
       testId="av-evolution-panel"
+      zIndex={theme.zIndex.floatingDialog}
     >
       <div style={{ whiteSpace: 'normal' }}>
         <div style={row}>

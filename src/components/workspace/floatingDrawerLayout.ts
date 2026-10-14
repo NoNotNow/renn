@@ -1,6 +1,26 @@
 import { clamp } from '@/utils/numberUtils'
 
-export type DrawerResizeEdge = 'left' | 'right' | 'bottom' | 'corner' | 'left-corner'
+export type DrawerResizeEdge =
+  | 'left'
+  | 'right'
+  | 'bottom'
+  | 'top'
+  | 'corner'
+  | 'left-corner'
+  | 'top-corner'
+  | 'top-left-corner'
+
+/** Every edge + corner a resizable panel can be dragged from (all-sides resize). */
+export const DRAWER_RESIZE_EDGES_ALL: readonly DrawerResizeEdge[] = [
+  'left',
+  'right',
+  'bottom',
+  'top',
+  'corner',
+  'left-corner',
+  'top-corner',
+  'top-left-corner',
+]
 
 export type StoredDrawerLayout = {
   x: number
@@ -52,6 +72,7 @@ export interface DrawerResizeInput {
   startWidth: number
   startHeight: number
   startPosX: number
+  startPosY: number
   minWidth: number
   minHeight: number
   maxWidth: number
@@ -62,6 +83,7 @@ export interface DrawerResizeResult {
   width: number
   height: number
   posX?: number
+  posY?: number
 }
 
 export function clampDrawerPosition(
@@ -89,22 +111,26 @@ export function drawerPositionRelativeToHost(element: Element, host: Element): {
 }
 
 export function computeDrawerResizeNext(input: DrawerResizeInput): DrawerResizeResult {
-  const { edge, dx, dy, startWidth, startHeight, startPosX, minWidth, minHeight, maxWidth, maxHeight } = input
+  const { edge, dx, dy, startWidth, startHeight, startPosX, startPosY, minWidth, minHeight, maxWidth, maxHeight } = input
 
   let nextWidth = startWidth
   let nextHeight = startHeight
   let posX: number | undefined
+  let posY: number | undefined
 
-  if (edge === 'right' || edge === 'corner') {
+  if (edge === 'right' || edge === 'corner' || edge === 'top-corner') {
     nextWidth = clamp(startWidth + dx, minWidth, maxWidth)
-  } else if (edge === 'left' || edge === 'left-corner') {
+  } else if (edge === 'left' || edge === 'left-corner' || edge === 'top-left-corner') {
     nextWidth = clamp(startWidth - dx, minWidth, maxWidth)
     posX = startPosX + (startWidth - nextWidth)
   }
 
   if (edge === 'bottom' || edge === 'corner' || edge === 'left-corner') {
     nextHeight = clamp(startHeight + dy, minHeight, maxHeight)
+  } else if (edge === 'top' || edge === 'top-corner' || edge === 'top-left-corner') {
+    nextHeight = clamp(startHeight - dy, minHeight, maxHeight)
+    posY = startPosY + (startHeight - nextHeight)
   }
 
-  return { width: nextWidth, height: nextHeight, posX }
+  return { width: nextWidth, height: nextHeight, posX, posY }
 }

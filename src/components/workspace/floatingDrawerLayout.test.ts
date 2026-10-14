@@ -43,6 +43,7 @@ describe('floatingDrawerLayout', () => {
         startWidth: 300,
         startHeight: 200,
         startPosX: 40,
+        startPosY: 60,
         minWidth: 220,
         minHeight: 120,
         maxWidth: 600,
@@ -60,12 +61,67 @@ describe('floatingDrawerLayout', () => {
         startWidth: 300,
         startHeight: 200,
         startPosX: 100,
+        startPosY: 60,
         minWidth: 220,
         minHeight: 120,
         maxWidth: 600,
         maxHeight: 640,
       }),
     ).toEqual({ width: 325, height: 200, posX: 75 })
+  })
+
+  it('computeDrawerResizeNext adjusts y (and height) when resizing from top', () => {
+    expect(
+      computeDrawerResizeNext({
+        edge: 'top',
+        dx: 0,
+        dy: -40,
+        startWidth: 300,
+        startHeight: 200,
+        startPosX: 100,
+        startPosY: 60,
+        minWidth: 220,
+        minHeight: 120,
+        maxWidth: 600,
+        maxHeight: 640,
+      }),
+    ).toEqual({ width: 300, height: 240, posY: 20 })
+  })
+
+  it('computeDrawerResizeNext widens and moves y from the top-left corner', () => {
+    expect(
+      computeDrawerResizeNext({
+        edge: 'top-left-corner',
+        dx: -30,
+        dy: -20,
+        startWidth: 300,
+        startHeight: 200,
+        startPosX: 100,
+        startPosY: 60,
+        minWidth: 220,
+        minHeight: 120,
+        maxWidth: 600,
+        maxHeight: 640,
+      }),
+    ).toEqual({ width: 330, height: 220, posX: 70, posY: 40 })
+  })
+
+  it('computeDrawerResizeNext widens from the right while shrinking height from the top-right corner', () => {
+    expect(
+      computeDrawerResizeNext({
+        edge: 'top-corner',
+        dx: 25,
+        dy: 15,
+        startWidth: 300,
+        startHeight: 200,
+        startPosX: 100,
+        startPosY: 60,
+        minWidth: 220,
+        minHeight: 120,
+        maxWidth: 600,
+        maxHeight: 640,
+      }),
+    ).toEqual({ width: 325, height: 185, posY: 75 })
   })
 
   it('readStoredDrawerLayout accepts optional width and height', () => {

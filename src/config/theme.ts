@@ -164,8 +164,14 @@ export const theme = {
     modalGlassBlur: 'blur(18px) saturate(140%)',
   },
   zIndex: {
+    /** Top menu bar (BuilderHeader). Dialogs layer ABOVE it; portaled menus above the dialogs. */
     header: 10500,
-    modal: 10000,
+    /** Body-portaled non-blocking floating dialogs (training panel, AV evolution drawer) — above the top menu, below blocking modals. */
+    floatingDialog: 10600,
+    /** Blocking centered dialogs (Modal) — render in front of the top menu. */
+    modal: 11000,
+    /** Portaled menus (header dropdowns, context menus) — above every dialog so menus stay usable while one is open. */
+    menu: 11500,
     /** Anchored tool popovers (brush picker, etc.). */
     popover: 4500,
     /** Brush popover inside Texture Maker (above builder brush popover). */

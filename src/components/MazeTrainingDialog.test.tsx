@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MazeTrainingDialog from './MazeTrainingDialog'
 import { CRUX_TRAINING_SET, TRAINING_SETS, WF_TRAINING_SET } from './trainingSets'
@@ -34,6 +34,18 @@ function normalizedBackground(css: string): string {
   const probe = document.createElement('span')
   probe.style.background = css
   return probe.style.background
+}
+
+/**
+ * Simulates one edge/corner resize drag: mousedown on the handle, then mousemove/mouseup on document.
+ * The move dispatch happens inside `act` so React flushes the pos/size re-render before assertions.
+ */
+async function dragResize(handleTestId: string, from: { x: number; y: number }, to: { x: number; y: number }) {
+  fireEvent.mouseDown(screen.getByTestId(handleTestId), { clientX: from.x, clientY: from.y })
+  await act(async () => {
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: to.x, clientY: to.y }))
+    document.dispatchEvent(new MouseEvent('mouseup'))
+  })
 }
 
 /** Tile fixture: shared svg pixel size, one chain polyline (6 points) per route, per-route scores. */
@@ -142,7 +154,8 @@ describe('MazeTrainingDialog', () => {
     expect(screen.queryByTestId('maze-training-header-totals')).not.toBeInTheDocument()
     expect(screen.queryByTestId('maze-training-header-health')).not.toBeInTheDocument()
     expect(screen.queryAllByTestId(/^maze-training-card-/)).toHaveLength(0)
-    expect(screen.queryByTestId('maze-training-resize-handle')).not.toBeInTheDocument()
+    // collapsed: no resize handles at all
+    expect(screen.queryAllByTestId(/^resize-handle-/)).toHaveLength(0)
   })
 
   it('expands into single-line run rows by default (no thumbnails visible)', async () => {
@@ -164,8 +177,10 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getAllByText('Worst: 140 pts · way 4')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     expect(screen.getAllByText('3 ways · 1 reversed')).toHaveLength(MAZE_TRAINING_WORLDS.length)
     // header totals: sum of the bests (9x123, one world null) and of the worsts (10x140)
-    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 1107 pts · Σ Worst: 1400 pts')
-    // header health dot: Σ Worst (1400) ÷ Σ Best (1107) > 1 clamps to full health -> green
+    // header title line: MEAN best (9x123 / 9) and MEAN worst (10x140 / 10), integers, no decimals
+    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Ø Best: 123 pts · Ø Worst: 140 pts')
+    expect(screen.getByTestId('maze-training-header-totals').textContent).not.toContain('.')
+    // header health dot: Ø Worst (140) ÷ Ø Best (123) > 1 clamps to full health -> green
     expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground('hsl(120, 75%, 45%)'))
     // every row carries its own health dot: worst (140) ÷ best (123) > 1 -> green; the null-best world stays gray
     const rowDots = screen.getAllByTestId(/^maze-training-row-health-/)
@@ -173,11 +188,15 @@ describe('MazeTrainingDialog', () => {
     const green = normalizedBackground('hsl(120, 75%, 45%)')
     expect(rowDots.filter((dot) => dot.style.background === green)).toHaveLength(MAZE_TRAINING_WORLDS.length - 1)
     expect(rowDots.filter((dot) => dot.style.background === normalizedBackground(theme.text.muted))).toHaveLength(1)
-    expect(screen.getByTestId('maze-training-resize-handle')).toBeInTheDocument()
+    // expanded: a handle on EVERY edge and corner (all-sides resize)
+    expect(screen.getAllByTestId(/^resize-handle-/)).toHaveLength(8)
+    for (const edge of ['left', 'right', 'bottom', 'top', 'corner', 'left-corner', 'top-corner', 'top-left-corner']) {
+      expect(screen.getByTestId(`resize-handle-${edge}`)).toBeInTheDocument()
+    }
   })
 
   it('colors the header health dot red when the stuck routes score zero', async () => {
-    // best 100 per world, route 2 stuck at 0 -> Σ Best 1000, Σ Worst 0 -> health 0 -> red
+    // best 100 per world, route 2 stuck at 0 -> Ø Best 100, Ø Worst 0 -> health 0 -> red
     const pts = TILE_PTS[0].map((p) => [...p] as [number, number])
     stubFetchWithMeta((spec) => ({
       ...makeMeta(spec, 100, { forward: 2, reversed: 0 }),
@@ -187,7 +206,7 @@ describe('MazeTrainingDialog', () => {
     render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
     await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByText('Best: 100 pts')
-    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 1000 pts · Σ Worst: 0 pts')
+    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Ø Best: 100 pts · Ø Worst: 0 pts')
     expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground('hsl(0, 75%, 45%)'))
     // per-row dot: worst (0) ÷ best (100) = 0 -> red on all rows
     const rowDots = screen.getAllByTestId(/^maze-training-row-health-/)
@@ -204,13 +223,14 @@ describe('MazeTrainingDialog', () => {
     const row1 = screen.getByTestId('maze-training-row-maze_train_1')
     await user.click(row1)
     expect(row1).toHaveAttribute('aria-expanded', 'true')
-    // 4 tiles: 3 forward + 1 reversed, each with its own route image, fixed-height thumbnail and its own route score
+    // 4 tiles: 3 forward + 1 reversed, each with its own route image, panel-size-scaled thumbnail
+    // (default 540x480 panel -> 132px) and its own route score
     for (let i = 0; i < 4; i++) {
       const tile = screen.getByTestId(`maze-training-route-tile-maze_train_1-${i}`)
       expect(tile).toBeInTheDocument()
       const img = screen.getByTestId(`maze-training-thumb-maze_train_1-${i}`)
       expect(img).toHaveAttribute('src', expect.stringContaining(`route_${i}.svg`))
-      expect(img).toHaveStyle({ height: '8.4em' })
+      expect(img).toHaveStyle({ height: '132px' })
     }
     expect(screen.getByTestId('maze-training-route-tile-maze_train_1-3')).toHaveAttribute(
       'aria-label',
@@ -350,6 +370,38 @@ describe('MazeTrainingDialog', () => {
     for (const dot of rowDots()) expect(dot.style.background).toBe(green)
   })
 
+  it('the title-line best/worst are integer AVERAGES (not sums) that recompute on candidate switch', async () => {
+    // deployed: only two measured worlds — bests 100 and 201 (mean 150.5 -> 151, never a decimal),
+    // worst routes 150 and 150 (mean 150). A SUM would read 301/300 — the line must show the means.
+    const candidates = [
+      makeCandidate('island-0', 'I1', { maze_train_1: { best: 90, routes: [90, 10] } }),
+    ]
+    stubFetchWithMeta(
+      (spec) =>
+        spec.id === 'maze_train_1'
+          ? makeMeta(spec, 100, { forward: 2, reversed: 0 })
+          : spec.id === 'maze_train_2'
+            ? makeMeta(spec, 201, { forward: 2, reversed: 0 })
+            : makeMeta(spec, null),
+      candidates,
+    )
+    const user = userEvent.setup()
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByText('Best: 201 pts')
+    const totals = () => screen.getByTestId('maze-training-header-totals')
+    // means, rounded to integers, no decimal places anywhere in the line
+    expect(totals()).toHaveTextContent('Ø Best: 151 pts · Ø Worst: 150 pts')
+    expect(totals().textContent).not.toContain('.')
+    // selecting a candidate chip RECOMPUTES the title line from that candidate's scores
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-0'))
+    expect(totals()).toHaveTextContent('Ø Best: 90 pts · Ø Worst: 10 pts')
+    expect(totals().textContent).not.toContain('.')
+    // deselecting the chip returns the deployed candidate's averages
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-0'))
+    expect(totals()).toHaveTextContent('Ø Best: 151 pts · Ø Worst: 150 pts')
+  })
+
   it('a chip click re-loads the live run with the new candidate when a run is driving', async () => {
     const user = userEvent.setup()
     const candidates = [makeCandidate('island-1', 'I2'), makeCandidate('best', 'Best')]
@@ -447,9 +499,9 @@ describe('MazeTrainingDialog', () => {
     expect(screen.queryByText(/reversed/)).not.toBeInTheDocument()
     // no per-route scores -> no worst score either
     expect(screen.getAllByText('Worst: —')).toHaveLength(MAZE_TRAINING_WORLDS.length)
-    // header totals: bests sum (10x77), no worst data at all
-    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Σ Best: 770 pts · Σ Worst: —')
-    // Σ Worst unmeasured -> the health dot stays gray
+    // header title line: MEAN best (10x77 / 10), no worst data at all
+    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Ø Best: 77 pts · Ø Worst: —')
+    // Ø Worst unmeasured -> the health dot stays gray
     expect(screen.getByTestId('maze-training-header-health').style.background).toBe(normalizedBackground(theme.text.muted))
     // rows: best measured but no per-route scores -> every row dot stays gray too
     const rowDots = screen.getAllByTestId(/^maze-training-row-health-/)
@@ -623,7 +675,7 @@ describe('MazeTrainingDialog (Training Crux set)', () => {
     expect(screen.getAllByText('Worst: 35 pts · chain 6')).toHaveLength(CRUX_TRAINING_WORLDS.length)
     expect(screen.getAllByText('6 chains')).toHaveLength(CRUX_TRAINING_WORLDS.length)
     expect(screen.queryByText(/reversed/)).not.toBeInTheDocument()
-    // the crux panel carries the same header health dot: Σ Best 25x43, Σ Worst 25x35 -> health 875/1075
+    // the crux panel carries the same header health dot: Ø Best 43, Ø Worst 35 -> health 35/43
     expect(screen.getByTestId('crux-training-header-health').style.background).toBe(normalizedBackground('hsl(98, 75%, 45%)'))
     // and the same per-row dots: worst (35) ÷ best (43) -> health 35/43
     const rowDots = screen.getAllByTestId(/^crux-training-row-health-/)
@@ -831,5 +883,69 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     // the merged dialog persists its collapse state in the SHARED slot (per-set slots untouched)
     expect(window.localStorage.getItem('trainingPanelCollapsed')).toBe(JSON.stringify(true))
     expect(window.localStorage.getItem('mazeTrainingPanelCollapsed')).toBeNull()
+  })
+
+  it('resizes from EVERY side: right, top and top-left drags change size and position, clamped into the viewport', async () => {
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 1 }))
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    const panel = screen.getByTestId('maze-training-panel')
+    // jsdom default viewport 1024x768 -> default pos x = 1024-540-24 = 460, y = 64
+    expect(panel.style.width).toBe('540px')
+    expect(panel.style.height).toBe('480px')
+
+    // RIGHT edge: grows the width; the clamp keeps the grown panel inside the viewport (x 460 -> 424)
+    await dragResize('resize-handle-right', { x: 500, y: 300 }, { x: 560, y: 300 })
+    expect(panel.style.width).toBe('600px')
+    expect(panel.style.left).toBe('424px')
+
+    // TOP edge: grows the height and moves the panel UP with it (y 64 -> 4)
+    await dragResize('resize-handle-top', { x: 400, y: 100 }, { x: 400, y: 40 })
+    expect(panel.style.height).toBe('540px')
+    expect(panel.style.top).toBe('4px')
+
+    // TOP-LEFT corner: widens + heightens; the left edge drags x right along, y clamps at the viewport top
+    await dragResize('resize-handle-top-left-corner', { x: 440, y: 20 }, { x: 400, y: -20 })
+    expect(panel.style.width).toBe('640px')
+    expect(panel.style.height).toBe('580px')
+    expect(panel.style.left).toBe('384px')
+    expect(panel.style.top).toBe('0px')
+
+    // LEFT edge shrink below MIN_WIDTH clamps at the minimum
+    await dragResize('resize-handle-left', { x: 400, y: 300 }, { x: 2000, y: 300 })
+    expect(panel.style.width).toBe('260px')
+
+    // pos AND size persist under the panel's localStorage slots
+    expect(window.localStorage.getItem('mazeTrainingPanelSize')).toBe(JSON.stringify({ width: 260, height: 580 }))
+    expect(JSON.parse(window.localStorage.getItem('mazeTrainingPanelPos') ?? '{}').y).toBe(0)
+  })
+
+  it('layers ABOVE the top menu (z-index above the header)', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    const panel = screen.getByTestId('maze-training-panel')
+    expect(Number(panel.style.zIndex)).toBeGreaterThan(Number(theme.zIndex.header))
+    // but below the portaled header menus, so File→ menus opened afterwards stay usable on top
+    expect(Number(panel.style.zIndex)).toBeLessThan(Number(theme.zIndex.menu))
+  })
+
+  it('scales the route thumbnails with the panel size (min clamp when vertical space is scarce, growing on resize)', async () => {
+    // tiny persisted panel: barely any vertical room -> the thumbnails clamp to the minimum
+    window.localStorage.setItem('mazeTrainingPanelSize', JSON.stringify({ width: 300, height: 200 }))
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 3, reversed: 1 }))
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByText('Best: 10 pts')
+    await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
+    expect(screen.getByTestId('maze-training-thumb-maze_train_1-0')).toHaveStyle({ height: '40px' })
+
+    // growing the panel through the bottom-right corner grows the thumbnails with it (capped at max;
+    // the height clamps at the viewport: 200 + 680 = 880 -> 768)
+    await dragResize('resize-handle-corner', { x: 300, y: 260 }, { x: 900, y: 940 })
+    expect(screen.getByTestId('maze-training-panel').style.width).toBe('900px')
+    expect(screen.getByTestId('maze-training-panel').style.height).toBe('768px')
+    expect(screen.getByTestId('maze-training-thumb-maze_train_1-0')).toHaveStyle({ height: '176px' })
   })
 })

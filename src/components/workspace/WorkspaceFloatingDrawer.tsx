@@ -72,6 +72,11 @@ export interface WorkspaceFloatingDrawerProps {
   maxResizeHeight?: number
   bodyOverflow?: 'auto' | 'hidden'
   testId?: string
+  /**
+   * Stacking override for body-portaled drawers (in-host drawers keep the default 100). Body portals
+   * need a dialog-level z-index to layer above the top menu — pass `theme.zIndex.floatingDialog`.
+   */
+  zIndex?: number
 }
 
 function resolveInitialPosition(
@@ -121,6 +126,7 @@ export default function WorkspaceFloatingDrawer({
   maxResizeHeight = 640,
   bodyOverflow = 'auto',
   testId,
+  zIndex,
 }: WorkspaceFloatingDrawerProps) {
   const storedLayout = useMemo(
     () =>
@@ -177,6 +183,7 @@ export default function WorkspaceFloatingDrawer({
     startWidth: number
     startHeight: number
     startPosX: number
+    startPosY: number
   } | null>(null)
 
   const effectiveWidth = resizable ? size.width : width
@@ -271,10 +278,11 @@ export default function WorkspaceFloatingDrawer({
       startWidth: size.width,
       startHeight: size.height,
       startPosX: posRef.current.x,
+      startPosY: posRef.current.y,
     }
     const onMove = (move: MouseEvent) => {
       if (!resizeRef.current) return
-      const { edge: resizeEdge, startX, startY, startWidth, startHeight, startPosX } = resizeRef.current
+      const { edge: resizeEdge, startX, startY, startWidth, startHeight, startPosX, startPosY } = resizeRef.current
       const hostWidth = portalTarget.clientWidth
       const hostMaxWidth = maxWidth ?? Math.max(minWidth, hostWidth - 20)
       const next = computeDrawerResizeNext({
@@ -284,6 +292,7 @@ export default function WorkspaceFloatingDrawer({
         startWidth,
         startHeight,
         startPosX,
+        startPosY,
         minWidth,
         minHeight,
         maxWidth: hostMaxWidth,
@@ -328,6 +337,7 @@ export default function WorkspaceFloatingDrawer({
         flexDirection: 'column',
         padding: 0,
         overflow: 'hidden',
+        ...(zIndex != null ? { zIndex } : null),
       }}
     >
       <div
