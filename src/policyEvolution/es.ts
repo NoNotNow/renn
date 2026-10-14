@@ -24,6 +24,14 @@ export interface EsConfig {
    * Only used in the fitnessVec branch; the scalar centredRanks path never sees it.
    */
   lexEps?: number
+  /**
+   * Freeze mask (widen-freeze phase 1): length `dim`, `true` = the dimension is FROZEN. A frozen dim gets zero
+   * perturbation (candidates stay at the center value there, the antithetic gradient contributes 0 automatically)
+   * and its `weightDecay` pull is suspended, so it stays bit-identical over any number of steps. Absent / undefined /
+   * all-false = bit-identical to the old behavior. Persists with the run file's config, so a resume keeps the mask
+   * until it is cleared (`--unfreeze`).
+   */
+  freeze?: boolean[]
 }
 
 export const DEFAULT_ES_CONFIG: Omit<EsConfig, 'dim'> = { pairs: 24, sigma: 0.1, lr: 0.03, initStd: 0.3, seed: 1, weightDecay: 0.005 }
@@ -116,12 +124,14 @@ export const V3_FAIL_FACTOR = 0.5
 
 /**
  * v3 per-frame touch penalties (subtracted from the episode's norm; the episode SURVIVES touches and counts the
- * frames, episode.ts): wall contact costs more than object contact. Scaled so ~1 s of contact (60 frames at the
- * episode's 60 fps) is clearly felt — wall 0.3, object 0.12 norm — while a short brush (a few frames) does not zero
- * a good run. Sustained wall grinding still ends 'crash' (CRASH_TOUCH_S) and pays V3_FAIL_FACTOR on top.
+ * frames, episode.ts): wall contact costs more than object contact. Raised 2026-10-13 (widen-freeze run: 0.005 / 0.002
+ * let the candidates grind along walls — the new kinds demand touching NOTHING): ~1 s of contact (60 frames at the
+ * episode's 60 fps) now costs 0.75 / 0.30 norm — clearly devastating — while a short brush (6 frames = 0.1 s) costs
+ * 0.075 / 0.03 and does not zero a good run. Sustained wall grinding still ends 'crash' (CRASH_TOUCH_S, episode.ts —
+ * kept at 2 s: the pinned crux band's pursuit acceptance gate runs through that rule) and pays V3_FAIL_FACTOR on top.
  */
-export const V3_WALL_TOUCH_PENALTY = 0.005
-export const V3_OBJECT_TOUCH_PENALTY = 0.002
+export const V3_WALL_TOUCH_PENALTY = 0.0125
+export const V3_OBJECT_TOUCH_PENALTY = 0.005
 
 /** per-episode touch penalty in norm currency (frames x the per-frame rates above) */
 export function touchPenaltyNorm(touchWallFrames: number | undefined, touchObjectFrames: number | undefined): number {
@@ -317,8 +327,12 @@ export class PolicyEs {
   async step(evaluate: EvaluateGenome, keys: string[]): Promise<GenerationReport> {
     const { dim, pairs, sigma, lr, weightDecay } = this.cfg
     const s = this.state
+    // freeze mask (phase 1 of a widen-freeze run): frozen dims get NO perturbation — both antithetic candidates
+    // stay at the center value there, so the gradient contribution w * e[d] is exactly 0 — and the weightDecay pull
+    // is suspended below. Without a mask the eps stream and the decay are exactly the old behavior.
+    const freeze = this.cfg.freeze
     const eps: number[][] = []
-    for (let i = 0; i < pairs; i++) eps.push(Array.from({ length: dim }, () => gaussian(this.rng)))
+    for (let i = 0; i < pairs; i++) eps.push(Array.from({ length: dim }, (_, d) => (freeze?.[d] ? 0 : gaussian(this.rng))))
     const cands: number[][] = []
     for (const e of eps) {
       cands.push(s.theta.map((t, d) => t + sigma * e[d]!))
@@ -338,7 +352,7 @@ export class PolicyEs {
       const e = eps[i]!
       for (let d = 0; d < dim; d++) grad[d]! += w * e[d]!
     }
-    for (let d = 0; d < dim; d++) grad[d] = grad[d]! / (2 * pairs * sigma) - weightDecay * s.theta[d]!
+    for (let d = 0; d < dim; d++) grad[d] = grad[d]! / (2 * pairs * sigma) - (freeze?.[d] ? 0 : weightDecay * s.theta[d]!)
     s.adamT++
     const b1 = 0.9
     const b2 = 0.999

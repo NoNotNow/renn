@@ -1,6 +1,6 @@
 import { createRng, type Rng } from '@/avEvolution/core/rng'
 import type { V2 } from '@/avEvolution/eval/geometry'
-import { buildSetupCourse, FREE_HALF, parseCourseKey, type Course } from './courses'
+import { buildSetupCourse, deadendWorld, FREE_HALF, parseCourseKey, rslalomWorld, type Course } from './courses'
 import type { Chain } from './chains'
 
 /**
@@ -168,12 +168,79 @@ function corridorChains(setupKey: string, course: Course): Chain[] {
   return [toChain(a, [1, 2, 3], 0, OFF_REVERSAL_M), toChain(b, [1, 2], 1, OFF_REVERSAL_M), toChain(c, [1, 2, 3, 4, 5], 2, OFF_REVERSAL_M)]
 }
 
-/** Chains of a v3 setup kind (`free`, `bay`, `corridor`). */
+// --- rslalom (widen-freeze: full-length reverse chains with steering) ---------------------------------------------------------------
+
+/**
+ * Chains of `rslalom` (v3): the base weave through the pillar gaps plus two variants — all legs point toward the far
+ * end, and the car starts FACING THE REAR WALL, so every chain is driven in reverse. B adds a short stop-and-go warmup
+ * (two 4 m legs in reverse) before the weave; C inserts a mid-chain pull-forward correction (drive 10 m back toward
+ * the start, then continue) — the forward-reverse-forward transitions a missed gate costs.
+ */
+function rslalomChains(setupKey: string): Chain[] {
+  const { seed, variant } = parseCourseKey(setupKey)
+  const world = rslalomWorld(seed, variant)
+  const start: V2 = buildSetupCourse(setupKey).startAt ?? [0, 0]
+  const ahead = world.layout.ahead!
+  const end: V2 = [world.weave.length ? world.weave[world.weave.length - 1]![0] : 0, -(ahead - 10)]
+  const legsOf = (pts: V2[]): number[] => pts.slice(1).map((_, i) => i + 1)
+  // A: the full weave
+  const a: V2[] = [start, ...world.weave, end]
+  // B: stop-and-go warmup (two 4 m legs in reverse) before the weave
+  const b: V2[] = [start, [start[0], start[1] - 4], [start[0], start[1] - 8], ...world.weave, end]
+  // C: pull-forward correction at the middle pillar — a there-and-back SPIKE along the gap centre (10 m back toward
+  // the start, then through the same gap again): every segment is a known-clear line (the spike runs parallel to the
+  // walls at gap/2 >= 3.75 m off the pillar's inner edge; a diagonal pull would clip the previous pillar's corner)
+  const mid = Math.max(1, Math.floor(world.weave.length / 2))
+  const m = world.weave[mid - 1]!
+  const pull: V2 = [m[0], m[1] + 10]
+  const c: V2[] = [start, ...world.weave.slice(0, mid), pull, ...world.weave.slice(mid - 1), end]
+  return [
+    toChain(a, legsOf(a), 0, OFF_REVERSAL_M),
+    toChain(b, legsOf(b), 1, OFF_REVERSAL_M),
+    toChain(c, legsOf(c), 2, OFF_REVERSAL_M),
+  ]
+}
+
+// --- deadend (widen-freeze: two-bay dead-end hall, more variety than bay) ------------------------------------------------------------
+
+/**
+ * Chains of `deadend` (v3): pull into a bay, reverse out, then exit (A / B, one per bay) — or cross the hall and do
+ * it AGAIN in the other bay (C: two full reversals with a forward arc between them). Same leg shape as the bay chains
+ * (in / back-out / on), so everything the nets learned on `bay` transfers.
+ */
+function deadendChains(setupKey: string): Chain[] {
+  const { seed, variant } = parseCourseKey(setupKey)
+  const world = deadendWorld(seed, variant)
+  const start: V2 = buildSetupCourse(setupKey).startAt ?? [0, 0]
+  const [bA, bB] = world.bays
+  const intoBay = (bay: typeof bA): V2[] => [
+    [start[0] + (bay.ax - start[0]) / 2, bay.mouth + 6],
+    [bay.ax, bay.mouth],
+    [bay.ax, bay.tip],
+    [bay.ax, bay.retreat],
+  ]
+  // A: into the LEFT bay, back out, exit left
+  const a: V2[] = [start, ...intoBay(bA), world.exits.left]
+  // B: into the RIGHT bay, back out, exit right
+  const b: V2[] = [start, ...intoBay(bB), world.exits.right]
+  // C: into A, back out, arc across the hall, into B, back out, exit at the back
+  //   points: 0 start | 1-4 bay A (tip at 3, retreat at 4) | 5 arc mid | 6-9 bay B (tip at 8, retreat at 9) | 10 exit
+  const c: V2[] = [start, ...intoBay(bA), [(bA.ax + bB.ax) / 2, 6], ...intoBay(bB), world.exits.back]
+  return [
+    toChain(a, [3, 4, 5], 0, OFF_REVERSAL_M),
+    toChain(b, [3, 4, 5], 1, OFF_REVERSAL_M),
+    toChain(c, [3, 4, 8, 9, 10], 2, OFF_REVERSAL_M),
+  ]
+}
+
+/** Chains of a v3 setup kind (`free`, `bay`, `corridor`, `rslalom`, `deadend`). */
 export function generateV3Chains(setupKey: string): Chain[] {
   const { kind } = parseCourseKey(setupKey)
   const course = buildSetupCourse(setupKey)
   if (kind === 'free') return freeChains(setupKey, course)
   if (kind === 'bay') return bayChains(setupKey, course)
   if (kind === 'corridor') return corridorChains(setupKey, course)
+  if (kind === 'rslalom') return rslalomChains(setupKey)
+  if (kind === 'deadend') return deadendChains(setupKey)
   throw new Error(`generateV3Chains: ${kind} is not a v3 setup kind`)
 }

@@ -1,4 +1,4 @@
-import { capFieldDifficulty, parseChainEpisodeKey, v3EpisodeKeys, type SetupChains } from './chains'
+import { acceptedSetupKeys, capFieldDifficulty, parseChainEpisodeKey, v3EpisodeKeys, type SetupChains } from './chains'
 import { parseCourseKey, withVariant, type CourseKind } from './courses'
 
 /**
@@ -11,17 +11,30 @@ import { parseCourseKey, withVariant, type CourseKind } from './courses'
  */
 
 /**
- * Parses the `--focus-setups` flag: comma-separated SETUP keys (`crux:5`) or CHAIN episode keys (`crux:5#0v3`,
- * `crux:1003~1#5v3` — the exact keys a diagnose `--list` / `--out` prints), deduplicated in the order given.
- * A chain key maps to its setup; a setup's focus means ALL its chains. Garbage fails loud (parseCourseKey /
- * parseChainEpisodeKey throw); a key of a kind outside `kinds` (the run's `--kinds`) is refused — a focus set that
- * silently trains kinds the run was not configured for is a mistake, not a feature.
+ * Parses the `--focus-setups` flag: comma-separated SETUP keys (`crux:5`), CHAIN episode keys (`crux:5#0v3`,
+ * `crux:1003~1#5v3` — the exact keys a diagnose `--list` / `--out` prints) or KIND tokens (`kind:rslalom:6` =
+ * the first 6 accepted TRAIN setups of that kind — the widen-freeze phase-1 fitness: ONLY the new kinds, all their
+ * chains), deduplicated in the order given. A chain key maps to its setup; a setup's focus means ALL its chains.
+ * Garbage fails loud (parseCourseKey / parseChainEpisodeKey throw); a key of a kind outside `kinds` (the run's
+ * `--kinds`) is refused — a focus set that silently trains kinds the run was not configured for is a mistake, not a
+ * feature.
  */
 export function parseFocusSetups(spec: string, kinds: readonly CourseKind[]): string[] {
   const out: string[] = []
   for (const raw of spec.split(',')) {
     const token = raw.trim()
     if (!token) continue
+    if (token.startsWith('kind:')) {
+      // `kind:<kind>:<perKind>`: the accepted TRAIN setups of that kind (canonical variant, seeds 1.. — exactly the
+      // setups a trainV3Episodes band of that size holds)
+      const parts = token.split(':')
+      const kind = parts[1] as CourseKind
+      const perKind = Number(parts[2])
+      if (!(kinds as readonly string[]).includes(kind)) throw new Error(`--focus-setups: '${token}': kind '${kind}' is not a kind of this run (--kinds ${kinds.join(',')})`)
+      if (!Number.isInteger(perKind) || perKind < 1) throw new Error(`--focus-setups: '${token}': the setup count must be a positive integer`)
+      for (const key of acceptedSetupKeys(perKind, [kind], 1)) if (!out.includes(key)) out.push(key)
+      continue
+    }
     const setupKey = token.includes('#') ? parseChainEpisodeKey(token).setupKey : token
     const { kind } = parseCourseKey(setupKey)
     if (!kinds.includes(kind)) throw new Error(`--focus-setups: '${setupKey}' is of kind '${kind}', which is not a kind of this run (--kinds ${kinds.join(',')})`)

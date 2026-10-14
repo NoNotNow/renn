@@ -42,6 +42,12 @@
  *   Calibration: the per-gen log prints `lex ties F`, the share of candidate pairs sharing a rank (starves the gradient when high).
  * --csa (creation only - persisted like speedCap): Hansen cumulative step-size adaptation per island - the island's BASE sigma
  *   adapts to its evolution path every generation, the stagnation boost keeps multiplying on top. Off (default) = bit-identical.
+ * --freeze-old (v2/v3, creation only - persisted in config.freeze like speedCap): with --warm FILE and --hidden N > warm H the warm
+ *   genome is widened to N and everything the old function lives in is FROZEN (old W1 rows, old b1, old W2 columns, both b2 -
+ *   freezeOldMask in policy.ts); only the new units' parameters evolve (they start silent; the freeze puts the selection pressure
+ *   on them). Island replacement (crossover / immigrants) is blocked while the mask is active - frozen dims are identical across
+ *   islands, an immigrant would destroy the warm core. A plain resume keeps the mask (phase 1 continues).
+ * --unfreeze (resume only): clears the persisted freeze mask - phase 2, all dims evolve again (use a reduced --lr, e.g. 0.01).
  * The best mean policy by TRAIN score (checked at every epoch end) is stored as `best.genome` (same layout as run.ts; ship.ts reads it).
  * Agent exports (next to --out): latest-best.json on every best change + resume (trial via RENN_V3_GENOME_FILE), and
  *   latest-stats.json every --stats-every gens (default 20) + every epoch end + resume (--latest-best/--latest-stats override the paths).
@@ -59,7 +65,7 @@ import { focusBatch, focusPassReport, parseFocusSetups, type FocusPassReport } f
 import { aggregateEvenness, aggregateFitness, aggregateKindMin, beatsBest, DEFAULT_ES_CONFIG, episodeValues, type EsConfig, type FitnessFn, type FitnessVecFn } from '@/policyEvolution/es'
 import { DEFAULT_ISLANDS, FOCUS_MAX_EPOCHS, initialIslands, IslandEs, sigmaBoost, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
 import { createRng } from '@/avEvolution/core/rng'
-import { GENOME_LENGTH, genomeLength, genomeShape, hiddenOfLength, N_HIDDEN, N_IN_V2, N_IN_V3, padV2Genome, widenHidden } from '@/policyEvolution/policy'
+import { freezeOldMask, GENOME_LENGTH, genomeLength, genomeShape, hiddenOfLength, N_HIDDEN, N_IN_V2, N_IN_V3, padV2Genome, widenHidden } from '@/policyEvolution/policy'
 import { PolicyPool } from './pool'
 import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage, type StageState } from '@/policyEvolution/curriculum'
 import { holdoutV3Episodes, trainV3Episodes, v3EpisodeKeys } from '@/policyEvolution/chains'
@@ -154,11 +160,22 @@ async function main() {
   const hiddenArg = args.hidden === undefined ? undefined : Number(args.hidden)
   if (hiddenArg !== undefined && (!Number.isInteger(hiddenArg) || hiddenArg < 1)) throw new Error(`--hidden must be a positive integer, got ${String(args.hidden)}`)
   // --hidden N with --warm: the warm genome (v1 padded) is widened to N, function preserved; N below the warm size is refused
+  const warmH0 = warm ? genomeShape(warm.length).hidden : 0
   if (warm && hiddenArg !== undefined && !resumed) {
-    const h0 = genomeShape(warm.length).hidden
-    if (hiddenArg < h0) throw new Error(`--hidden ${hiddenArg} is smaller than the warm genome's ${h0} hidden units`)
-    if (hiddenArg > h0) warm = widenHidden(warm, hiddenArg, createRng(num(args.seed, 1) * 31 + 7))
-    console.log(`warm start: hidden ${h0} -> ${hiddenArg}`)
+    if (hiddenArg < warmH0) throw new Error(`--hidden ${hiddenArg} is smaller than the warm genome's ${warmH0} hidden units`)
+    if (hiddenArg > warmH0) warm = widenHidden(warm, hiddenArg, createRng(num(args.seed, 1) * 31 + 7))
+    console.log(`warm start: hidden ${warmH0} -> ${hiddenArg}`)
+  }
+  // --freeze-old (widen-freeze phase 1, CREATION only): freeze everything the warm function lives in (old W1 rows,
+  // old b1, old W2 columns, both b2 — freezeOldMask) and evolve ONLY the new units' parameters (new W1 rows, new b1,
+  // new W2 columns; they start silent, the freeze is what puts selection pressure on them). Needs --warm and a
+  // widening --hidden N > warm H. The mask lives in config.freeze (EsConfig), so every resume keeps it exactly like
+  // speedCap / focusSetups; --unfreeze on resume clears it (phase 2: all dims evolve again).
+  if (args['freeze-old'] !== undefined) {
+    if (resumed) throw new Error('--freeze-old is a creation flag (the mask persists in config.freeze; clear it on resume with --unfreeze)')
+    if (!warm) throw new Error('--freeze-old needs --warm (the old core the mask freezes)')
+    if (hiddenArg === undefined) throw new Error('--freeze-old needs --hidden N (the widened hidden size)')
+    if (hiddenArg <= warmH0) throw new Error(`--freeze-old needs a widening: --hidden ${hiddenArg} must be greater than the warm genome's ${warmH0} hidden units`)
   }
   // per-kind overrides of the setup counts: --train-per-kind-<kind> N / --holdout-per-kind-<kind> N (e.g. --train-per-kind-maze 16)
   // replace the count of exactly that kind; the plain flags stay the defaults of the others. Without any override the
@@ -229,6 +246,8 @@ async function main() {
       seed: num(args.seed, 1),
       // --lex-eps only at creation; persisted here, a resume reuses the stored config (0 / absent = strict, old behaviour)
       ...(num(args['lex-eps'], 0) > 0 ? { lexEps: num(args['lex-eps'], 0) } : {}),
+      // --freeze-old only at creation: the mask persists with the config, a plain resume keeps it (phase 1 continues)
+      ...(args['freeze-old'] !== undefined ? { freeze: freezeOldMask(genomeLength(v3 ? N_IN_V3 : N_IN_V2, hiddenArg!), warmH0) } : {}),
     }
     const islands: IslandsConfig = {
       islands: num(args.islands, DEFAULT_ISLANDS.islands),
@@ -249,6 +268,13 @@ async function main() {
       state: initialIslands(config, islands, warm),
       history: [],
     }
+  }
+  // --unfreeze (widen-freeze phase 2, RESUME only): clears the persisted config.freeze — every dim evolves again.
+  // A plain resume of a freeze file KEEPS the mask (like speedCap / focusSetups); this flag is the explicit release.
+  if (args.unfreeze !== undefined) {
+    if (!resumed) throw new Error('--unfreeze is a resume flag (a fresh run has no freeze mask: create it with --freeze-old)')
+    if (file!.config.freeze !== undefined) console.log(`unfreeze: config.freeze cleared at gen ${file!.state.gen} (phase 2 — all ${file!.config.dim} dims evolve; consider a reduced --lr, e.g. 0.01)`)
+    delete file!.config.freeze
   }
   // the effective focus set is part of the run file (like speedCap): a plain resume of a focused run stays focused
   if (focusSetups) file!.focusSetups = focusSetups

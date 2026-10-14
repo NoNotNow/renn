@@ -184,10 +184,10 @@ describe('v3 touch penalties (episodes survive touches, the fitness pays per fra
     expect(aggregateKindMin([{ ...base, touchWallFrames: 60 }])).toBeLessThan(aggregateKindMin([{ ...base, touchObjectFrames: 60 }]))
   })
 
-  it('scaled so ~1 s of wall contact (60 frames) is clearly felt but a short brush is not', () => {
+  it('scaled so ~1 s of wall contact (60 frames) is devastating but a short brush is not', () => {
     expect(V3_WALL_TOUCH_PENALTY).toBeGreaterThan(V3_OBJECT_TOUCH_PENALTY)
-    expect(V3_WALL_TOUCH_PENALTY * 60).toBeGreaterThan(0.1)
-    expect(V3_WALL_TOUCH_PENALTY * 6).toBeLessThan(0.05)
+    expect(V3_WALL_TOUCH_PENALTY * 60).toBeGreaterThan(0.5) // 1 s of wall contact costs most of a good run
+    expect(V3_WALL_TOUCH_PENALTY * 6).toBeLessThan(0.15) // a 0.1 s brush keeps the bulk of a good run
     // a long grind cannot push the norm below zero
     expect(aggregateKindMin([{ ...base, norm: 0.05, touchWallFrames: 900 }])).toBe(0)
   })

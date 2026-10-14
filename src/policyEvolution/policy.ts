@@ -91,6 +91,26 @@ export function widenHidden(genome: ArrayLike<number>, newH: number, rng: Rng): 
 }
 
 /**
+ * Freeze mask for a WIDENED genome (see `widenHidden`): `true` = frozen. FROZEN = everything the old function lives
+ * in — the old W1 rows (j < oldH), the old b1, the old W2 columns (stride `newH`, so they are NOT contiguous: the
+ * new columns interleave) and BOTH output biases b2; FREE = exactly the new units' parameters — the new W1 rows,
+ * the new b1 entries and the new W2 columns (they start at 0 and must evolve, else the widening is inert). Freezing
+ * only the old incoming weights is NOT enough: W2 and b2 move the old behavior immediately (see freeze.test.ts).
+ */
+export function freezeOldMask(len: number, oldH: number): boolean[] {
+  const { nIn, hidden: newH } = genomeShape(len)
+  if (!Number.isInteger(oldH) || oldH < 1 || oldH >= newH) throw new Error(`freezeOldMask: old hidden size ${oldH} must be an integer in [1, ${newH})`)
+  const mask = new Array<boolean>(len).fill(true)
+  const W2 = newH * nIn + newH
+  for (let j = oldH; j < newH; j++) {
+    for (let i = 0; i < nIn; i++) mask[j * nIn + i] = false // new W1 row
+    mask[newH * nIn + j] = false // new b1
+    for (let k = 0; k < N_OUT; k++) mask[W2 + k * newH + j] = false // new W2 column (stride newH)
+  }
+  return mask
+}
+
+/**
  * v1 genome -> v2 genome with identical outputs: the two new inputs (next-segment cos, sin) get zero weights, the aim inputs take over
  * the goal weights (goal fwd, left, dist = aim cos, sin, dist), previous steer / gas move to their new input slots.
  */

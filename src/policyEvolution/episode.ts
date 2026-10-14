@@ -40,7 +40,7 @@ const FINISH_MARGIN = 5
 export const OFF_COURSE_M = 16
 /** v2 chain episodes: farther than this from the COMMANDED chain ends the episode (chains differ by >= 10 m, so the wrong route is caught) */
 export const OFF_CHAIN_M = 6
-/** outcome 'crash' fallback: CONTINUOUS wall contact for this many seconds still ends the episode (a brush is survived, grinding is not) */
+/** outcome 'crash' fallback: CONTINUOUS wall contact for this many seconds still ends the episode (a brush is survived, grinding is not). Deliberately NOT lowered to 1.5 (2026-10-13): the pinned crux band's chain acceptance runs the pure-pursuit baseline through this exact rule, and 1.5 rejects pinned setups (crux:12) - cascading into the dialog worlds / export gates. The RAISED per-frame touch penalties (es.ts, 2.5x) already make sustained grinding fitness-dead long before this fires. */
 export const CRASH_TOUCH_S = 2
 /** v2 chains are up to 1.8 x longer than the track, so the time limit is longer too */
 export const CHAIN_EPISODE_SECONDS = 90

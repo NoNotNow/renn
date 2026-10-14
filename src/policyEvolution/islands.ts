@@ -432,7 +432,11 @@ export class IslandEs {
     this.state.globalBest = Math.max(...scores, this.state.globalBest ?? -Infinity)
     let event: IslandsState['events'][number] | undefined
     const candidates = order.slice(2).filter((i) => this.state.islands[i]!.age >= this.cfg.mature)
-    if (this.cfg.islands >= 3 && candidates.length > 0) {
+    // widen-freeze phase 1 (esCfg.freeze active): NO replacement — every island's frozen dims are identical (they all
+    // started from the same warm genome and cannot move them), so crossover mixes identical blocks and averages two
+    // identical b2 (useless), while a random immigrant DESTROYS the warm core everywhere. The stagnation / focus
+    // bookkeeping above runs unchanged.
+    if (this.cfg.islands >= 3 && candidates.length > 0 && !this.esCfg.freeze?.some(Boolean)) {
       const worst = candidates[candidates.length - 1]!
       const cross = this.rng.next() < this.cfg.pCross
       const genome = cross

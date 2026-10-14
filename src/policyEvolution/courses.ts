@@ -15,18 +15,22 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
  *    wall segments, chain length ~30-70 m); see `cruxCourse`. The class of a seed is `(seed - 1) % 2` (NC1 fast corner, NC2
  *    start swing) and the embodiment within the class alternates with the seed, so the standard seed bands cover every class
  *    AND every embodiment evenly.
+ *  - `rslalom` / `deadend` / `gates` / `dense` (v3 setup kinds, widen-freeze 2026-10-13): see `rslalomCourse`, `deadendCourse`,
+ *    `gatesCourse`, `denseCourse` — two reversal-heavy kinds (full-length reverse slalom; a two-bay dead-end hall) and two
+ *    forward obstacle-avoidance kinds (tight alternating gates; a dense jittered obstacle lattice). Their geometry is re-seeded
+ *    per start VARIANT (`variantRng`), so the per-generation variant rotation re-jitters the obstacle world itself.
  */
-export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid' | 'crux'
+export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid' | 'crux' | 'rslalom' | 'deadend' | 'gates' | 'dense'
 
 /** The v1 kinds (default sets of the v1 tools). `crowd` is a v2 chain setup kind, see CHAIN_KINDS. */
 export const COURSE_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze']
 /** Setup kinds of the v2 command-chain training (src/policyEvolution/chains.ts). */
 export const CHAIN_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze', 'crowd']
 /** v3 setup kinds: `free` (big closed arena, direction chains with reversals), `bay` (dead-end bays), `corridor` (too narrow to U-turn); see spec-command-chains.md, section v3. */
-export const REVERSAL_KINDS: readonly CourseKind[] = ['bay', 'corridor']
+export const REVERSAL_KINDS: readonly CourseKind[] = ['bay', 'corridor', 'rslalom', 'deadend']
 export const V3_NEW_KINDS: readonly CourseKind[] = ['free', ...REVERSAL_KINDS]
-/** all v3 kinds in report order: the new free-track / reversal kinds, the v2 obstacle kinds, the grid serpentine and the crux worlds */
-export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'grid', 'crux']
+/** all v3 kinds in report order: the new free-track / reversal kinds, the v2 obstacle kinds, the widen-freeze forward-avoidance kinds, the grid serpentine and the crux worlds */
+export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'gates', 'dense', 'grid', 'crux']
 export const isV3NewKind = (k: CourseKind) => V3_NEW_KINDS.includes(k)
 
 /**
@@ -86,7 +90,15 @@ export interface Course {
 export const COURSE_LENGTH = 400
 export const COURSE_START: V2 = [0, 0]
 
-export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967, grid: 86028121, crux: 86028157 }
+export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967, grid: 86028121, crux: 86028157, rslalom: 314606891, deadend: 357172253, gates: 401948389, dense: 447262247 }
+
+/**
+ * Layout rng of the widen-freeze kinds (`rslalom`, `deadend`, `gates`, `dense`): re-seeded by the start VARIANT, so the
+ * per-generation variant rotation of run-islands (`withVariant(key, g + 1)`) re-jitters the OBSTACLE GEOMETRY itself
+ * (pillar positions, gate widths, bay layout, lattice draws) — every generation trains on a fresh world of the same
+ * family, the exact per-episode variation the new kinds exist for. Variant 0 (canonical) is the plain seed-only stream.
+ */
+const variantRng = (kind: CourseKind, seed: number, variant: number): Rng => createRng((seed * 2654435761 + KIND_SALT[kind] + variant * 2246822519) >>> 0)
 
 /**
  * `kind:seed` = canonical start; `kind:seed~n` = the same course with the n-th seeded random start pose (offset + heading);
@@ -403,6 +415,190 @@ function gridCourse(rng: Rng, advStyle: 0 | 1 | undefined): Pick<Course, 'boxes'
   return { boxes, waypoints, layout: { laneW, len, zFar, zNear, lanes, ...(advStyle === 0 ? { strip } : {}) } }
 }
 
+// --- widen-freeze kinds (2026-10-13): reversal-heavy + forward obstacle-avoidance, geometry re-seeded per variant -------------
+
+/**
+ * `rslalom` (v3 reversal setup kind): a REVERSE slalom — a corridor too narrow to turn in (13.5-15.5 m vs the ~20 m
+ * minimum turning diameter) with staggered pillars, each leaving ONE open gap of 7.5-9.5 m, and the car starts at the
+ * near end FACING THE REAR WALL (startYawDeg 180): the chains lead to the far end 90-140 m away, so reaching one
+ * means threading every gap IN REVERSE the whole way — a full-length reverse chain with steering, not the short
+ * back-out hops of bay / corridor. Shared by `rslalomCourse` (the Course) and the chain generator (v3Chains.ts).
+ */
+export interface RslalomPillar {
+  z: number
+  side: -1 | 1
+  /** pillar width across the corridor (m) */
+  w: number
+  /** the OPEN gap between the pillar's inner edge and the opposite wall (m) */
+  gap: number
+}
+
+export interface RslalomWorld {
+  boxes: CourseBox[]
+  layout: Record<string, number>
+  startYawDeg: number
+  pillars: RslalomPillar[]
+  /** the base weave line through the open gap of every pillar (the chain generator's route) */
+  weave: V2[]
+}
+
+export function rslalomWorld(seed: number, variant: number): RslalomWorld {
+  const rng = variantRng('rslalom', seed, variant)
+  const cw = range(rng, 13.5, 15.5)
+  const rear = range(rng, 10, 16)
+  const ahead = range(rng, 90, 140)
+  const t = 2
+  const boxes: CourseBox[] = []
+  const len = rear + ahead
+  for (const side of [-1, 1]) boxes.push({ at: [side * (cw / 2 + t / 2), (rear - ahead) / 2], size: [t, len + 2 * t], yawDeg: 0 })
+  boxes.push({ at: [0, rear + t / 2], size: [cw, t], yawDeg: 0 })
+  boxes.push({ at: [0, -ahead - t / 2], size: [cw, t], yawDeg: 0 })
+  const pillars: RslalomPillar[] = []
+  let side = rng.next() < 0.5 ? -1 : 1
+  for (let z = -18; z > -ahead + 16; z -= range(rng, 20, 27)) {
+    const w = range(rng, 3, 4.5)
+    const gap = range(rng, 7.5, 9.5)
+    // the pillar hugs its OWN wall (a = the inner edge's x, toward the middle); the open gap lies at the opposite wall
+    const a = gap - cw / 2
+    boxes.push({ at: [side * (a + w / 2), z], size: [w, 3], yawDeg: 0 })
+    pillars.push({ z, side: side as -1 | 1, w, gap })
+    side = -side
+  }
+  const weave: V2[] = pillars.map((p) => [-p.side * ((cw - p.gap) / 2), p.z])
+  return { boxes, layout: { cw, rear, ahead, nPillars: pillars.length }, startYawDeg: 180, pillars, weave }
+}
+
+/**
+ * `deadend` (v3 reversal setup kind): a dead-end hall with TWO bays of independently seeded width / depth / position
+ * (12.5-14 m wide — no U-turn — 16-26 m deep) in its front wall: more variety than `bay`'s single pocket. The chains
+ * pull into a bay, back out, and either exit or cross the hall into the OTHER bay and back out again — two full
+ * reversals with forward arcs between them.
+ */
+export interface DeadendBay {
+  /** bay mouth centre x */
+  ax: number
+  /** bay width (m) */
+  aw: number
+  /** bay depth beyond the front wall (m) */
+  ad: number
+  /** the chain's aim line deep inside the bay (z) */
+  tip: number
+  /** the approach line in front of the bay mouth (z) */
+  mouth: number
+  /** the reverse-out target inside the hall (z) */
+  retreat: number
+}
+
+export interface DeadendWorld {
+  boxes: CourseBox[]
+  layout: Record<string, number>
+  /** bays[0] = the LEFT bay (A), bays[1] = the RIGHT bay (B) */
+  bays: [DeadendBay, DeadendBay]
+  exits: { left: V2; right: V2; back: V2 }
+}
+
+export function deadendWorld(seed: number, variant: number): DeadendWorld {
+  const rng = variantRng('deadend', seed, variant)
+  const hx = range(rng, 20, 26)
+  const zBack = 14
+  const zFront = -30
+  const t = 2
+  const boxes: CourseBox[] = []
+  boxes.push({ at: [0, zBack + t / 2], size: [2 * hx + 2 * t, t], yawDeg: 0 })
+  for (const side of [-1, 1]) boxes.push({ at: [side * (hx + t / 2), (zBack + zFront) / 2], size: [t, zBack - zFront + t], yawDeg: 0 })
+  const mkBay = (bx: number, bw: number, bd: number): DeadendBay => {
+    // the pocket sticks out beyond the front wall: side walls from the front wall plane to the bay's back wall
+    for (const side of [-1, 1]) boxes.push({ at: [bx + side * (bw / 2 + t / 2), zFront - t - bd / 2], size: [t, bd], yawDeg: 0 })
+    boxes.push({ at: [bx, zFront - t - bd - t / 2], size: [bw + 2 * t, t], yawDeg: 0 })
+    return { ax: bx, aw: bw, ad: bd, tip: zFront - t - bd + 4, mouth: zFront + 8, retreat: zFront + 10 }
+  }
+  const bA = mkBay(range(rng, -hx + 8, -9), range(rng, 12.5, 14), range(rng, 16, 26))
+  const bB = mkBay(range(rng, 9, hx - 8), range(rng, 12.5, 14), range(rng, 16, 26))
+  // the front wall in the three segments between the hall walls and the two bay mouths
+  const seg = (x0: number, x1: number) => boxes.push({ at: [(x0 + x1) / 2, zFront - t / 2], size: [x1 - x0, t], yawDeg: 0 })
+  seg(-hx - t, bA.ax - bA.aw / 2)
+  seg(bA.ax + bA.aw / 2, bB.ax - bB.aw / 2)
+  seg(bB.ax + bB.aw / 2, hx + t)
+  return {
+    boxes,
+    layout: { hx, zBack, zFront, axA: bA.ax, awA: bA.aw, adA: bA.ad, axB: bB.ax, awB: bB.aw, adB: bB.ad },
+    bays: [bA, bB],
+    exits: { left: [-range(rng, 9, hx - 5), range(rng, -6, 4)], right: [range(rng, 9, hx - 5), range(rng, -6, 4)], back: [range(rng, -4, 4), range(rng, 6, 10)] },
+  }
+}
+
+/**
+ * `gates` (v3 forward obstacle-avoidance setup kind): a closed corridor (26-32 m) whose alternating wall stubs leave
+ * exactly ONE opening of 9.5-12 m per gate — the openings alternate sides, so forward progress means a slalom through
+ * tight gates, and the raised touch penalties price every stub contact. NO extra obstacles: a single opening per gate
+ * must never be plugged (measured: the first design's small middle boxes blocked the only free column and the
+ * planner rejected every setup). Chains come from the standard grid planner (like field / slalom / crowd); the
+ * 2.5 m inflation margin often does not fit a 9.5-12 m opening, so the 1.5 fallback margin does the enumeration —
+ * the EXACT clearance gate (>= 2.5 m) still holds for every accepted chain.
+ */
+function gatesCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints'> {
+  const rng = variantRng('gates', seed, variant)
+  const hw = range(rng, 13, 16)
+  const boxes: CourseBox[] = []
+  for (let z = 20; z > -COURSE_LENGTH - 20; z -= 40) for (const side of [-1, 1]) boxes.push({ at: [side * (hw + 1), z - 20], size: [2, 40], yawDeg: 0 })
+  boxes.push({ at: [0, 24], size: [2 * hw + 2, 2], yawDeg: 0 })
+  boxes.push({ at: [0, -COURSE_LENGTH - 24], size: [2 * hw + 2, 2], yawDeg: 0 })
+  let side = rng.next() < 0.5 ? -1 : 1
+  for (let z = -30; z > -COURSE_LENGTH + 24; z -= range(rng, 20, 28)) {
+    const gap = range(rng, 9.5, 12)
+    const stub = 2 * hw - gap
+    boxes.push({ at: [side * (hw - stub / 2), z], size: [stub, 2], yawDeg: 0 })
+    side = -side
+  }
+  return { boxes, waypoints: [[0, -COURSE_LENGTH]] }
+}
+
+/**
+ * `dense` (v3 forward obstacle-avoidance setup kind): a closed corridor (28-34 m) packed with a DENSE lattice of
+ * small jittered boxes — a row every 10-14 m holding 2-4 boxes at seeded x positions with >= 10 m edge-to-edge gaps
+ * — many routes exist, all of them demanding close quarters without contact. Chains from the standard grid planner.
+ */
+function denseCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints'> {
+  const rng = variantRng('dense', seed, variant)
+  const hw = range(rng, 14, 17)
+  const boxes: CourseBox[] = []
+  for (let z = 20; z > -COURSE_LENGTH - 20; z -= 40) for (const side of [-1, 1]) boxes.push({ at: [side * (hw + 1), z - 20], size: [2, 40], yawDeg: 0 })
+  boxes.push({ at: [0, 24], size: [2 * hw + 2, 2], yawDeg: 0 })
+  boxes.push({ at: [0, -COURSE_LENGTH - 24], size: [2 * hw + 2, 2], yawDeg: 0 })
+  // rows every 16-20 m (z) hold 1-3 boxes at seeded x with >= 10 m edge-to-edge gaps: adjacent rows' gaps must stay
+  // diagonally connectable — tighter row spacing let two rows conspire to block every path (measured: 78 % of the
+  // variants rejected) — and the small yaw keeps the boxes' effective width predictable
+  for (let z = -28; z > -COURSE_LENGTH + 24; z -= range(rng, 16, 20)) {
+    const row: Array<[number, number]> = [] // [x, half-width-across] of the accepted boxes
+    for (let i = 0; i < 3; i++) {
+      if (i > 0 && rng.next() < 0.5) break // 1-3 boxes per row
+      const w = range(rng, 2, 4)
+      let x = 0
+      let ok = false
+      for (let attempt = 0; attempt < 12 && !ok; attempt++) {
+        x = range(rng, -(hw - 3), hw - 3)
+        // >= 10 m edge-to-edge to every box of the row (the planner's first inflation margin is 4.5 m)
+        ok = row.every(([rx, rw]) => Math.abs(rx - x) >= rw + w / 2 + 10)
+        if (ok) row.push([x, w / 2])
+      }
+      if (ok) boxes.push({ at: [x, z - range(rng, -1.5, 1.5)], size: [w, range(rng, 2, 4)], yawDeg: range(rng, -15, 15) })
+    }
+  }
+  return { boxes, waypoints: [[0, -COURSE_LENGTH]] }
+}
+
+/** `rslalom` as a Course: the world without the chain-generator extras (the generator calls `rslalomWorld` directly). */
+function rslalomCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints' | 'layout' | 'startYawDeg'> {
+  const w = rslalomWorld(seed, variant)
+  return { boxes: w.boxes, waypoints: [], layout: w.layout, startYawDeg: w.startYawDeg }
+}
+
+/** `deadend` as a Course (the chain generator calls `deadendWorld` directly). */
+function deadendCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const w = deadendWorld(seed, variant)
+  return { boxes: w.boxes, waypoints: [], layout: w.layout }
+}
+
 const MAZE_CELLS = 6
 const MAZE_PITCH = 16
 
@@ -668,6 +864,12 @@ const START_JITTER: Record<CourseKind, { x: number; z: number; yawDeg: number }>
   // verifies every jittered start against the baseline; the NC2 lateral start swing is the most start-yaw-sensitive
   // embodiment, measured: a bigger yaw jitter rejects most of its holdout band)
   crux: { x: 1.5, z: 1.5, yawDeg: 8 },
+  // widen-freeze kinds: rslalom is a 13.5-15.5 m corridor facing BACK (the yaw jitters around the 180 deg start),
+  // deadend is bay-like; gates / dense corridors are wide enough for a moderate jitter
+  rslalom: { x: 1, z: 1, yawDeg: 6 },
+  deadend: { x: 3, z: 3, yawDeg: 12 },
+  gates: { x: 4, z: 0, yawDeg: 10 },
+  dense: { x: 4, z: 0, yawDeg: 10 },
 }
 
 /** Seeded random start pose for variant >= 1; keeps the car clear of every wall / box (falls back to the canonical start). */
@@ -705,9 +907,17 @@ export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficu
                 ? corridorCourse(rng)
                 : kind === 'grid'
                   ? gridCourse(rng, adv)
-                  : kind === 'crux'
-                    ? cruxCourse(rng, cruxClass(seed), cruxEmb(seed), cruxDir(seed))
-                    : mazeCourse(seed, rng, adv)
+                  : kind === 'rslalom'
+                    ? rslalomCourse(seed, variant)
+                    : kind === 'deadend'
+                      ? deadendCourse(seed, variant)
+                      : kind === 'gates'
+                        ? gatesCourse(seed, variant)
+                        : kind === 'dense'
+                          ? denseCourse(seed, variant)
+                          : kind === 'crux'
+                            ? cruxCourse(rng, cruxClass(seed), cruxEmb(seed), cruxDir(seed))
+                            : mazeCourse(seed, rng, adv)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {

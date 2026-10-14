@@ -36,9 +36,15 @@ export const CLEARANCE: Record<CourseKind, { margins: number[]; min: number }> =
   free: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
   bay: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
   corridor: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
+  rslalom: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
+  deadend: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
   field: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   slalom: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   crowd: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
+  // gates / dense (widen-freeze forward avoidance): planner kinds like field / crowd — the tight gate openings
+  // (11-14 m) pass the 2.5 m margin's 4.5 m inflation, the 1.5 fallback keeps rare tight variants enumerable
+  gates: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
+  dense: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   maze: { margins: [1.5, 1], min: CAR_HALF_WIDTH + 0.25 },
   // grid: the sealed divider tips (6 m strips) stay impassable at BOTH margins, so the serpentine U-turns are the only lane sequence
   grid: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
@@ -751,13 +757,19 @@ export function generateChains(setupKey: string, margin: number): Chain[] {
 }
 
 function generate(setupKey: string, margin: number): Chain[] {
-  const { kind, seed, difficulty } = parseCourseKey(setupKey)
+  const { kind, seed, variant, difficulty } = parseCourseKey(setupKey)
   const advStyle = adversarialStyle(kind, seed)
   const minClearance = CLEARANCE[kind].min
   const course = buildSetupCourse(setupKey)
   const start: V2 = course.startAt ?? COURSE_START
   const inflate = CAR_HALF_WIDTH + margin
-  const gridKey = `${kind}:${seed}@${difficulty}:${inflate}`
+  // the grid cache key MUST carry the variant: the widen-freeze kinds (gates / dense / rslalom / deadend) re-seed their
+  // GEOMETRY per variant (variantRng), so sharing a grid across variants poisons the A* with another variant's
+  // obstacles — order-dependent acceptance that can reject a canonical setup outright (measured: a worker that
+  // computed gates:1~1 first cached a variant-1 grid, then gates:1's chains all failed the exact clearance check
+  // against the variant-0 boxes and the episode crashed with "no chain 0"). For the variant-independent kinds the
+  // grid content is identical anyway — the split only costs a rebuild per variant.
+  const gridKey = `${kind}:${seed}@${difficulty}:${inflate}${variant ? `~${variant}` : ''}`
   let g = gridCache.get(gridKey)
   if (!g) {
     g = buildGrid(course, inflate, COURSE_START)

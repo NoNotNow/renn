@@ -228,3 +228,74 @@ failures are EXACTLY the new hard setups' chains (`crux:2066~8#1/#2`, `crux:2106
 matching 1010~1 (frac 0.43-0.46, v 1.3-1.9 m/s, slip -69..-73 deg, cone 4.3-4.4 m, contact 17-22 deg); the old 76
 chains all still pass; holdout unchanged 51/54. `crux.test.ts` pins the appended band and runs the full structural
 invariants (chain gates, NO DEAD ZEROS pursuit baseline, NC2-lateral signatures) over the hard setups too.
+
+## Widen-freeze (2026-10-13): freeze-first widening, task-specific phase 1, four new kinds, harder touch penalties
+
+Source: the 2026-10-13 widening analysis (`test-results/policy-evolution/widen-freeze/`, spec from the read-only analysis of the same day).
+The v3cruxnose lineage (best-by-TRAIN **gen 3575**, H=24; the focus run's candidate was ROLLED BACK by its driver and is NOT the
+lineage) is widened to H=32 with the old core FROZEN, the new units evolved on harder tasks, then everything released.
+
+- **Freeze seam** (`es.ts` / `islands.ts` / `run-islands.ts`): optional `freeze?: boolean[]` in `EsConfig` (true = frozen) — frozen dims
+  get zero perturbation (candidates stay at the center there; the antithetic gradient contributes 0) and their weightDecay pull is
+  suspended, so they stay bit-identical over any number of steps; without a mask everything is bit-identical to the old behavior.
+  `freezeOldMask(len, oldH)` (`policy.ts`) covers exactly the FOUR sets the old function lives in (old W1 rows, old b1, old W2 columns
+  — stride change oldH→newH — and BOTH b2); only the new units' parameters (new W1 rows, new b1, new W2 columns) evolve — they start
+  silent (zero outgoing weights) and the freeze is what puts selection pressure on them. Island replacement (crossover + immigrants)
+  is BLOCKED while the mask is active (frozen dims are identical across islands, an immigrant would destroy the warm core);
+  stagnation / focus bookkeeping unchanged. CLI: `--freeze-old` (creation only; needs `--warm` + `--hidden N >` warm H; the mask
+  persists in `config.freeze` like speedCap, so a plain resume keeps it) and `--unfreeze` (resume only; clears it — phase 2).
+  Tests: `freeze.test.ts` (mask layout incl. the "only old incoming weights is NOT enough" counter-test, bit-identical frozen dims,
+  JSON round trip = resume, replacement block).
+- **Harder touch penalties** (`es.ts`): `V3_WALL_TOUCH_PENALTY` 0.005 → **0.0125**, `V3_OBJECT_TOUCH_PENALTY` 0.002 → **0.005**
+  (2.5x): ~1 s of wall contact now costs 0.75 norm (was 0.3), a 6-frame brush 0.075 (does not zero a good run). `CRASH_TOUCH_S` stays
+  2.0 — measured: 1.5 rejects PINNED crux band setups (the pursuit acceptance gate runs through the shared episode rule, e.g.
+  crux:12) and would cascade into the dialog worlds / export gates; the raised per-frame penalties make sustained grinding
+  fitness-dead long before the crash-out anyway. CONSEQUENCE: old run files' `file.best.trainVec` is INCOMPARABLE under the new
+  constants — every widen-freeze run starts a NEW out file and never resumes an old one (`beatsBest` would mis-rank).
+- **Four new kinds** (`courses.ts`, chains in `v3Chains.ts` / the standard planner; tests `widenKinds.test.ts`): all registered in
+  TRAIN and HOLDOUT (`V3_KINDS`), the kind-evenness / weakest-link fitness is untouched.
+  - `rslalom` (reversal): a 13.5-15.5 m corridor (no U-turn possible) with staggered pillars leaving one 7.5-9.5 m gap each, and the
+    car starts FACING THE REAR WALL — the chains lead 90-140 m to the far end, so finishing means threading every gap IN REVERSE
+    the whole way (full-length reverse chains with steering). The hand-wired `reverserV3` finishes them (physically solvable); the
+    warm candidate crashes at ~15 m (real headroom).
+  - `deadend` (reversal): a hall with TWO independently seeded dead-end bays (12.5-14 m wide — no U-turn — 16-26 m deep); chains:
+    into a bay, back out, exit — or across the hall into the OTHER bay and back out again (two full reversals with a forward arc).
+    More variety than `bay` (which the crux-run best scores 0/18 on).
+  - `gates` (forward avoidance): a corridor whose alternating wall stubs leave exactly ONE 9.5-12 m opening per gate (strictly
+    alternating sides — the weave is forced); planner chains, exact clearance >= 2.5 m. NO extra obstacles (the first design's small
+    middle boxes plugged the only free column and the planner rejected every setup).
+  - `dense` (forward avoidance): a corridor packed with a dense lattice of small jittered boxes (rows every 10-14 m, >= 10 m gaps,
+    many routes, all demanding close quarters without contact).
+  - **Per-episode noise**: the four kinds' GEOMETRY is re-seeded by the start variant (`variantRng`: seed + KIND_SALT + variant), so
+    the per-generation variant rotation of run-islands re-jitters the obstacle world itself (pillar positions, gate widths, bay
+    layout, lattice draws) — every generation trains on a fresh world of the same family; the canonical variant 0 setup keys stay
+    stable. Sensor noise (2 %) as everywhere.
+  - Stage curriculum (`curriculum.ts`): the four kinds join `OBSTACLE_KIND_ORDER` (rslalom / deadend after corridor, gates / dense
+    after crowd); `activeKinds(DEFAULT_STAGE.max)` now has 11 kinds. The widen-freeze runs use `--no-stage` (the warm candidate is
+    far past the ramp).
+- **Phase 1 trains EXCLUSIVELY on the new tasks, original kinds are VALIDATION ONLY** — the existing focus mechanism expresses it:
+  `--focus-setups kind:rslalom:4,kind:deadend:4,kind:gates:2,kind:dense:2` (new `kind:<kind>:<n>` token in `parseFocusSetups` =
+  the accepted TRAIN setups of that kind). Fitness stays goal-directed (peakNorm x speed-cap 10, weakest link): every new-kind
+  chain demands progress (a standing / creeping policy stalls at ~0 norm — pinned in `widenKinds.test.ts`), and the raised touch
+  penalties price the "drive fast into everything" alternative out. The ORIGINAL kinds never enter the gradient: they appear only
+  in the epoch-end TRAIN / HOLDOUT reports (selection runs on the focus keys) and in the read-only regression eval
+  (`tools/policy-evolution/eval-candidate.ts`: per-kind finish rates, wall-touch rates, reverse usage, machine-readable JSON).
+- **Phase design + drivers** (`test-results/policy-evolution/widen-freeze/`, all writes inside the repo):
+  - `run-abc.mjs`: SHORT screening, three variants, <= 45 min each (measured gens: focus ~1-2 s, full curriculum ~3-5 s early,
+    growing as policies improve): **A** freeze + focus on the new tasks, **B** freeze + full curriculum, **C** no freeze (control).
+    Warm baseline eval (new + original kinds) first, per-variant candidate eval (epoch-best) after; machine-readable
+    `summary-abc.json` with per-kind deltas and the >10 pp regression flags.
+  - `run-pipeline.mjs --variant A|B|C`: the LONG overnight run, restartable (driver state file): phase 1 (freeze, focus per
+    variant, ~700 gens in chunks) → **validation gate** (epoch-best vs warm baseline on the ORIGINAL kinds: FAIL when any kind's
+    HOLDOUT finish rate drops > `--gate-pp` (default 10) pp — on FAIL it stops, writes state + report, phase 2 NOT started) →
+    phase 2 (`--resume --unfreeze --no-focus-setups --lr 0.01`, full fitness, ~800 gens) → final compare-style report on all kinds.
+    NOTE the flag composition: a plain resume KEEPS a stored focus set — phase 2 must pass `--no-focus-setups` (the driver does).
+  - Phase-1 candidate = `epochBest` (a focused run's fitness never beats the stored full-band `file.best` — the same lesson the
+    focus-curriculum driver learned).
+- **Design decisions (the empirical A/B answers them tonight)**: (i) is the new-task-only signal sufficient for the new neurons to
+  become useful — or does the focus starve them of the old tasks' structure (A vs B)? (ii) is fitness focused exclusively on
+  collision-avoidance kinds safe from rewarding destructive behaviour — the kind designs demand progress (finish only on full
+  chain progress; stall / offcourse / crash all fail-factor), and the touch penalties make contact expensive, but only the runs can
+  show it; (iii) the original tasks as regression validation: the gate threshold (10 pp on holdout) is the guard that phase 1
+  cannot silently trade old behaviour for new; (iv) phase 2 restoring full fitness + `--unfreeze` at lr 0.01 is the release — the
+  A/B's B-variant already tests the full-curriculum freeze, C calibrates the no-freeze control.

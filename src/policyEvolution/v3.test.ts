@@ -15,7 +15,7 @@ import {
   type Chain,
 } from './chains'
 import { v3ReportByKind } from './chainReport'
-import { activeKinds, DEFAULT_STAGE, initialStage, stageBatch, updateStage } from './curriculum'
+import { activeKinds, DEFAULT_STAGE, initialStage, OBSTACLE_KIND_ORDER, stageBatch, updateStage } from './curriculum'
 import { aggregateKindMin, capNorm, devPenaltyNorm, episodeValues, V3_FAIL_FACTOR } from './es'
 import { runPolicyEpisode, SAFETY_WINDOW_S, STILL_WINDOW_S, v3EpisodeSeconds } from './episode'
 import { warmCruxGate } from './cruxChains'
@@ -460,7 +460,7 @@ describe('v3 stage curriculum', () => {
 
   it('batches are stratified: the same number of setups from every active kind, kinds join with the share', () => {
     expect(activeKinds(0)).toEqual(['free'])
-    expect(activeKinds(0.7)).toHaveLength(7)
+    expect(activeKinds(DEFAULT_STAGE.max)).toHaveLength(1 + OBSTACLE_KIND_ORDER.length)
     expect(activeKinds(0.1).length).toBeGreaterThan(1)
     const byKind = { free: ['f1', 'f2', 'f3'], bay: ['b1', 'b2'], corridor: ['c1'] }
     const b = stageBatch(byKind, ['free', 'bay', 'corridor'], 2, 3)

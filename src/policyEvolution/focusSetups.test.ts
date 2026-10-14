@@ -29,6 +29,22 @@ describe('parseFocusSetups', () => {
   it('refuses an empty spec', () => {
     expect(() => parseFocusSetups(' , ', [...kinds])).toThrow(/no setup keys/)
   })
+
+  it('kind:<kind>:<n> tokens enumerate the accepted TRAIN setups of that kind (the widen-freeze phase-1 fitness)', () => {
+    const a = parseFocusSetups('kind:free:3', ['free', 'crux'])
+    expect(a).toHaveLength(3)
+    expect(a.every((k) => k.startsWith('free:'))).toBe(true)
+    // mixed with plain keys, deduplicated, order preserved (kind tokens expand where they stand)
+    const b = parseFocusSetups('crux:5,kind:free:2,crux:5', ['free', 'crux'])
+    expect(b).toHaveLength(3)
+    expect(b[0]).toBe('crux:5')
+    expect(b.slice(1).every((k) => k.startsWith('free:'))).toBe(true)
+    // the setups are exactly the accepted band of that size (canonical variant 0, seeds 1..)
+    expect(a).toEqual(parseFocusSetups('kind:free:3', ['free']))
+    expect(() => parseFocusSetups('kind:free:0', ['free'])).toThrow(/positive integer/)
+    expect(() => parseFocusSetups('kind:maze:2', ['free'])).toThrow(/not a kind of this run/)
+    expect(() => parseFocusSetups('kind:free', ['free'])).toThrow(/positive integer/)
+  })
 })
 
 describe('focusBatch', () => {
