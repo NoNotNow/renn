@@ -2,10 +2,11 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MazeTrainingDialog from './MazeTrainingDialog'
-import { CRUX_TRAINING_SET } from './trainingSets'
+import { CRUX_TRAINING_SET, TRAINING_SETS, WF_TRAINING_SET } from './trainingSets'
 import { theme } from '@/config/theme'
 import { MAZE_TRAINING_WORLDS, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
 import { CRUX_TRAINING_WORLDS, cruxTrainingInfo, type CruxTrainingMeta } from '@/policyEvolution/cruxTraining'
+import type { WfTrainingMeta } from '@/policyEvolution/wfCandidates'
 import type { MazeCandidate } from '@/policyEvolution/mazeCandidates'
 import {
   clearTransformerWatchEntries,
@@ -696,5 +697,139 @@ describe('MazeTrainingDialog (Training Crux set)', () => {
     expect(overlay.querySelectorAll('line')).toHaveLength(2)
     // only the focused chain gets the overlay
     expect(screen.queryByTestId('crux-training-live-vector-crux_train_1-0')).not.toBeInTheDocument()
+  })
+})
+
+// --- the merged dialog: ONE panel with a tab bar over the three training sets (File → "Training…") -----------------
+
+describe('MazeTrainingDialog (merged tabbed dialog)', () => {
+  beforeEach(() => {
+    stubLocalStorage()
+    clearTransformerWatchEntries()
+  })
+
+  afterEach(() => {
+    clearTransformerWatchEntries()
+    setTransformerWatchEnabled(false)
+    vi.unstubAllGlobals()
+  })
+
+  /** Wf meta fixture: 3 chains with per-chain tile pts + scores (the wf badge names chains + setup). */
+  function makeWfMeta(id: string): WfTrainingMeta {
+    const [, kind, n] = id.split('_')
+    return {
+      id,
+      kind,
+      setupKey: `${kind}:1001~a`,
+      setupIndex: Number(n),
+      name: `WF ${kind} ${n}`,
+      candidate: { label: 'WF32 final (gen 1500)', gen: 1500 },
+      bestScore: 120,
+      chains: 3,
+      tileSvg: {
+        w: 206,
+        h: 220,
+        routes: Array.from({ length: 3 }, (_, i) => ({
+          pts: TILE_PTS[0].map((p) => [...p] as [number, number]),
+          score: 100 - i * 10,
+        })),
+      },
+    }
+  }
+
+  /** Fetch stub serving the wf set's metas (candidates.json offline -> no chips, like an older deploy). */
+  function stubFetchWithWfMeta(): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = String(input)
+        if (url.includes('policy-evolution/candidates.json')) throw new Error('offline')
+        const match = url.match(/exampleWorlds\/([^/]+)\/meta\.json$/)
+        const id = decodeURIComponent(match?.[1] ?? '')
+        if (!WF_TRAINING_SET.worlds.some((s) => s.id === id)) throw new Error(`unexpected fetch: ${url}`)
+        return { ok: true, json: async () => makeWfMeta(id) }
+      }),
+    )
+  }
+
+  it('renders the tab bar (Mazes / Crux / Widen-freeze); a tab click reports the set, the active one does not', async () => {
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, 5))
+    const onSelect = vi.fn()
+    render(
+      <MazeTrainingDialog
+        isOpen
+        onClose={() => {}}
+        onPlayExampleWorld={() => {}}
+        tabs={{ sets: TRAINING_SETS, activeKey: 'maze', onSelect }}
+      />,
+    )
+    // collapsed strip first: the tab bar appears with the expanded panel
+    expect(screen.queryByTestId('training-tabs')).not.toBeInTheDocument()
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    const tabs = screen.getByTestId('training-tabs')
+    expect(tabs.getAttribute('role')).toBe('tablist')
+    expect(tabs.querySelectorAll('button')).toHaveLength(3)
+    expect(screen.getByTestId('training-tab-maze')).toHaveTextContent('Mazes')
+    expect(screen.getByTestId('training-tab-crux')).toHaveTextContent('Crux')
+    expect(screen.getByTestId('training-tab-wf')).toHaveTextContent('Widen-freeze')
+    expect(screen.getByTestId('training-tab-maze')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('training-tab-crux')).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByTestId('training-tab-wf')).toHaveAttribute('aria-selected', 'false')
+    await user.click(screen.getByTestId('training-tab-wf'))
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith('wf')
+    // clicking the already-active tab switches nothing (no redundant remount)
+    await user.click(screen.getByTestId('training-tab-maze'))
+    expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
+  it('regression: the wf training worlds ARE loadable inside the dialog (active tab, rows and tile plays)', async () => {
+    const user = userEvent.setup()
+    stubFetchWithWfMeta()
+    const onPlay = vi.fn()
+    // the Builder remounts the panel per tab (key={set}); the wf tab mounts the WF set with wf testids
+    render(
+      <MazeTrainingDialog
+        isOpen
+        trainingSet={WF_TRAINING_SET}
+        tabs={{ sets: TRAINING_SETS, activeKey: 'wf', onSelect: () => {} }}
+        onClose={() => {}}
+        onPlayExampleWorld={onPlay}
+      />,
+    )
+    expect(screen.queryByTestId('training-tab-wf')).not.toBeInTheDocument() // collapsed strip shows no tabs yet
+    await user.click(screen.getByTestId('wf-training-panel-header'))
+    expect(screen.getByTestId('training-tab-wf')).toHaveAttribute('aria-selected', 'true')
+    for (const spec of WF_TRAINING_SET.worlds) {
+      expect(screen.getByTestId(`wf-training-card-${spec.id}`)).toBeInTheDocument()
+    }
+    // a tile click loads the wf world into the builder (the Builder's handlePlayExampleWorld path)
+    await user.click(screen.getByTestId('wf-training-row-wf_maze_1'))
+    await user.click(screen.getByTestId('wf-training-route-tile-wf_maze_1-0'))
+    expect(onPlay).toHaveBeenCalledWith('wf_maze_1', 0, null)
+    // the row badge names the baked candidate's chain count + setup (the 3 maze-kind holdouts share the fixture setup key)
+    expect(screen.getAllByText('3 chains · maze:1001~a')).toHaveLength(3)
+  })
+
+  it('shares ONE layout slot across tabs: collapse persists under trainingPanelCollapsed, not per set', async () => {
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, 5))
+    render(
+      <MazeTrainingDialog
+        isOpen
+        onClose={() => {}}
+        onPlayExampleWorld={() => {}}
+        tabs={{ sets: TRAINING_SETS, activeKey: 'maze', onSelect: () => {} }}
+      />,
+    )
+    const header = screen.getByTestId('maze-training-panel-header')
+    await user.click(header)
+    await screen.findAllByText('Best: 5 pts')
+    await user.click(header)
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    // the merged dialog persists its collapse state in the SHARED slot (per-set slots untouched)
+    expect(window.localStorage.getItem('trainingPanelCollapsed')).toBe(JSON.stringify(true))
+    expect(window.localStorage.getItem('mazeTrainingPanelCollapsed')).toBeNull()
   })
 })

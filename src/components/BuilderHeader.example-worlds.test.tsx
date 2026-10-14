@@ -24,6 +24,8 @@ vi.mock('@/hooks/useProjectContext', () => ({
 vi.mock('@/utils/discoverExampleWorldIds', () => ({
   discoverExampleWorldIdsFromBuild: () => [
     'hunt',
+    'crux_holdout_1',
+    'crux_train_1',
     'maze_train_1',
     'policy_chains_maze',
     'policy_v3_free',
@@ -62,7 +64,7 @@ describe('BuilderHeader example worlds menu', () => {
     vi.unstubAllGlobals()
   })
 
-  it('hides policy_* and maze training worlds from the Example Worlds submenu', async () => {
+  it('hides training worlds (maze/crux/wf/policy) from the Example Worlds submenu; only non-training examples stay', async () => {
     // DEV-mode example world list API: fail so the menu falls back to build discovery (mocked above).
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
     render(
@@ -73,44 +75,32 @@ describe('BuilderHeader example worlds menu', () => {
     expect(screen.getByText('hunt')).toBeInTheDocument()
     expect(screen.queryByText('policy_chains_maze')).not.toBeInTheDocument()
     expect(screen.queryByText('policy_v3_free')).not.toBeInTheDocument()
+    // every playable training world lives in the Training dialog only, never in the global menu
     expect(screen.queryByText('maze_train_1')).not.toBeInTheDocument()
-    // widen-freeze candidate worlds live in the Widen-freeze Worlds dialog only, never in the global menu
+    expect(screen.queryByText('crux_train_1')).not.toBeInTheDocument()
+    expect(screen.queryByText('crux_holdout_1')).not.toBeInTheDocument()
     expect(screen.queryByText('wf_maze_1')).not.toBeInTheDocument()
   })
 
-  it('offers "Widen-freeze Worlds…" which calls onOpenWfTraining', async () => {
+  it('offers ONE merged "Training…" entry which calls onOpenTraining (no per-set entries)', async () => {
     const user = userEvent.setup()
-    const onOpenWfTraining = vi.fn()
+    const onOpenTraining = vi.fn()
     render(
       <BuilderHeader
         {...baseProps}
         gizmoMode="translate"
         onGizmoModeChange={noop}
-        onOpenWfTraining={onOpenWfTraining}
+        onOpenTraining={onOpenTraining}
       />,
     )
     await openFileMenu(user)
-    const item = screen.getByRole('menuitem', { name: /Widen-freeze Worlds…/ })
+    const item = screen.getByRole('menuitem', { name: 'Training…' })
     expect(item).toBeInTheDocument()
     await user.click(item)
-    expect(onOpenWfTraining).toHaveBeenCalledTimes(1)
-  })
-
-  it('offers "Training Mazes…" which calls onOpenMazeTraining', async () => {
-    const user = userEvent.setup()
-    const onOpenMazeTraining = vi.fn()
-    render(
-      <BuilderHeader
-        {...baseProps}
-        gizmoMode="translate"
-        onGizmoModeChange={noop}
-        onOpenMazeTraining={onOpenMazeTraining}
-      />,
-    )
-    await openFileMenu(user)
-    const item = screen.getByRole('menuitem', { name: /Training Mazes…/ })
-    expect(item).toBeInTheDocument()
-    await user.click(item)
-    expect(onOpenMazeTraining).toHaveBeenCalledTimes(1)
+    expect(onOpenTraining).toHaveBeenCalledTimes(1)
+    // the separate per-set dialog entries are gone (merged into the tabbed dialog)
+    expect(screen.queryByRole('menuitem', { name: /Training Mazes…/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /Training Crux…/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /Widen-freeze Worlds…/ })).not.toBeInTheDocument()
   })
 })

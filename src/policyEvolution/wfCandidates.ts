@@ -3,8 +3,8 @@
  * candidates (public/policy-evolution/wf-candidates.json — pipeline-A final H=32, warm baseline H=24, later
  * stretches) drive the exported holdout worlds `wf_<kind>_<n>` (one per kind x holdout setup of the eval
  * band) and the candidate chips of the training dialogs (export-maze-candidates.ts merges them into
- * candidates.json). The worlds are reachable through the Widen-freeze Worlds training dialog only
- * (File -> "Widen-freeze Worlds…") — never through the generic Example Worlds menu.
+ * candidates.json). The worlds are reachable through the Widen-freeze tab of the merged training dialog only
+ * (File -> "Training…" -> tab "Widen-freeze") — never through the generic Example Worlds menu.
  *
  * The node-side world builder + exporter: wfCandidateWorlds.ts / tools/renn-mcp/export-wf-candidate-example-worlds.ts.
  */

@@ -68,12 +68,8 @@ export interface BuilderHeaderProps {
   onOpenWorkspace?: () => void
   selectedEntityCount?: number
   onOpenExampleWorld?: (worldJson: RennWorld, name: string, assets?: Map<string, Blob>) => void
-  /** Opens the training-mazes gallery dialog (File menu → "Training Mazes…"). */
-  onOpenMazeTraining?: () => void
-  /** Opens the training-crux gallery dialog (File menu → "Training Crux…"; the same parameterized dialog). */
-  onOpenCruxTraining?: () => void
-  /** Opens the widen-freeze candidate-worlds gallery dialog (File menu → "Widen-freeze Worlds…"; the same parameterized dialog). */
-  onOpenWfTraining?: () => void
+  /** Opens the merged training dialog (File menu → "Training…"; the tab bar switches the training set: Mazes / Crux / Widen-freeze). */
+  onOpenTraining?: () => void
 }
 
 export default function BuilderHeader({
@@ -111,9 +107,7 @@ export default function BuilderHeader({
   onOpenWorkspace,
   selectedEntityCount: _selectedEntityCount = 0,
   onOpenExampleWorld,
-  onOpenMazeTraining,
-  onOpenCruxTraining,
-  onOpenWfTraining,
+  onOpenTraining,
 }: BuilderHeaderProps) {
   const {
     projects,
@@ -237,21 +231,9 @@ export default function BuilderHeader({
     },
     {
       type: 'item',
-      label: 'Training Mazes…',
-      onClick: onOpenMazeTraining,
-      disabled: !onOpenMazeTraining,
-    },
-    {
-      type: 'item',
-      label: 'Training Crux…',
-      onClick: onOpenCruxTraining,
-      disabled: !onOpenCruxTraining,
-    },
-    {
-      type: 'item',
-      label: 'Widen-freeze Worlds…',
-      onClick: onOpenWfTraining,
-      disabled: !onOpenWfTraining,
+      label: 'Training…',
+      onClick: onOpenTraining,
+      disabled: !onOpenTraining,
     },
     {
       type: 'item',

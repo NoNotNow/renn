@@ -29,12 +29,24 @@ export interface MazeTrainingLiveRun {
   routeIndex: number
 }
 
+/**
+ * Tab bar of the merged training dialog (File → "Training…"): one tab per training set, switching the set
+ * through the Builder (`onSelect`). When present, pos / size / collapsed persist under ONE shared
+ * localStorage slot (the panel is ONE dialog; the candidate slot stays per set).
+ */
+export interface TrainingDialogTabs {
+  sets: TrainingSet[]
+  activeKey: TrainingSet['key']
+  onSelect: (key: TrainingSet['key']) => void
+}
 
 export interface MazeTrainingDialogProps {
   isOpen: boolean
   onClose: () => void
   /** Which training set the panel serves (worlds, car ids, watch labels, tile texts); default: the training mazes. */
   trainingSet?: TrainingSet
+  /** Tab bar of the merged training dialog (renders the set tabs; shared pos/size/collapsed localStorage slot). */
+  tabs?: TrainingDialogTabs
   /**
    * Loads the example world into the builder focused on the selected route (Builder implements this; the dialog
    * stays open). `candidate` is the model selected via the header chips — the Builder swaps the drive-stage
@@ -58,10 +70,7 @@ const PANEL_BG_TRANSLUCENT = 'rgba(27, 31, 42, 0.55)'
 /** Denser translucent strip for the header over the blurred scene. */
 const HEADER_BG_TRANSLUCENT = theme.bg.modalGlassHeader
 
-/** localStorage key suffixes per training set: `<set key>TrainingPanel<suffix>` (the two panels store independently). */
-const PANEL_POS_KEY = 'TrainingPanelPos'
-const PANEL_SIZE_KEY = 'TrainingPanelSize'
-const PANEL_COLLAPSED_KEY = 'TrainingPanelCollapsed'
+/** localStorage key suffixes: `<set key>TrainingPanel<suffix>` per set (or `trainingPanel<suffix>` shared by the merged dialog); the candidate slot stays per set. */
 const PANEL_CANDIDATE_KEY = 'TrainingPanelCandidate'
 
 const STRIP_HEIGHT = 38
@@ -330,11 +339,14 @@ function clampPosToViewport(pos: PanelPos, panel: { width: number; height: numbe
   }
 }
 
-export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE_TRAINING_SET, onPlayExampleWorld, liveRun = null }: MazeTrainingDialogProps) {
-  // per-set localStorage slots (`mazeTrainingPanelPos` for the mazes, `cruxTrainingPanelPos` for the crux, ...)
-  const posStorageKey = `${trainingSet.key}${PANEL_POS_KEY}`
-  const sizeStorageKey = `${trainingSet.key}${PANEL_SIZE_KEY}`
-  const collapsedStorageKey = `${trainingSet.key}${PANEL_COLLAPSED_KEY}`
+export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE_TRAINING_SET, tabs, onPlayExampleWorld, liveRun = null }: MazeTrainingDialogProps) {
+  // per-set localStorage slots (`mazeTrainingPanelPos` for the mazes, `cruxTrainingPanelPos` for the crux, ...);
+  // the merged (tabbed) dialog instead shares ONE slot (`trainingPanel*`) so the panel keeps its position,
+  // size and collapse state across tab switches. The candidate slot stays per set (different chips per set).
+  const layoutStoragePrefix = tabs ? 'trainingPanel' : `${trainingSet.key}TrainingPanel`
+  const posStorageKey = `${layoutStoragePrefix}Pos`
+  const sizeStorageKey = `${layoutStoragePrefix}Size`
+  const collapsedStorageKey = `${layoutStoragePrefix}Collapsed`
   const candidateStorageKey = `${trainingSet.key}${PANEL_CANDIDATE_KEY}`
   const [cardStates, setCardStates] = useState<Record<string, MazeCardState>>(() =>
     Object.fromEntries(trainingSet.worlds.map((spec) => [spec.id, initialCardState])),
@@ -754,6 +766,54 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
           ×
         </button>
       </div>
+
+      {/* merged dialog: one tab per training set (visible while expanded; the tab content is the set below) */}
+      {tabs && expanded ? (
+        <div
+          data-testid="training-tabs"
+          role="tablist"
+          aria-label="Training sets"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            flexShrink: 0,
+            padding: '2px 8px 4px 8px',
+            background: HEADER_BG_TRANSLUCENT,
+            borderBottom: `1px solid ${theme.border.default}`,
+          }}
+        >
+          {tabs.sets.map((set) => {
+            const active = set.key === tabs.activeKey
+            return (
+              <button
+                key={set.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                data-testid={`training-tab-${set.key}`}
+                title={set.title}
+                onClick={() => {
+                  if (!active) tabs.onSelect(set.key)
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: `2px solid ${active ? theme.accent : 'transparent'}`,
+                  color: active ? theme.text.primary : theme.text.muted,
+                  fontSize: 11,
+                  fontWeight: active ? 600 : 400,
+                  lineHeight: 1,
+                  padding: '4px 8px',
+                  cursor: active ? 'default' : 'pointer',
+                }}
+              >
+                {set.tab}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
 
       {expanded ? (
         <div

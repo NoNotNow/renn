@@ -1,9 +1,10 @@
 /**
- * Training-set descriptors of the shared training dialog (`MazeTrainingDialog`): "Training Mazes", "Training Crux"
- * and "Widen-freeze Worlds" are the SAME parameterized panel — the descriptor carries everything per-set (worlds
- * list, car ids, watch labels, tile / badge texts) so the component file exports only the component (react-refresh)
- * and the sets cannot drift apart. Shared contract with the world builders: `src/policyEvolution/mazeTraining.ts` +
- * `cruxTraining.ts` + `wfCandidates.ts` (the wf worlds: `wfCandidateWorlds.ts`).
+ * Training-set descriptors of the shared training dialog (`MazeTrainingDialog`): the tabs "Mazes", "Crux" and
+ * "Widen-freeze" of ONE merged panel (File → "Training…") are the SAME parameterized view — the descriptor
+ * carries everything per-set (worlds list, car ids, watch labels, tile / badge texts) so the component file
+ * exports only the component (react-refresh) and the sets cannot drift apart. Shared contract with the world
+ * builders: `src/policyEvolution/mazeTraining.ts` + `cruxTraining.ts` + `wfCandidates.ts` (the wf worlds:
+ * `wfCandidateWorlds.ts`).
  */
 import { MAZE_TRAINING_WORLDS, mazeCarId, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
 import { CRUX_TRAINING_WORLDS, cruxCarId, cruxTrainingInfo, type CruxTrainingMeta } from '@/policyEvolution/cruxTraining'
@@ -34,6 +35,8 @@ export interface TrainingSet {
   key: 'maze' | 'crux' | 'wf'
   /** panel title and aria label ("Training Mazes" / "Training Crux") */
   title: string
+  /** tab label of the merged training dialog's tab bar ("Mazes" / "Crux" / "Widen-freeze") */
+  tab: string
   testid: 'maze' | 'crux' | 'wf'
   worlds: TrainingWorldView[]
   /** car entity id of copy i (mazeCarId / cruxCarId — the live watch + focus target) */
@@ -66,6 +69,7 @@ function routesLabel(meta: MazeTrainingMeta): string | null {
 export const MAZE_TRAINING_SET: TrainingSet = {
   key: 'maze',
   title: 'Training Mazes',
+  tab: 'Mazes',
   testid: 'maze',
   worlds: MAZE_TRAINING_WORLDS.map((spec) => ({ id: spec.id, name: spec.name, info: `seed ${spec.seed}` })),
   carId: mazeCarId,
@@ -83,6 +87,7 @@ export const MAZE_TRAINING_SET: TrainingSet = {
 export const CRUX_TRAINING_SET: TrainingSet = {
   key: 'crux',
   title: 'Training Crux',
+  tab: 'Crux',
   testid: 'crux',
   worlds: CRUX_TRAINING_WORLDS.map((spec) => ({ id: spec.id, name: spec.name, info: cruxTrainingInfo(spec) })),
   carId: cruxCarId,
@@ -105,6 +110,7 @@ export const CRUX_TRAINING_SET: TrainingSet = {
 export const WF_TRAINING_SET: TrainingSet = {
   key: 'wf',
   title: 'Widen-freeze Worlds',
+  tab: 'Widen-freeze',
   testid: 'wf',
   worlds: wfTrainingWorldViews(),
   carId: wfCarId,
@@ -113,4 +119,15 @@ export const WF_TRAINING_SET: TrainingSet = {
   tileText: (_meta, i) => ({ name: `Chain ${i + 1}`, short: '(v3)', long: 'v3 chain of this holdout setup' }),
   badge: (meta) => (isWfMeta(meta) ? `${meta.chains} chains · ${meta.setupKey}` : null),
   noun: 'chain',
+}
+
+/**
+ * All training sets of the merged training dialog (File → "Training…"), in tab-bar order: Mazes / Crux /
+ * Widen-freeze. The Builder mounts ONE dialog; its tab bar switches the active set via `trainingSetByKey`.
+ */
+export const TRAINING_SETS: TrainingSet[] = [MAZE_TRAINING_SET, CRUX_TRAINING_SET, WF_TRAINING_SET]
+
+/** The training set of a tab key (the merged dialog's active tab; unknown keys fall back to the mazes). */
+export function trainingSetByKey(key: TrainingSet['key']): TrainingSet {
+  return TRAINING_SETS.find((set) => set.key === key) ?? MAZE_TRAINING_SET
 }

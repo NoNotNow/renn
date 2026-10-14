@@ -13,7 +13,7 @@ import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import MazeTrainingDialog, { type MazeTrainingLiveRun } from '@/components/MazeTrainingDialog'
-import { CRUX_TRAINING_SET, WF_TRAINING_SET } from '@/components/trainingSets'
+import { TRAINING_SETS, trainingSetByKey, type TrainingSet } from '@/components/trainingSets'
 import { applyMazeCandidate, type MazeCandidate } from '@/policyEvolution/mazeCandidates'
 import { focusMazeRoute } from '@/policyEvolution/mazeTraining'
 import { focusWfWorldRoute } from '@/policyEvolution/wfCandidates'
@@ -164,14 +164,14 @@ export default function Builder() {
   const [editNavigationMode, setEditNavigationMode] = useLocalStorageState('builderEditNavigationMode', false)
   const [gameFrozen, setGameFrozen] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
-  const [mazeTrainingOpen, setMazeTrainingOpen] = useState(false)
+  const [trainingOpen, setTrainingOpen] = useState(false)
+  /** Active tab of the merged training dialog (File → "Training…"): Mazes / Crux / Widen-freeze. */
+  const [trainingSetKey, setTrainingSetKey] = useState<TrainingSet['key']>('maze')
   /** Training-maze world+route currently loaded and driving in the builder (live active-vector overlay in the dialog). */
   const [mazeTrainingLive, setMazeTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
-  const [cruxTrainingOpen, setCruxTrainingOpen] = useState(false)
-  /** Training-crux world+chain currently loaded and driving in the builder (live overlay in the crux dialog). */
+  /** Training-crux world+chain currently loaded and driving in the builder (live overlay in the crux tab). */
   const [cruxTrainingLive, setCruxTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
-  const [wfTrainingOpen, setWfTrainingOpen] = useState(false)
-  /** Widen-freeze world+chain currently loaded and driving in the builder (live overlay in the wf dialog). */
+  /** Widen-freeze world+chain currently loaded and driving in the builder (live overlay in the Widen-freeze tab). */
   const [wfTrainingLive, setWfTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
   const [avEvolutionOpen, setAvEvolutionOpen] = useState(false)
   useEffect(() => installAvEvolutionAgentApi(getAvEvolutionStore()), [])
@@ -709,7 +709,10 @@ export default function Builder() {
   const canRedoHistory = canRedoTextureMaker || editorCanRedo
 
   const traceActive = selectedEntityIds.length === 1 && workspaceOpen
-  const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || mazeTrainingOpen || cruxTrainingOpen || wfTrainingOpen
+  const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || trainingOpen
+  /** Live run of the ACTIVE tab's set (the dialog's live overlay only matches worlds of the open tab). */
+  const activeTrainingLive =
+    trainingSetKey === 'crux' ? cruxTrainingLive : trainingSetKey === 'wf' ? wfTrainingLive : mazeTrainingLive
   useEffect(() => {
     if (traceActive) {
       setTransformerTraceTargetEntityId(selectedEntityIds[0]!)
@@ -824,17 +827,9 @@ export default function Builder() {
         onOpenWorkspace={handleOpenWorkspace}
         selectedEntityCount={selectedEntityIds.length}
         onOpenExampleWorld={handleOpenExampleWorld}
-        onOpenMazeTraining={() => {
-          setMazeTrainingOpen(true)
-          uiLogger.click('Builder', 'Open Training Mazes dialog', {})
-        }}
-        onOpenCruxTraining={() => {
-          setCruxTrainingOpen(true)
-          uiLogger.click('Builder', 'Open Training Crux dialog', {})
-        }}
-        onOpenWfTraining={() => {
-          setWfTrainingOpen(true)
-          uiLogger.click('Builder', 'Open Widen-freeze Worlds dialog', {})
+        onOpenTraining={() => {
+          setTrainingOpen(true)
+          uiLogger.click('Builder', 'Open Training dialog', {})
         }}
       />
         </div>
@@ -881,37 +876,27 @@ export default function Builder() {
         onClose={() => setTransformerDocsOpen(false)}
       />
 
+      {/* The merged training dialog: ONE panel with a tab bar (Mazes / Crux / Widen-freeze) switching the
+          TrainingSet — the key remounts the panel per tab so per-set state (fetched metas, candidate chips,
+          world selection) is fresh; the panel's position / size / collapse state persist under one shared
+          localStorage slot (see MazeTrainingDialog). The live overlay follows the world's own set. */}
       <MazeTrainingDialog
-        isOpen={mazeTrainingOpen}
-        onClose={() => setMazeTrainingOpen(false)}
+        key={trainingSetKey}
+        isOpen={trainingOpen}
+        trainingSet={trainingSetByKey(trainingSetKey)}
+        tabs={{
+          sets: TRAINING_SETS,
+          activeKey: trainingSetKey,
+          onSelect: (key) => {
+            setTrainingSetKey(key)
+            uiLogger.click('Builder', 'Switch training dialog tab', { tab: key })
+          },
+        }}
+        onClose={() => setTrainingOpen(false)}
         onPlayExampleWorld={handlePlayExampleWorld}
         liveRun={
-          mazeTrainingLive && currentProject.id === null && currentProject.name === mazeTrainingLive.worldId
-            ? mazeTrainingLive
-            : null
-        }
-      />
-
-      <MazeTrainingDialog
-        trainingSet={CRUX_TRAINING_SET}
-        isOpen={cruxTrainingOpen}
-        onClose={() => setCruxTrainingOpen(false)}
-        onPlayExampleWorld={handlePlayExampleWorld}
-        liveRun={
-          cruxTrainingLive && currentProject.id === null && currentProject.name === cruxTrainingLive.worldId
-            ? cruxTrainingLive
-            : null
-        }
-      />
-
-      <MazeTrainingDialog
-        trainingSet={WF_TRAINING_SET}
-        isOpen={wfTrainingOpen}
-        onClose={() => setWfTrainingOpen(false)}
-        onPlayExampleWorld={handlePlayExampleWorld}
-        liveRun={
-          wfTrainingLive && currentProject.id === null && currentProject.name === wfTrainingLive.worldId
-            ? wfTrainingLive
+          activeTrainingLive && currentProject.id === null && currentProject.name === activeTrainingLive.worldId
+            ? activeTrainingLive
             : null
         }
       />
