@@ -335,3 +335,17 @@ lineage) is widened to H=32 with the old core FROZEN, the new units evolved on h
     (`export-maze-candidates.ts`; wf worlds still bake the pipeline-A final — flip `bakeWorlds` + re-export if it should default).
   - Next lever for maze robustness (the north star): a maze/rslalom-heavy focused stretch warm from stretch-2, or more full-fitness
     budget at pairs 8+; maze's 3-setup gate evals stay noisy — keep 8-setup evals for decisions.
+- **STRETCH 3 (2026-10-14, `wf-stretch3{a,b}.json`)** — NORTH STAR REACHED: **maze 86 % (= the warm baseline), gates 100 %**.
+  - Setup: warm from stretch-2; (a) FOCUS part 400 gens, fitness ONLY on maze(5)/gates(4)/rslalom(4) TRAIN setups, pairs 8,
+    lr 0.015; (b) RELEASE part 400 gens, FULL fitness, lr 0.012. Driver: `continue-stretch3.sh` under `caffeinate`. The focus
+    mid-eval confirmed the phase-1 pattern again: targets jump (maze 81 %, gates 100 %) while unseen kinds drift hard
+    (free -47 pp, bay -58 pp); the release part repairs most but NOT all of it.
+  - Final (8 holdouts/kind, vs S2): free 72 % (-6), bay 8 % (**-50 — NOT repaired**), corridor 100 %, field 96 % (+19), slalom
+    100 % (+14), **maze 86 % (+15, = baseline)**, crowd 96 % (+9), grid 100 % (+24), crux 76 % (-13), rslalom 71 % (+4),
+    deadend 67 % (**-21 — NOT repaired**), **gates 100 % (+39)**, dense 93 % (+6). Mean finish 81.9 % (S2: 78.9).
+  - Touch shares down almost everywhere: gates 78→17 %, slalom 10→0 %, grid 24→0 %, rslalom 83→46 %, maze 38→24 %, crowd
+    39→22 %, field 38→23 %, bay/corridor/free 0 %. Reverse usage intact (free 26 %, bay 59 %, rslalom 99 %, deadend 59 %).
+  - Verdict: focus/release alternation WORKS — every focused kind improved to or near 100 %; the cost this round is the
+    reverse-heavy kinds the release could not fully re-repair (bay 8 %, deadend 67 %, crux 76 %). S3 is the best net for the
+    north star; next lever: a bay/deadend/crux-focused stretch warm from S3 (same recipe), then release. S3 chip selectable
+    in the training dialogs; wf worlds still bake the pipeline-A final.
