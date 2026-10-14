@@ -313,6 +313,8 @@ describe('MazeTrainingDialog', () => {
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     const onPlay = vi.fn()
     render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    // the chips live in their own row under the header: expand the panel first
+    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByTestId('maze-training-candidates')
     for (const c of candidates) {
       expect(screen.getByTestId(`maze-training-candidate-chip-${c.id}`)).toHaveTextContent(c.label)
@@ -326,7 +328,6 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByTestId('maze-training-candidate-chip-island-0')).toHaveStyle({ borderColor: theme.accent })
     expect(window.localStorage.getItem('mazeTrainingPanelCandidate')).toBe(JSON.stringify('island-0'))
     // the next tile start carries the selected candidate
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-1'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 1, expect.objectContaining({ id: 'island-0' }))
@@ -336,6 +337,75 @@ describe('MazeTrainingDialog', () => {
     expect(window.localStorage.getItem('mazeTrainingPanelCandidate')).toBe(JSON.stringify(null))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-2'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 2, null)
+  })
+
+  it('the model chips + Ø figures render in their OWN collapsible row under the header (expanded by default)', async () => {
+    const user = userEvent.setup()
+    const candidates = [makeCandidate('island-0', 'I1'), makeCandidate('best', 'Best')]
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByText('Best: 10 pts')
+    // the row sits under the header, EXPANDED by default, carrying the chips AND the Ø figures
+    const row = screen.getByTestId('maze-training-candidates-row')
+    const toggle = screen.getByTestId('maze-training-candidates-toggle')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(row).toContainElement(screen.getByTestId('maze-training-candidates'))
+    expect(row).toContainElement(screen.getByTestId('maze-training-candidate-chip-island-0'))
+    expect(row).toContainElement(screen.getByTestId('maze-training-header-totals'))
+    expect(row).toContainElement(screen.getByTestId('maze-training-header-health'))
+    expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Ø Best: 10 pts · Ø Worst: 140 pts')
+    // the title line itself is slim: no chips, no Ø figures in the header
+    const header = screen.getByTestId('maze-training-panel-header')
+    expect(header).not.toContainElement(screen.getByTestId('maze-training-candidates'))
+    expect(header).not.toContainElement(screen.getByTestId('maze-training-header-totals'))
+  })
+
+  it('the chips row toggle hides the chips without touching the selection; the collapsed row shows the selected chip', async () => {
+    const user = userEvent.setup()
+    const candidates = [makeCandidate('island-0', 'I1'), makeCandidate('best', 'Best')]
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
+    const onPlay = vi.fn()
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByTestId('maze-training-candidates')
+    await user.click(screen.getByTestId('maze-training-candidate-chip-island-0'))
+    // collapse the row: chips and Ø figures hide; only the toggle + a one-chip summary of the selection stay
+    await user.click(screen.getByTestId('maze-training-candidates-toggle'))
+    expect(screen.getByTestId('maze-training-candidates-toggle')).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('maze-training-candidates')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('maze-training-candidate-chip-island-0')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('maze-training-header-totals')).not.toBeInTheDocument()
+    expect(screen.getByTestId('maze-training-candidates-summary')).toHaveTextContent('I1')
+    // the selection SURVIVES the collapse: the candidate slot is untouched and a tile start still carries it
+    expect(window.localStorage.getItem('mazeTrainingPanelCandidate')).toBe(JSON.stringify('island-0'))
+    await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
+    await user.click(screen.getByTestId('maze-training-route-tile-maze_train_1-0'))
+    expect(onPlay).toHaveBeenLastCalledWith('maze_train_1', 0, expect.objectContaining({ id: 'island-0' }))
+    // the loaded world stays too: the run rows are untouched by the row collapse
+    expect(screen.getByTestId('maze-training-card-maze_train_1')).toBeInTheDocument()
+    // expand again: the chip is still the active one and the summary is gone
+    await user.click(screen.getByTestId('maze-training-candidates-toggle'))
+    expect(screen.getByTestId('maze-training-candidate-chip-island-0')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByTestId('maze-training-candidates-summary')).not.toBeInTheDocument()
+  })
+
+  it('persists the chips row collapsed state across mounts (row starts collapsed on remount)', async () => {
+    const user = userEvent.setup()
+    const candidates = [makeCandidate('best', 'Best')]
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
+    const { unmount } = render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByTestId('maze-training-candidates')
+    await user.click(screen.getByTestId('maze-training-candidates-toggle'))
+    expect(window.localStorage.getItem('mazeTrainingPanelCandidatesCollapsed')).toBe(JSON.stringify(true))
+    unmount()
+    render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    // the remounted panel itself is expanded (the first expand persisted trainingPanelCollapsed=false);
+    // the chips ROW starts collapsed from its own persisted slot
+    await screen.findAllByText('Best: 10 pts')
+    expect(screen.getByTestId('maze-training-candidates-toggle')).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('maze-training-candidates')).not.toBeInTheDocument()
   })
 
   it('the health dots follow the selected candidate (its headless scores), not the deployed meta', async () => {
@@ -410,6 +480,8 @@ describe('MazeTrainingDialog', () => {
     render(
       <MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} liveRun={{ worldId: 'maze_train_2', routeIndex: 1 }} />,
     )
+    // the chips live in their own row under the header: expand the panel first
+    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByTestId('maze-training-candidates')
     await user.click(screen.getByTestId('maze-training-candidate-chip-best'))
     expect(onPlay).toHaveBeenCalledTimes(1)
@@ -430,9 +502,10 @@ describe('MazeTrainingDialog', () => {
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     const onPlay = vi.fn()
     const { unmount } = render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={onPlay} />)
+    // the chips live in their own row under the header: expand the panel first
+    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findAllByTestId('maze-training-candidates')
     expect(screen.getByTestId('maze-training-candidate-chip-island-2')).toHaveAttribute('aria-pressed', 'true')
-    await user.click(screen.getByTestId('maze-training-panel-header'))
     await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_1-0'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_1', 0, expect.objectContaining({ id: 'island-2' }))
@@ -446,8 +519,10 @@ describe('MazeTrainingDialog', () => {
   })
 
   it('renders no candidate chips when candidates.json is missing (older deploy)', async () => {
+    const user = userEvent.setup()
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }))
     render(<MazeTrainingDialog isOpen onClose={() => {}} onPlayExampleWorld={() => {}} />)
+    await user.click(screen.getByTestId('maze-training-panel-header'))
     await screen.findByTestId('maze-training-header-totals')
     expect(screen.queryByTestId('maze-training-candidates')).not.toBeInTheDocument()
   })
@@ -883,6 +958,25 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     // the merged dialog persists its collapse state in the SHARED slot (per-set slots untouched)
     expect(window.localStorage.getItem('trainingPanelCollapsed')).toBe(JSON.stringify(true))
     expect(window.localStorage.getItem('mazeTrainingPanelCollapsed')).toBeNull()
+  })
+
+  it('shares ONE chips-row collapse slot across tabs: trainingPanelCandidatesCollapsed, not per set', async () => {
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, 5))
+    render(
+      <MazeTrainingDialog
+        isOpen
+        onClose={() => {}}
+        onPlayExampleWorld={() => {}}
+        tabs={{ sets: TRAINING_SETS, activeKey: 'maze', onSelect: () => {} }}
+      />,
+    )
+    await user.click(screen.getByTestId('maze-training-panel-header'))
+    await screen.findAllByText('Best: 5 pts')
+    await user.click(screen.getByTestId('maze-training-candidates-toggle'))
+    // the merged dialog persists the chips-row collapse in the SHARED slot (per-set slots untouched)
+    expect(window.localStorage.getItem('trainingPanelCandidatesCollapsed')).toBe(JSON.stringify(true))
+    expect(window.localStorage.getItem('mazeTrainingPanelCandidatesCollapsed')).toBeNull()
   })
 
   it('resizes from EVERY side: right, top and top-left drags change size and position, clamped into the viewport', async () => {

@@ -386,6 +386,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
   const posStorageKey = `${layoutStoragePrefix}Pos`
   const sizeStorageKey = `${layoutStoragePrefix}Size`
   const collapsedStorageKey = `${layoutStoragePrefix}Collapsed`
+  const candidatesCollapsedStorageKey = `${layoutStoragePrefix}CandidatesCollapsed`
   const candidateStorageKey = `${trainingSet.key}${PANEL_CANDIDATE_KEY}`
   const [cardStates, setCardStates] = useState<Record<string, MazeCardState>>(() =>
     Object.fromEntries(trainingSet.worlds.map((spec) => [spec.id, initialCardState])),
@@ -396,6 +397,13 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
   /** Route tile per world that started the run (the accent border marks the started way; default route 0). */
   const [selectedRoutes, setSelectedRoutes] = useState<Record<string, number>>({})
   const [collapsed, setCollapsed] = useState<boolean>(() => readStoredCollapsed(collapsedStorageKey))
+  /**
+   * Chips row collapsed? The model-selector chips + Ø figures live in their OWN row under the header; this
+   * hides that row only (panel layout, chip selection and the loaded world are untouched). Default expanded.
+   */
+  const [candidatesCollapsed, setCandidatesCollapsed] = useState<boolean>(
+    () => readStoredJson(candidatesCollapsedStorageKey) === true,
+  )
   /** Candidate model selected via the header chips (null = the deployed candidate baked into the export); persisted. */
   const [candidateId, setCandidateId] = useState<string | null>(() => readStoredJson(candidateStorageKey) as string | null)
   const [candidatesFile, setCandidatesFile] = useState<MazeCandidatesFile | null>(null)
@@ -489,6 +497,14 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
       return next
     })
   }, [collapsedStorageKey])
+
+  const toggleCandidatesRow = useCallback(() => {
+    setCandidatesCollapsed((prev) => {
+      const next = !prev
+      persistJson(candidatesCollapsedStorageKey, next)
+      return next
+    })
+  }, [candidatesCollapsedStorageKey])
 
   const handleHeaderPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -614,7 +630,7 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
 
   if (!isOpen) return null
 
-  // Title-line best/worst (weakest link at a glance): the MEAN of every run's best score and of its worst
+  // Candidates-row best/worst (weakest link at a glance): the MEAN of every run's best score and of its worst
   // route score, rounded to integers (no decimals). Both figures follow the SELECTED candidate chip (its
   // headless per-world scores, scored by export-maze-candidates.ts over this same training set); without a
   // chip they describe the deployed candidate baked into the exports. Unmeasured values (null,
@@ -633,12 +649,18 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
     avgBest != null || avgWorst != null
       ? `${avgBest != null ? `Ø Best: ${avgBest} pts` : 'Ø Best: —'} · ${avgWorst != null ? `Ø Worst: ${avgWorst} pts` : 'Ø Worst: —'}`
       : null
-  // keep the header stats visible while a candidate chip is active even before its scores arrive:
+  // keep the averages visible while a candidate chip is active even before its scores arrive:
   // the dot goes gray and the figures show em dashes until the candidate is scored.
   const showHeaderStats = totalsLine != null || selectedCandidate != null
   const healthTitle = selectedCandidate
     ? `Weakest-link health of the SELECTED candidate (${selectedCandidate.label}${selectedCandidate.scoredGen != null ? ` · scored gen ${selectedCandidate.scoredGen}` : ''}): Ø worst ÷ Ø best of its headless scores — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not scored yet`
     : 'Weakest-link health of the deployed candidate: Ø Worst ÷ Ø Best — green = the stuck routes score as well as the best runs, red = stuck at zero, gray = not measured yet'
+
+  // The model-selector chips + Ø figures row: its own collapsible line under the header (only while the
+  // panel is expanded; hidden entirely when there is nothing to show — no chips and no measured averages).
+  const hasCandidates = candidatesFile != null && candidatesFile.candidates.length > 0
+  const showCandidatesRow = expanded && (hasCandidates || showHeaderStats)
+  const candidatesRowExpanded = !candidatesCollapsed
 
   const panelHeight = expanded ? size.height : STRIP_HEIGHT
 
@@ -710,69 +732,6 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
         <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
           {trainingSet.worlds.length} runs
         </span>
-        {showHeaderStats ? (
-          <>
-            <span
-              data-testid={`${trainingSet.testid}-training-header-health`}
-              aria-hidden={true}
-              title={healthTitle}
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                flexShrink: 0,
-                background: headerHealthColor(avgBest, avgWorst),
-              }}
-            />
-            {totalsLine ? (
-              <span
-                data-testid={`${trainingSet.testid}-training-header-totals`}
-                title="Averages across the runs: mean of each run's best score and mean of its worst route score (the stuck routes) — follows the selected candidate chip"
-                style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}
-              >
-                {totalsLine}
-              </span>
-            ) : null}
-          </>
-        ) : null}
-        {candidatesFile && candidatesFile.candidates.length > 0 ? (
-          <span
-            data-testid={`${trainingSet.testid}-training-candidates`}
-            title="Candidate models: a chip swaps the driving net of the loaded world (the exported file keeps the deployed best). The per-run rows describe the DEPLOYED candidate; the title-line averages follow the selected chip."
-            style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
-          >
-            {candidatesFile.candidates.map((candidate) => {
-              const active = selectedCandidate?.id === candidate.id
-              return (
-                <button
-                  key={candidate.id}
-                  type="button"
-                  data-testid={`${trainingSet.testid}-training-candidate-chip-${candidate.id}`}
-                  aria-pressed={active}
-                  aria-label={`Candidate ${candidate.label}`}
-                  title={`${candidate.detail}${candidate.gen != null ? ` · gen ${candidate.gen}` : ''}${candidate.scoredGen != null ? ` · scored gen ${candidate.scoredGen}` : ''}${active ? ' — click again for the deployed candidate' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleCandidateChipClick(candidate.id)
-                  }}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  style={{
-                    background: 'transparent',
-                    border: `1px solid ${active ? theme.accent : theme.border.default}`,
-                    color: active ? theme.accent : theme.text.muted,
-                    fontSize: 10,
-                    lineHeight: 1,
-                    padding: '3px 6px',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {candidate.label}
-                </button>
-              )
-            })}
-          </span>
-        ) : null}
         <div style={{ flex: 1 }} />
         <button
           type="button"
@@ -847,6 +806,134 @@ export default function MazeTrainingDialog({ isOpen, onClose, trainingSet = MAZE
               </button>
             )
           })}
+        </div>
+      ) : null}
+
+      {/* model-selector chips + Ø figures: their OWN collapsible row under the header; collapsing hides the
+          row only — the chip selection and the loaded world stay untouched, and a one-chip summary keeps the
+          active model identifiable while collapsed */}
+      {showCandidatesRow ? (
+        <div
+          data-testid={`${trainingSet.testid}-training-candidates-row`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexShrink: 0,
+            padding: '3px 8px',
+            background: HEADER_BG_TRANSLUCENT,
+            borderBottom: `1px solid ${theme.border.default}`,
+            overflow: 'hidden',
+          }}
+        >
+          <button
+            type="button"
+            data-testid={`${trainingSet.testid}-training-candidates-toggle`}
+            aria-expanded={candidatesRowExpanded}
+            aria-label="Toggle the model selector chips row"
+            title={candidatesRowExpanded ? 'Hide the model selector chips' : 'Show the model selector chips'}
+            onClick={toggleCandidatesRow}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: theme.text.muted,
+              fontSize: 11,
+              lineHeight: 1,
+              cursor: 'pointer',
+              padding: '3px 2px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <span
+              aria-hidden={true}
+              style={{
+                transform: candidatesRowExpanded ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.15s ease',
+              }}
+            >
+              &#9662;
+            </span>
+          </button>
+          {candidatesRowExpanded ? (
+            <>
+              {hasCandidates ? (
+                <span
+                  data-testid={`${trainingSet.testid}-training-candidates`}
+                  title="Candidate models: a chip swaps the driving net of the loaded world (the exported file keeps the deployed best). The per-run rows describe the DEPLOYED candidate; the row averages follow the selected chip."
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                >
+                  {candidatesFile.candidates.map((candidate) => {
+                    const active = selectedCandidate?.id === candidate.id
+                    return (
+                      <button
+                        key={candidate.id}
+                        type="button"
+                        data-testid={`${trainingSet.testid}-training-candidate-chip-${candidate.id}`}
+                        aria-pressed={active}
+                        aria-label={`Candidate ${candidate.label}`}
+                        title={`${candidate.detail}${candidate.gen != null ? ` · gen ${candidate.gen}` : ''}${candidate.scoredGen != null ? ` · scored gen ${candidate.scoredGen}` : ''}${active ? ' — click again for the deployed candidate' : ''}`}
+                        onClick={() => handleCandidateChipClick(candidate.id)}
+                        style={{
+                          background: 'transparent',
+                          border: `1px solid ${active ? theme.accent : theme.border.default}`,
+                          color: active ? theme.accent : theme.text.muted,
+                          fontSize: 10,
+                          lineHeight: 1,
+                          padding: '3px 6px',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {candidate.label}
+                      </button>
+                    )
+                  })}
+                </span>
+              ) : null}
+              {showHeaderStats ? (
+                <>
+                  <span
+                    data-testid={`${trainingSet.testid}-training-header-health`}
+                    aria-hidden={true}
+                    title={healthTitle}
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      flexShrink: 0,
+                      background: headerHealthColor(avgBest, avgWorst),
+                    }}
+                  />
+                  {totalsLine ? (
+                    <span
+                      data-testid={`${trainingSet.testid}-training-header-totals`}
+                      title="Averages across the runs: mean of each run's best score and mean of its worst route score (the stuck routes) — follows the selected candidate chip"
+                      style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}
+                    >
+                      {totalsLine}
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          ) : selectedCandidate ? (
+            <span
+              data-testid={`${trainingSet.testid}-training-candidates-summary`}
+              title={`Selected model: ${selectedCandidate.label} — expand the chips row to switch`}
+              style={{
+                border: `1px solid ${theme.accent}`,
+                color: theme.accent,
+                fontSize: 10,
+                lineHeight: 1,
+                padding: '3px 6px',
+                borderRadius: 4,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {selectedCandidate.label}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
