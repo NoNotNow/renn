@@ -299,3 +299,25 @@ lineage) is widened to H=32 with the old core FROZEN, the new units evolved on h
   show it; (iii) the original tasks as regression validation: the gate threshold (10 pp on holdout) is the guard that phase 1
   cannot silently trade old behaviour for new; (iv) phase 2 restoring full fitness + `--unfreeze` at lr 0.01 is the release — the
   A/B's B-variant already tests the full-curriculum freeze, C calibrates the no-freeze control.
+- **RESULTS (2026-10-14, pipeline A, artifacts in `test-results/policy-evolution/widen-freeze/`)** — strategy VALIDATED, not shipped:
+  - Screening (40 gens/variant): **A** (freeze + new-task focus) the only variant within the 10 pp regression gate; B lost maze -14 pp,
+    C lost maze -14 pp, crowd -10 pp AND its bay ability — the frozen core protects the warm behaviour exactly as designed.
+  - Phase 1 (700 gens, freeze + focus): new kinds learned — dense 80 %, deadend 50 %, rslalom 4 % (8-setup holdout), gates 0 %.
+    UNEXPECTED GENERALISATION: the collision-avoidance units also lifted the OLD touch-heavy kinds (crowd 20→61 %, bay 0→29 %,
+    grid 0→18 %, slalom 25→34 %). Racing-line precision regressed (not in phase-1 fitness): maze 86→43 %, crux 94→71 %, free 25→19 %.
+    Gate FAILED on field + maze — field turned out to be 3-setup-holdout NOISE (powered eval: 31 % vs 30 % baseline, no regression),
+    maze real; L1 reviewed and continued to phase 2 (the designed recovery).
+  - Phase 2 (800 gens, unfreeze, full fitness, lr 0.01) final (3-6-setup holdouts, noisy): free 100 %, corridor 100 %, grid 67 %,
+    deadend 78 %, field 70 %, crowd 60 %, rslalom 33 %, dense 55 %, slalom 33 %, crux 89 % (recovered), maze 57 % (PARTIAL recovery,
+    -29 pp vs baseline = the one real remaining regression), bay 22 %, gates 0 % (unsolved — needs longer training or design iteration).
+    Touch share: bay 89→0 %, corridor 11→0 % (collision avoidance strongly down where it matters). Reverse usage: free 38 %
+    (141 m), bay 72 %, rslalom 89 % (78 m), deadend 79 % (59 m) — the backwards-heavy curriculum took.
+  - Empirical answers to the four design questions: (i) YES — the new-task-only signal suffices to make the new units useful, and
+    generalises beyond the focused kinds; (ii) focused fitness did NOT reward destructive behaviour (kinds demand progress), but it
+    DID drift precision behaviour it could not see — validation sets must include maze/crux-style racing-line kinds; (iii) the
+    original-kind validation gate WORKS (caught the maze drift) but its default 3-setup holdout is too noisy — powered evals
+    (8+ setups) for gates, or accept occasional false alarms; (iv) phase 2 (full fitness + unfreeze) recovers the drift: crux fully,
+    maze partially within the 800-gen lr-0.01 budget — more budget improves it.
+  - State: `wf-pipeline-A.json` (gen 1500, H=32) is RESUMABLE for a longer phase-2-style stretch; NOT shipped (maze regression,
+    gates 0 %). Sigma-boost was maxed (4x) for most of phase 2 — the 13-kind weakest-link fitness makes late progress slow;
+    consider `--pairs` increase or kind-subset phases for the next stretch.
