@@ -9,7 +9,7 @@
       "gen": 1500,
       "hidden": 32,
       "bakeWorlds": true,
-      "detail": "widen-freeze pipeline-A epochBest gen 1500, H=32 (holdout: free/corridor 100%, deadend 78%, crux 89%, maze 57%, rslalom/slalom 33%, gates 0%) — baked into the wf_* worlds"
+      "detail": "widen-freeze pipeline-A epochBest gen 1500, H=32 (holdout: free/corridor 100%, deadend 78%, crux 89%, maze 57%, rslalom/slalom 33%, gates 0%) \u2014 baked into the wf_* worlds"
     },
     {
       "id": "wf24_base",
@@ -18,7 +18,7 @@
       "genome": "test-results/policy-evolution/widen-freeze/warm-candidate.json",
       "gen": 3575,
       "hidden": 24,
-      "detail": "warm baseline v3cruxnose best gen 3575, H=24 (holdout: crux 94%, maze 86%, dense 64%, free 25%, rslalom/deadend/gates 0%) — select the WF24 chip to watch it drive the same wf_* worlds"
+      "detail": "warm baseline v3cruxnose best gen 3575, H=24 (holdout: crux 94%, maze 86%, dense 64%, free 25%, rslalom/deadend/gates 0%) \u2014 select the WF24 chip to watch it drive the same wf_* worlds"
     },
     {
       "id": "wf32_stretch2",
@@ -27,7 +27,16 @@
       "genome": "test-results/policy-evolution/widen-freeze/wf-stretch2.candidate.json",
       "gen": null,
       "hidden": 32,
-      "detail": "stretch-2 candidate (maze/gates push, warm from the pipeline-A epochBest) — becomes a chip automatically once continue-stretch2.sh wrote the candidate file; re-run the candidates exporter (the wf_* worlds are shared, no re-export needed unless it should be the baked default)"
+      "detail": "stretch-2 candidate (maze/gates push, warm from the pipeline-A epochBest) \u2014 becomes a chip automatically once continue-stretch2.sh wrote the candidate file; re-run the candidates exporter (the wf_* worlds are shared, no re-export needed unless it should be the baked default)"
+    },
+    {
+      "id": "wf32_stretch3",
+      "label": "WF32 stretch3",
+      "chipLabel": "S3",
+      "genome": "test-results/policy-evolution/widen-freeze/wf-stretch3.candidate.json",
+      "gen": 400,
+      "hidden": 32,
+      "detail": "stretch-3 candidate (focus maze/gates/rslalom + full-fitness release) \u2014 maze 86% (= baseline), gates 100%, mean finish 81.9%; reverse kinds regressed (bay 8%, deadend 67%)"
     }
   ]
 }
