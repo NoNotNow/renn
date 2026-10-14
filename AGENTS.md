@@ -12,6 +12,14 @@ When MCP/agent edits a verification world, sync it to **`public/exampleWorlds/`*
 
 For self-driving / headless sim vs browser parity: default to headless tests + disk export, and **reload the world (reset all entities to document poses) before every run** — see `.cursor/rules/agent-headless-defined-start.mdc`.
 
+## Standing guardrails
+
+- **Stage selectively; never `git add -A`.** Stage exactly the files your change owns. Pre-existing dirty files (training-data churn, `AGENTS.md` itself, `src/components/workspace/TransformerPipelineHorizontal.tsx`, `tsconfig.tsbuildinfo`, `.idea/`) belong to a finished run's end state — leave them alone unless the user says otherwise.
+- **Start long training runs under `caffeinate -is`.** This Mac sleeps after 1 min idle (`pmset: sleep 1`); an unguarded run freezes whenever the machine is idle.
+- **Keep a human-readable status for AFK runs** at `test-results/<topic>/STATUS.md`: phase, gen/target, PIDs, and how to check on the run.
+
+Work with subagents on research or coding tasks to keep your context small and focused.
+
 ## Skills
 
 Skills in this repo are SKILL.md files on disk. Harnesses differ: Claude Code auto-loads `.claude/skills/`, Cursor auto-loads `.cursor/skills/`, and other harnesses (e.g. Mistral Vibe) load neither. Treat them as invocable regardless of harness: **before starting a task, check whether it matches a skill below; if it does, read that SKILL.md first and follow it.**
