@@ -45,6 +45,10 @@ export const CLEARANCE: Record<CourseKind, { margins: number[]; min: number }> =
   // (11-14 m) pass the 2.5 m margin's 4.5 m inflation, the 1.5 fallback keeps rare tight variants enumerable
   gates: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   dense: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
+  // blockade / blocks (obstacle-fluency detour kinds): planner kinds like gates / dense — the openings (12-18 m)
+  // and corridors (>= 12 m) pass the 2.5 m margin's 4.5 m inflation, the 1.5 fallback keeps tight variants enumerable
+  blockade: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
+  blocks: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   maze: { margins: [1.5, 1], min: CAR_HALF_WIDTH + 0.25 },
   // grid: the sealed divider tips (6 m strips) stay impassable at BOTH margins, so the serpentine U-turns are the only lane sequence
   grid: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
@@ -57,6 +61,18 @@ export const MIN_CLEARANCE = CAR_HALF_WIDTH + 0.25
 export const MIN_HAUSDORFF_M = 10
 export const MAX_DETOUR = 1.8
 export const RESAMPLE_M = 10
+/**
+ * Per-kind waypoint resampling (2026-10-14, user request: "the WF mazes are too dense — too many waypoints, so they are
+ * too easy; loosen the dense ones, as few as possible"). The 10 m breadcrumb resampling is pure OVER-GUIDANCE for the
+ * kinds listed here: the command interpolates CONTINUOUSLY along the leg polyline (legPoint, policy.ts), so collinear
+ * resample points change nothing for the net or the fitness — they only become marker breadcrumbs in the exported
+ * worlds. The listed kinds keep exactly their route vertices (corners + turn arcs), never straight-line breadcrumbs.
+ * The kinds NOT listed keep the 10 m resampling: field / slalom / grid are not in the WF worlds, and the v3
+ * hand-designed kinds (free / bay / corridor / rslalom / deadend / crux) lay legs, not breadcrumbs (4-7 pts per 100 m).
+ */
+const RESAMPLE_KIND_M: Partial<Record<CourseKind, number>> = { maze: Infinity, crowd: Infinity, gates: Infinity, dense: Infinity, blockade: Infinity, blocks: Infinity }
+/** effective resample gap of a kind (Infinity = corners only) */
+export const resampleM = (kind: CourseKind): number => RESAMPLE_KIND_M[kind] ?? RESAMPLE_M
 const CELL = 1
 
 export interface Chain {
@@ -461,7 +477,7 @@ export function simplify(points: V2[], tol: number): V2[] {
  * ~6 degrees stay as they are). The car cannot turn on the spot: a pure-pursuit follower on a sharp 90 degree corner of a 16 m maze cell
  * overshoots into the wall behind it, a filleted corner is a path it can actually drive.
  */
-export function roundCorners(points: V2[], radius: number): { points: V2[]; minRadius: number } {
+export function roundCorners(points: V2[], radius: number, arcStep = 2): { points: V2[]; minRadius: number } {
   let minRadius = Infinity
   if (radius <= 0 || points.length < 3) return { points, minRadius }
   const out: V2[] = [points[0]!]
@@ -489,7 +505,7 @@ export function roundCorners(points: V2[], radius: number): { points: V2[]; minR
     const sgn = cross > 0 ? 1 : -1 // +1 = turns toward +angle (left in x-z handedness of this plane)
     const centre: V2 = [p1[0] - sgn * u1[1] * r, p1[1] + sgn * u1[0] * r]
     const a0 = Math.atan2(p1[1] - centre[1], p1[0] - centre[0])
-    const steps = Math.max(2, Math.ceil((r * turn) / 2))
+    const steps = Math.max(2, Math.ceil((r * turn) / arcStep))
     for (let k = 0; k <= steps; k++) {
       const ang = a0 + sgn * turn * (k / steps)
       out.push([centre[0] + r * Math.cos(ang), centre[1] + r * Math.sin(ang)])
@@ -508,6 +524,32 @@ export const CORNER_RADII = [12, 10]
 export const MIN_TURN_RADIUS = 6
 /** tolerance of the Douglas-Peucker pass before the corners are rounded (m) */
 export const SIMPLIFY_M = 1.5
+/**
+ * Per-kind route coarsening (2026-10-14, user request: "the WF mazes are too dense — too many waypoints, so they are
+ * too easy; loosen the dense ones, as few as possible"). For the kinds listed here BOTH the corner tolerance and the
+ * turn-arc sampling are coarsened: waypoints whose deviation from the chord is under `simplify` m are dropped (the
+ * string-pull's micro-hugs go, the decisive weaves stay), and each rounded corner is sampled every `arcStep` m of arc
+ * instead of every 2 m. The result keeps only the DECISIVE waypoints of the route; the exact clearance / turn-radius /
+ * detour gates of the acceptance (below) still validate every accepted chain, so a loosened chain remains solvable by
+ * construction — it just stops pre-choreographing every weave (fewer, straighter legs: more of the obstacle threading
+ * is the net's own work). The values are the LOOSEST that keep the bands intact: measured against the pre-loosening
+ * chains, the train-band VARIANT acceptance (8 setups x variants 1-4) stays at or above baseline (gates 28/32 vs 27,
+ * dense 20/32 vs 18, crowd / blockade / blocks 32/32) and the pinned v2 example world crowd:1002 still accepts (it
+ * rejects above simplify 2.5). maze is NOT in the map: its chains are already decision-sparse (2-14 pts, hairpin
+ * waypoints the route needs). Measured train band (pts/chain): gates 217.8 -> 95.0, dense 105.7 -> 26.6,
+ * crowd 122.5 -> 55.0.
+ */
+const LOOSE_KIND_M: Partial<Record<CourseKind, { simplify: number; arcStep: number }>> = {
+  gates: { simplify: 2.5, arcStep: 6 },
+  dense: { simplify: 5, arcStep: 6 },
+  crowd: { simplify: 2.5, arcStep: 6 },
+  blockade: { simplify: 5, arcStep: 6 },
+  blocks: { simplify: 5, arcStep: 6 },
+}
+/** effective simplify tolerance of a kind */
+export const simplifyM = (kind: CourseKind): number => LOOSE_KIND_M[kind]?.simplify ?? SIMPLIFY_M
+/** effective turn-arc sampling step of a kind (m of arc per sample) */
+export const arcStepM = (kind: CourseKind): number => LOOSE_KIND_M[kind]?.arcStep ?? 2
 
 // --- end targets --------------------------------------------------------------------------------------------------------------------
 
@@ -548,6 +590,18 @@ function chooseEnds(kind: CourseKind, course: Course, g: Grid, reach: Int32Array
     if (ends.every((e) => Math.hypot(centre(g, e[0], e[1])[0] - p[0], centre(g, e[0], e[1])[1] - p[1]) >= END_SEPARATION_M)) ends.push(c)
   }
   if (kind !== 'maze') {
+    // blockade / blocks (obstacle-fluency detour kinds): the ends ARE the target region behind the obstacles — the
+    // plaza's own goal point plus lateral neighbours (>= END_SEPARATION_M apart, so up to three distinct routes);
+    // the generic far-end ends below would sit past the end wall of these short plazas
+    if (kind === 'blockade' || kind === 'blocks') {
+      const target = course.waypoints[0] ?? [0, FAR_Z]
+      for (const off of [0, -12, 12]) {
+        const want: V2 = [target[0] + off, target[1]]
+        const c = nearestReachable(g, reach, want)
+        if (c && Math.hypot(centre(g, c[0], c[1])[0] - want[0], centre(g, c[0], c[1])[1] - want[1]) <= 15) add(c)
+      }
+      return ends
+    }
     if (kind === 'grid') {
       // the grid is far shorter than COURSE_LENGTH: ends are the serpentine's lane mouths (layout.zFar / zNear), reachable only through the
       // U-turns; the farthest lane first (it forces the most hairpins: 4, 3, 2, 1)
@@ -785,15 +839,15 @@ function generate(setupKey: string, margin: number): Chain[] {
   const shortest: number[] = []
   const tryAccept = (cells: V2[] | null, endIndex: number, endCell: [number, number], limit: number): boolean => {
     if (!cells || accepted.length >= CHAINS_PER_SETUP) return false
-    const pulled = simplify(pullChain(grid, cells, start, centre(grid, endCell[0], endCell[1])), SIMPLIFY_M)
+    const pulled = simplify(pullChain(grid, cells, start, centre(grid, endCell[0], endCell[1])), simplifyM(kind))
     // adversarial M1 / M2: the setup is rejected (fewer than MIN_CHAINS) unless every accepted chain has the failure-class geometry
     if (kind === 'maze' && advStyle === 0 && !endsPastJunction(pulled)) return false
     if (kind === 'maze' && advStyle === 1 && !lateralFirstLeg(pulled, course.startYawDeg ?? 0)) return false
     let points: V2[] | null = null
     for (const r of CORNER_RADII) {
-      const rounded = roundCorners(pulled, r)
+      const rounded = roundCorners(pulled, r, arcStepM(kind))
       if (rounded.minRadius < MIN_TURN_RADIUS) continue
-      const cand = densifyMax(rounded.points, RESAMPLE_M)
+      const cand = densifyMax(rounded.points, resampleM(kind))
       if (chainClearance(course.boxes, cand) >= minClearance) {
         points = cand
         break

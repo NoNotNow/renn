@@ -92,7 +92,7 @@ export function updateStage(s: StageState, freeFinishRate: number, cfg: StageCon
  * order in which obstacle kinds join the batches (the reversal setups first: they are what the free track prepares
  * for; the widen-freeze kinds sit next to their families — rslalom / deadend after corridor, gates / dense after crowd)
  */
-export const OBSTACLE_KIND_ORDER = ['bay', 'corridor', 'rslalom', 'deadend', 'slalom', 'crowd', 'gates', 'dense', 'field', 'maze'] as const
+export const OBSTACLE_KIND_ORDER = ['bay', 'corridor', 'rslalom', 'deadend', 'slalom', 'crowd', 'gates', 'dense', 'blockade', 'blocks', 'field', 'maze'] as const
 
 /** Kinds active at this stage: `free` always, plus the first round(share / max x 6) obstacle kinds (share 0 = free only, share max = all). */
 export function activeKinds(share: number, cfg: StageConfig = DEFAULT_STAGE): string[] {

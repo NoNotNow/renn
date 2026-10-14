@@ -19,8 +19,12 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
  *    `gatesCourse`, `denseCourse` — two reversal-heavy kinds (full-length reverse slalom; a two-bay dead-end hall) and two
  *    forward obstacle-avoidance kinds (tight alternating gates; a dense jittered obstacle lattice). Their geometry is re-seeded
  *    per start VARIANT (`variantRng`), so the per-generation variant rotation re-jitters the obstacle world itself.
+ *  - `blockade` / `blocks` (v3 setup kinds, obstacle-fluency 2026-10-14): see `blockadeCourse`, `blocksCourse` — two DETOUR kinds:
+ *    bounded plazas whose TARGET sits behind obstacle(s) that the direct start -> target line passes THROUGH, so the target
+ *    vector points at the obstacle and forward progress demands a committed swing around its end. `blockade`: transverse wall
+ *    segments crossing the line, the free opening alternating sides; `blocks`: big jittered blocks with one ON the line.
  */
-export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid' | 'crux' | 'rslalom' | 'deadend' | 'gates' | 'dense'
+export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid' | 'crux' | 'rslalom' | 'deadend' | 'gates' | 'dense' | 'blockade' | 'blocks'
 
 /** The v1 kinds (default sets of the v1 tools). `crowd` is a v2 chain setup kind, see CHAIN_KINDS. */
 export const COURSE_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze']
@@ -29,8 +33,8 @@ export const CHAIN_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze', 'c
 /** v3 setup kinds: `free` (big closed arena, direction chains with reversals), `bay` (dead-end bays), `corridor` (too narrow to U-turn); see spec-command-chains.md, section v3. */
 export const REVERSAL_KINDS: readonly CourseKind[] = ['bay', 'corridor', 'rslalom', 'deadend']
 export const V3_NEW_KINDS: readonly CourseKind[] = ['free', ...REVERSAL_KINDS]
-/** all v3 kinds in report order: the new free-track / reversal kinds, the v2 obstacle kinds, the widen-freeze forward-avoidance kinds, the grid serpentine and the crux worlds */
-export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'gates', 'dense', 'grid', 'crux']
+/** all v3 kinds in report order: the new free-track / reversal kinds, the v2 obstacle kinds, the widen-freeze forward-avoidance kinds, the obstacle-fluency detour kinds, the grid serpentine and the crux worlds */
+export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'gates', 'dense', 'blockade', 'blocks', 'grid', 'crux']
 export const isV3NewKind = (k: CourseKind) => V3_NEW_KINDS.includes(k)
 
 /**
@@ -90,7 +94,7 @@ export interface Course {
 export const COURSE_LENGTH = 400
 export const COURSE_START: V2 = [0, 0]
 
-export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967, grid: 86028121, crux: 86028157, rslalom: 314606891, deadend: 357172253, gates: 401948389, dense: 447262247 }
+export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967, grid: 86028121, crux: 86028157, rslalom: 314606891, deadend: 357172253, gates: 401948389, dense: 447262247, blockade: 520395019, blocks: 568483669 }
 
 /**
  * Layout rng of the widen-freeze kinds (`rslalom`, `deadend`, `gates`, `dense`): re-seeded by the start VARIANT, so the
@@ -587,6 +591,111 @@ function denseCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'way
   return { boxes, waypoints: [[0, -COURSE_LENGTH]] }
 }
 
+// --- obstacle-fluency kinds (2026-10-14): DETOUR worlds — the target vector points THROUGH an obstacle ---------
+
+/**
+ * `blockade` (v3 detour setup kind): a bounded plaza whose TARGET sits 160-200 m ahead, with 2-4 TRANSVERSE WALL
+ * SEGMENTS crossing the direct start -> target line: every wall spans from one side wall across x = 0 (it covers the
+ * whole middle band the target line runs in), leaving ONE opening of 12-18 m at the seeded side, and the sides
+ * ALTERNATE — forward progress is a sequence of committed lateral swings around the open ends at speed, not the
+ * tight threading of `gates`. The opening always fits the planner's 2.5 m inflation (>= 9 m), so the world is
+ * solvable by construction. layout: hw (plaza half width), tx / tz (the target), t (wall thickness), openMin /
+ * openMax of the seeded opening band.
+ */
+function blockadeCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const rng = variantRng('blockade', seed, variant)
+  const hw = range(rng, 34, 42)
+  const tz = -Math.round(range(rng, 160, 200))
+  const tx = range(rng, -6, 6)
+  const t = 2
+  const boxes: CourseBox[] = []
+  // the plaza: side walls from behind the start to beyond the target, back and end wall
+  boxes.push({ at: [0, 24], size: [2 * hw + 2 * t, t], yawDeg: 0 })
+  boxes.push({ at: [0, tz - 24], size: [2 * hw + 2 * t, t], yawDeg: 0 })
+  for (const side of [-1, 1]) boxes.push({ at: [side * (hw + t / 2), tz / 2], size: [t, 44 - tz + 2 * t], yawDeg: 0 })
+  const openMin = 12
+  const openMax = 18
+  let side = rng.next() < 0.5 ? -1 : 1
+  for (let z = -range(rng, 42, 55); z > tz + range(rng, 34, 50); z -= range(rng, 40, 58)) {
+    const open = range(rng, openMin, openMax)
+    const wallLen = 2 * hw - open
+    // the wall hugs the `side` wall: its span covers [-open + hw... ] — always across x = 0 (open <= hw - 10),
+    // so the direct line to the target passes THROUGH it whatever the jittered start / target x (|x| <= 10)
+    boxes.push({ at: [side * (hw - wallLen / 2), z], size: [wallLen, t], yawDeg: 0 })
+    side = -side
+  }
+  return { boxes, waypoints: [[tx, tz]], layout: { hw, tx, tz, t, openMin, openMax } }
+}
+
+/**
+ * `blocks` (v3 detour setup kind): the same bounded plaza frame with 3-5 BIG BLOCKS (12-22 m across, yaw-jittered)
+ * between the start and the target 140-180 m ahead. Block 0 is pinned ON the direct start -> target line (its centre
+ * within ~4 m of the line's x at its z), so the target vector points INTO it; the others scatter with >= 12 m
+ * edge-to-edge corridors (block to block and block to side wall — the planner passes them at the 2.5 m margin) and
+ * the start / target neighbourhoods stay clear. Unlike `dense` (small boxes, many routes close by) the obstacles are
+ * FAT: the detour around one is a wide arc the car must commit to early.
+ */
+function blocksCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const rng = variantRng('blocks', seed, variant)
+  const hw = range(rng, 38, 46)
+  const tz = -Math.round(range(rng, 140, 180))
+  const tx = range(rng, -5, 5)
+  const t = 2
+  const boxes: CourseBox[] = []
+  boxes.push({ at: [0, 24], size: [2 * hw + 2 * t, t], yawDeg: 0 })
+  boxes.push({ at: [0, tz - 24], size: [2 * hw + 2 * t, t], yawDeg: 0 })
+  for (const side of [-1, 1]) boxes.push({ at: [side * (hw + t / 2), tz / 2], size: [t, 44 - tz + 2 * t], yawDeg: 0 })
+  const placed: Array<{ x: number; z: number; w: number; d: number; yawDeg: number }> = []
+  const clearOf = (x: number, z: number, w: number, d: number, gap: number): boolean => {
+    // axis-aligned half extents (the yaw stays <= 25 deg, the bounding box is a fair proxy for the corridor test)
+    const bx = (w / 2) * Math.cos((25 * Math.PI) / 180) + (d / 2) * Math.sin((25 * Math.PI) / 180)
+    const bz = (w / 2) * Math.sin((25 * Math.PI) / 180) + (d / 2) * Math.cos((25 * Math.PI) / 180)
+    if (Math.abs(x) + bx > hw - gap) return false // >= gap corridor to each side wall
+    if (z > -28 || z < tz + 28) return false // the start / target neighbourhoods stay clear
+    for (const p of placed) {
+      const pbx = (p.w / 2) * Math.cos((25 * Math.PI) / 180) + (p.d / 2) * Math.sin((25 * Math.PI) / 180)
+      const pbz = (p.w / 2) * Math.sin((25 * Math.PI) / 180) + (p.d / 2) * Math.cos((25 * Math.PI) / 180)
+      if (Math.abs(p.x - x) < pbx + bx + gap && Math.abs(p.z - z) < pbz + bz + gap) return false
+    }
+    return true
+  }
+  const put = (x: number, z: number, w: number, d: number): void => {
+    const yawDeg = range(rng, -25, 25)
+    boxes.push({ at: [x, z], size: [w, d], yawDeg })
+    placed.push({ x, z, w, d, yawDeg })
+  }
+  // block 0: pinned ON the direct line — the line's x at z is tx * (z / tz) (start x 0), keep |centre x - line x| <= 4
+  {
+    const z0 = -range(rng, 0.4, 0.65) * -tz
+    const w0 = range(rng, 14, 22)
+    const d0 = range(rng, 12, 20)
+    const lx = (tx * z0) / tz
+    const x0 = Math.max(-hw + w0 / 2 + 12, Math.min(hw - w0 / 2 - 12, lx + range(rng, -4, 4)))
+    put(x0, z0, w0, d0)
+  }
+  // blocks 1..: scattered, >= 12 m corridors, rejection-sampled (the world is solvable by construction);
+  // the corridor requirement relaxes to 10 m for the stragglers so the block COUNT is guaranteed (still
+  // comfortably planner-passable at the 2.5 m margin)
+  const nMore = 2 + Math.floor(rng.next() * 3)
+  for (let i = 0; i < nMore; i++) {
+    let placedI = false
+    for (const gap of [12, 10]) {
+      for (let attempt = 0; attempt < 40 && !placedI; attempt++) {
+        const w = range(rng, 12, 22)
+        const d = range(rng, 10, 20)
+        const x = range(rng, -(hw - w / 2 - gap), hw - w / 2 - gap)
+        const z = range(rng, tz + 28, -28)
+        if (clearOf(x, z, w, d, gap)) {
+          put(x, z, w, d)
+          placedI = true
+        }
+      }
+      if (placedI) break
+    }
+  }
+  return { boxes, waypoints: [[tx, tz]], layout: { hw, tx, tz, t, nBlocks: placed.length } }
+}
+
 /** `rslalom` as a Course: the world without the chain-generator extras (the generator calls `rslalomWorld` directly). */
 function rslalomCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints' | 'layout' | 'startYawDeg'> {
   const w = rslalomWorld(seed, variant)
@@ -870,6 +979,10 @@ const START_JITTER: Record<CourseKind, { x: number; z: number; yawDeg: number }>
   deadend: { x: 3, z: 3, yawDeg: 12 },
   gates: { x: 4, z: 0, yawDeg: 10 },
   dense: { x: 4, z: 0, yawDeg: 10 },
+  // obstacle-fluency detour kinds: wide plazas, the jitter moves the start pose but never off the
+  // blocked line (the walls / block 0 cover the whole middle band the line runs in)
+  blockade: { x: 4, z: 0, yawDeg: 12 },
+  blocks: { x: 4, z: 0, yawDeg: 12 },
 }
 
 /** Seeded random start pose for variant >= 1; keeps the car clear of every wall / box (falls back to the canonical start). */
@@ -915,9 +1028,13 @@ export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficu
                         ? gatesCourse(seed, variant)
                         : kind === 'dense'
                           ? denseCourse(seed, variant)
-                          : kind === 'crux'
-                            ? cruxCourse(rng, cruxClass(seed), cruxEmb(seed), cruxDir(seed))
-                            : mazeCourse(seed, rng, adv)
+                          : kind === 'blockade'
+                            ? blockadeCourse(seed, variant)
+                            : kind === 'blocks'
+                              ? blocksCourse(seed, variant)
+                              : kind === 'crux'
+                                ? cruxCourse(rng, cruxClass(seed), cruxEmb(seed), cruxDir(seed))
+                                : mazeCourse(seed, rng, adv)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {

@@ -34,11 +34,14 @@ const TRAIN8 = ['maze:12', 'grid:1', 'maze:19', 'grid:2', 'maze:21', 'grid:3', '
 const HOLDOUT6 = ['maze:1017~1', 'grid:1001~1', 'maze:1024~1', 'grid:1002~1', 'maze:1033~1', 'grid:1003~1', 'maze:1038~1', 'grid:1004~1', 'maze:1040~1', 'grid:1005~1', 'maze:1047~1', 'grid:1006~1'] as const
 // chain hashes (FNV-1a over the JSON of chainsForSetup) of standard train / holdout / example-world keys, computed with the pre-T4 code
 const HASH_PINS: Array<[string, string]> = [
-  ['maze:12', '273078d9'],
-  ['maze:25', '4420798c'],
-  ['maze:1017~1', 'e14c1eab'],
-  ['maze:1038~1', 'f9eb19db'],
-  ['maze:1009', '23932c59'],
+  // the maze pins re-hashed 2026-10-14: the maze courses were loosened per user request (breadcrumb resampling
+  // removed, RESAMPLE_KIND_M in chains.ts — route geometry identical, the collinear straight-line waypoints gone).
+  // grid keeps its resampling: grid:1 is unchanged.
+  ['maze:12', '4442b785'],
+  ['maze:25', '34b9a12f'],
+  ['maze:1017~1', '2d34a397'],
+  ['maze:1038~1', '8d4c890f'],
+  ['maze:1009', 'ef1d6b67'],
   ['grid:1', '8c69c139'],
 ]
 // the deterministic adversarial scan result: [maze M1, maze M2, grid G1, grid G2]

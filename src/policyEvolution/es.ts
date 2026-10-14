@@ -133,6 +133,37 @@ export const V3_FAIL_FACTOR = 0.5
 export const V3_WALL_TOUCH_PENALTY = 0.0125
 export const V3_OBJECT_TOUCH_PENALTY = 0.005
 
+/**
+ * v3 fluency shaping (obstacle-fluency 2026-10-14): RAPID speed / steering changes cost fitness; smooth driving does not.
+ * The signals are the WINDOWED net changes: the mean forward accel and heading rate of every 1.5 s window (episode.ts),
+ * jerk = the window-to-window change of those — a constant hard brake, a smooth stop-and-go reversal and a constant-rate
+ * racing-line turn all have a ~0 windowed change and stay FREE; speed-profile and steering oscillation at the 0.5-2 Hz
+ * macro scale pays per window. The car2 actuator's 60 Hz pedal bang-bang (|D2vf| ~ 15 m/s per frame for EVERY candidate,
+ * measured) averages out inside the window and is NOT punished — it is the actuator, not the policy.
+ * CALIBRATED on the S4 ship candidate's own episodes (test-results/policy-evolution/obstacle-fluency/calibrate-v3.log):
+ * the deadbands sit where S4's smooth kinds pay ~0-2 windows (rslalom 0-2, free 0-6, bay 3-7, maze 1-3) and its
+ * visibly oscillatory kinds pay exactly where the polish list says they hurt (gates 11-33, slalom 12-32, field 10-17,
+ * blockade 5-14 windows) — a full price of ~0.05-0.15 norm on those, 8x below a single second of wall grinding
+ * (0.75), so it is a shaping gradient on top of progress, never a wall. A smoother sibling candidate banks the
+ * difference directly (the weakest-link lex fitness ranks it), which is the "reward fluency" mechanism — there is
+ * no smoothness BONUS on purpose: a stalled car is perfectly smooth, any bonus is gameable.
+ */
+/** fluency window length (frames at 60 fps) */
+export const V3_FLUENCY_WINDOW_FRAMES = 90
+/** longitudinal jerk deadband: |meanAccel[w] - meanAccel[w-1]| above this counts a window (m/s^2) */
+export const V3_LONG_JERK_MPS2 = 5
+/** lateral jerk deadband: |meanYawRate[w] - meanYawRate[w-1]| above this counts a window (rad/s) */
+export const V3_LAT_JERK_RADS = 0.3
+/** per-window fluency cost of one above-deadband longitudinal change (norm currency) */
+export const V3_LONG_JERK_PENALTY = 0.004
+/** per-window fluency cost of one above-deadband lateral change (norm currency) */
+export const V3_LAT_JERK_PENALTY = 0.004
+
+/** per-episode fluency penalty in norm currency (windows x the per-window rates above) */
+export function fluencyPenaltyNorm(jerkLongWins: number | undefined, jerkLatWins: number | undefined): number {
+  return (jerkLongWins ?? 0) * V3_LONG_JERK_PENALTY + (jerkLatWins ?? 0) * V3_LAT_JERK_PENALTY
+}
+
 /** per-episode touch penalty in norm currency (frames x the per-frame rates above) */
 export function touchPenaltyNorm(touchWallFrames: number | undefined, touchObjectFrames: number | undefined): number {
   return (touchWallFrames ?? 0) * V3_WALL_TOUCH_PENALTY + (touchObjectFrames ?? 0) * V3_OBJECT_TOUCH_PENALTY
@@ -163,7 +194,7 @@ export function capNorm(norm: number, meanSpeed: number | undefined, speedCap?: 
  * weakest link"). The per-episode value is final (peakNorm-based, incl. failFactor / penalties); see the block comment
  * above. Empty batch -> 0; a non-finite episode value counts as 0.
  */
-export type EpisodeValueMetrics = Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number; peakNorm?: number }>
+export type EpisodeValueMetrics = Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number; peakNorm?: number; jerkLongWins?: number; jerkLatWins?: number }>
 
 /** The per-episode values behind `aggregateKindMin` (same formula), ASCENDING: vec[0] is the worst run. */
 export function episodeValues(metrics: EpisodeValueMetrics, speedCap?: number): number[] {
@@ -171,14 +202,14 @@ export function episodeValues(metrics: EpisodeValueMetrics, speedCap?: number): 
   const values = metrics.map((raw) => {
     const failed = raw.outcome !== undefined && raw.outcome !== 'finish' && raw.outcome !== 'timeout'
     // peak semantics: `peakNorm` (episode.ts) is the HIGH-WATER of the per-frame score curve, already minus the
-    // penalties accumulated up to that frame (deviation + touches) — the fitness ranks it, not the drained end value,
-    // so a run that reaches 60 % and then stalls at a wall keeps its edge over an immediate stall (both end values
+    // penalties accumulated up to that frame (deviation + touches + fluency) — the fitness ranks it, not the drained end
+    // value, so a run that reaches 60 % and then stalls at a wall keeps its edge over an immediate stall (both end values
     // saturate to 0 under the old formula). Fallback for metrics without `peakNorm` (hand-built fixtures, pre-peak
     // run files): the old end-value formula with its floor at 0, unchanged.
     const norm =
       raw.peakNorm !== undefined
         ? capNorm(raw.peakNorm, raw.meanSpeed, speedCap)
-        : Math.max(0, capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length) - touchPenaltyNorm(raw.touchWallFrames, raw.touchObjectFrames))
+        : Math.max(0, capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length) - touchPenaltyNorm(raw.touchWallFrames, raw.touchObjectFrames) - fluencyPenaltyNorm(raw.jerkLongWins, raw.jerkLatWins))
     return Number.isFinite(norm) ? (failed ? norm * V3_FAIL_FACTOR : norm) : 0
   })
   return values.sort((a, b) => a - b)

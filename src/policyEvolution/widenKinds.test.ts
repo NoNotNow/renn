@@ -200,9 +200,11 @@ describe('planner grids are variant-safe (the grid cache key carries the variant
     const canonical = chainsForSetup('gates:6')
     expect(variantFirst.length).toBeGreaterThanOrEqual(2)
     expect(canonical.length).toBeGreaterThanOrEqual(2)
-    // and the reverse order, plus dense (seeds no other test in this file touches: the caches are per process)
-    const canonical2 = chainsForSetup('dense:3')
-    const variant2 = chainsForSetup('dense:3~1')
+    // and the reverse order, plus dense (seeds no other test in this file touches: the caches are per process).
+    // dense:3 -> dense:5: the dense courses were loosened per user request on 2026-10-14 (fewer waypoints, see
+    // LOOSE_KIND_M in chains.ts) and dense:3's canonical chains no longer pass the acceptance gates
+    const canonical2 = chainsForSetup('dense:5')
+    const variant2 = chainsForSetup('dense:5~1')
     expect(canonical2.length).toBeGreaterThanOrEqual(2)
     expect(variant2.length).toBeGreaterThanOrEqual(2)
   })

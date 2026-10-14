@@ -7,7 +7,7 @@ import { buildCourse, buildSetupCourse, parseCourseKey, polylineNearestDist, Rou
 import { chainOfEpisode, isChainEpisodeKey, polylineLength, type Chain } from './chains'
 import { LegProgress } from './legs'
 import { WallLos } from './wallLos'
-import { V3_OBJECT_TOUCH_PENALTY, V3_WALL_TOUCH_PENALTY } from './es'
+import { V3_FLUENCY_WINDOW_FRAMES, V3_LAT_JERK_PENALTY, V3_LAT_JERK_RADS, V3_LONG_JERK_MPS2, V3_LONG_JERK_PENALTY, V3_OBJECT_TOUCH_PENALTY, V3_WALL_TOUCH_PENALTY } from './es'
 import { hiddenOfLength, N_IN_V2, N_IN_V3, NOSE_M, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
 import { policyDriveStage, policyInputStage, policyV1Stage, policyV2Stage, POLICY_INPUT_STAGE_ID } from './policyStages'
 
@@ -86,6 +86,19 @@ export interface PolicyEpisodeMetrics {
   maxReverseM?: number
   /** v3 episodes: largest distance (m) from the ORIGINAL chain polyline during the episode (deviation from the path vector) */
   maxDevOrigM?: number
+  /**
+   * v3 fluency metric: 1.5 s windows whose mean forward ACCEL changed by more than `V3_LONG_JERK_MPS2`
+   * against the previous window — a rapid speed-profile change. A constant hard brake and a smooth
+   * stop-and-go reversal stay FREE (their windowed accel change is ~0). Counted in episode.ts, priced
+   * into the fitness via `fluencyPenaltyNorm` (es.ts).
+   */
+  jerkLongWins?: number
+  /**
+   * v3 fluency metric: 1.5 s windows whose mean heading RATE changed by more than `V3_LAT_JERK_RADS`
+   * against the previous window — a rapid steering change. A constant-rate racing-line turn stays FREE.
+   * Same fitness wiring as `jerkLongWins`.
+   */
+  jerkLatWins?: number
   /** frames whose hull-vs-wall gap was under CONTACT_GAP (the wall-touch path that used to end the episode as 'crash') */
   touchWallFrames: number
   /** frames with a contact to a non-wall object (touching entity that is neither the ground nor a course box; 0 in the plain course worlds) */
@@ -260,6 +273,21 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
   let wallTouchT = 0
   let touchPenalty = 0
   let peakNorm = 0
+  // fluency tracking (v3): WINDOWED net jerk — the mean forward accel and heading rate of every 1.5 s window,
+  // and the window-to-window CHANGE of those. A constant hard brake, a smooth stop-and-go reversal and a
+  // constant-rate racing-line turn all stay FREE; speed-profile and steering oscillation at the 0.5-2 Hz
+  // macro scale (what a passenger feels) pays per window. The 60 Hz pedal bang-bang of the car2 actuator
+  // averages out inside the window and is NOT punished (every candidate has it — measured, see the
+  // calibration log in test-results/policy-evolution/obstacle-fluency/).
+  let prevYaw: number | undefined
+  let winFrames = 0
+  let winVf0: number | undefined
+  let winYawAcc = 0
+  let prevAcc: number | undefined
+  let prevYr: number | undefined
+  let jerkLongWins = 0
+  let jerkLatWins = 0
+  let fluencyPenalty = 0
   // v3: which end of the car leads (hysteresis at +-0.5 m/s of forward speed): false = the nose, true = the tail
   let anchorRev = false
   for (let frame = 0; frame < frames; frame++) {
@@ -283,6 +311,35 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
       // tests below stay center-anchored.
       const v = sim.getVelocity(POLICY_CAR_ID)
       const vf = v[0] * fx + v[2] * fz
+      // fluency windows (v3): accumulate the window's speed span and (wrap-safe) heading turn; at the
+      // window boundary compare the windowed mean accel / yaw rate against the PREVIOUS window's —
+      // a change beyond the deadbands is one rapid speed / steering change (see the fluency block above)
+      const yawNow = Math.atan2(fx, fz)
+      if (prevYaw === undefined) prevYaw = yawNow
+      if (winVf0 === undefined) winVf0 = vf
+      let dYaw = yawNow - prevYaw!
+      while (dYaw > Math.PI) dYaw -= 2 * Math.PI
+      while (dYaw < -Math.PI) dYaw += 2 * Math.PI
+      winYawAcc += dYaw
+      prevYaw = yawNow
+      winFrames++
+      if (winFrames >= V3_FLUENCY_WINDOW_FRAMES) {
+        const acc = (vf - winVf0!) / (winFrames * DEFAULT_DT)
+        const yr = winYawAcc / (winFrames * DEFAULT_DT)
+        if (prevAcc !== undefined && Math.abs(acc - prevAcc) > V3_LONG_JERK_MPS2) {
+          jerkLongWins++
+          fluencyPenalty += V3_LONG_JERK_PENALTY
+        }
+        if (prevYr !== undefined && Math.abs(yr - prevYr) > V3_LAT_JERK_RADS) {
+          jerkLatWins++
+          fluencyPenalty += V3_LAT_JERK_PENALTY
+        }
+        prevAcc = acc
+        prevYr = yr
+        winFrames = 0
+        winVf0 = undefined
+        winYawAcc = 0
+      }
       anchorRev = vf < -0.5 ? true : vf > 0.5 ? false : anchorRev
       const fwdN = Math.hypot(fx, fz) || 1
       const am = (anchorRev ? -1 : 1) * NOSE_M
@@ -327,11 +384,11 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
       }
     }
     // v3 peak metric: the HIGH-WATER of the score curve — the progress-based norm minus the penalties accumulated
-    // SO FAR (deviation as a route fraction + touch penalties, in norm currency). It is updated BEFORE the outcome
+    // SO FAR (deviation as a route fraction + touch + fluency penalties, in norm currency). It is updated BEFORE the outcome
     // checks so the frame that ends the episode counts too; standing at a wall drains the end value but cannot
     // erase the best moment, so a 60 %-then-stall run keeps its gradient over an immediate stall.
     const normNow = (progress * progress) / (Math.max(t, 1) * routeLength * NORM_SPEED)
-    const cand = normNow - (v3 ? maxDevOrig / routeLength : 0) - touchPenalty
+    const cand = normNow - (v3 ? maxDevOrig / routeLength : 0) - touchPenalty - fluencyPenalty
     if (cand > peakNorm) peakNorm = cand
     if (wallTouch && wallTouchT >= CRASH_TOUCH_S) {
       outcome = 'crash'
@@ -372,7 +429,7 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
     touchWallFrames,
     touchObjectFrames,
     peakNorm,
-    ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevOrigM: maxDevOrig } : {}),
+    ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevOrigM: maxDevOrig, jerkLongWins, jerkLatWins } : {}),
   }
 }
 
