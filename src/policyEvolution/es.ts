@@ -173,7 +173,10 @@ export function touchPenaltyNorm(touchWallFrames: number | undefined, touchObjec
  * v3 deviation penalty: the episode's points (norm) minus the largest distance from the ORIGINAL chain, converted to the
  * norm currency as a route fraction (maxDevOrigM / chain length) — one metre off the path vector costs one metre of
  * route points. Following the vector is the only free route: cutting corners or wandering (up to the offcourse
- * termination) pays directly, so nets cannot score through detours.
+ * termination) pays directly, so nets cannot score through detours. The LIVE path prices this inside `peakNorm`
+ * (episode.ts, per frame); the blockade / blocks detour kinds pay a QUARTER of it there (`DETOUR_DEV_WEIGHT`,
+ * episode.ts — the chain is the direct line THROUGH the obstacles, the detour is the net's own work). This fallback
+ * (metrics without `peakNorm`: hand-built fixtures, pre-peak run files) keeps the full weight.
  */
 export function devPenaltyNorm(maxDevOrigM: number | undefined, lengthM: number | undefined): number {
   if (maxDevOrigM === undefined || !lengthM || !(lengthM > 0)) return 0

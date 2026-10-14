@@ -4,7 +4,7 @@ import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 import type { RennWorld } from '@/types/world'
 import { createRng } from '@/avEvolution/core/rng'
 import { buildCourse, buildSetupCourse, parseCourseKey, polylineNearestDist, RouteProgress, COURSE_START, type Course } from './courses'
-import { chainOfEpisode, isChainEpisodeKey, polylineLength, type Chain } from './chains'
+import { chainOfEpisode, isChainEpisodeKey, isDirectLineKind, parseChainEpisodeKey, polylineLength, type Chain } from './chains'
 import { LegProgress } from './legs'
 import { WallLos } from './wallLos'
 import { V3_FLUENCY_WINDOW_FRAMES, V3_LAT_JERK_PENALTY, V3_LAT_JERK_RADS, V3_LONG_JERK_MPS2, V3_LONG_JERK_PENALTY, V3_OBJECT_TOUCH_PENALTY, V3_WALL_TOUCH_PENALTY } from './es'
@@ -40,6 +40,15 @@ const FINISH_MARGIN = 5
 export const OFF_COURSE_M = 16
 /** v2 chain episodes: farther than this from the COMMANDED chain ends the episode (chains differ by >= 10 m, so the wrong route is caught) */
 export const OFF_CHAIN_M = 6
+/**
+ * Deviation weight of the direct-line detour kinds (blockade / blocks — the ONLY kinds where the chain is NOT the
+ * task, chains.ts DIRECT_LINE_KINDS): their chain is the direct start -> target line THROUGH the obstacles and the
+ * detour around them is the net's own work, so the maxDevOrig/routeLength term of the peak score runs at QUARTER
+ * weight (user decision 2026-10-15, "reduced, not dropped"): an intended swing (~hw lateral, ~0.15-0.25 norm at
+ * full weight) pays ~0.04-0.06 — small against the finish reward — while a cheese detour (farming far-off-course
+ * points) still pays. Every other kind keeps the full weight: there the chain IS the task.
+ */
+export const DETOUR_DEV_WEIGHT = 0.25
 /** outcome 'crash' fallback: CONTINUOUS wall contact for this many seconds still ends the episode (a brush is survived, grinding is not). Deliberately NOT lowered to 1.5 (2026-10-13): the pinned crux band's chain acceptance runs the pure-pursuit baseline through this exact rule, and 1.5 rejects pinned setups (crux:12) - cascading into the dialog worlds / export gates. The RAISED per-frame touch penalties (es.ts, 2.5x) already make sustained grinding fitness-dead long before this fires. */
 export const CRASH_TOUCH_S = 2
 /** v2 chains are up to 1.8 x longer than the track, so the time limit is longer too */
@@ -256,6 +265,8 @@ export interface EpisodeDriveCtx {
  */
 export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
   const { sim, key, v3, route, routeLength, offCourseM, chainPoints, walls, wallIds, det, onFrame } = o
+  // deviation weight: quarter for the direct-line detour kinds (the chain is not the task there — see DETOUR_DEV_WEIGHT), full otherwise
+  const devWeight = v3 && isDirectLineKind(parseCourseKey(parseChainEpisodeKey(key).setupKey).kind) ? DETOUR_DEV_WEIGHT : 1
   const t0 = performance.now()
   const frames = Math.round(o.seconds / DEFAULT_DT)
   const hullR = Math.hypot(CAR_SIZE[0], CAR_SIZE[1]) / 2
@@ -388,7 +399,7 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
     // checks so the frame that ends the episode counts too; standing at a wall drains the end value but cannot
     // erase the best moment, so a 60 %-then-stall run keeps its gradient over an immediate stall.
     const normNow = (progress * progress) / (Math.max(t, 1) * routeLength * NORM_SPEED)
-    const cand = normNow - (v3 ? maxDevOrig / routeLength : 0) - touchPenalty - fluencyPenalty
+    const cand = normNow - (v3 ? (devWeight * maxDevOrig) / routeLength : 0) - touchPenalty - fluencyPenalty
     if (cand > peakNorm) peakNorm = cand
     if (wallTouch && wallTouchT >= CRASH_TOUCH_S) {
       outcome = 'crash'

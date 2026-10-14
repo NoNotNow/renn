@@ -45,8 +45,9 @@ export const CLEARANCE: Record<CourseKind, { margins: number[]; min: number }> =
   // (11-14 m) pass the 2.5 m margin's 4.5 m inflation, the 1.5 fallback keeps rare tight variants enumerable
   gates: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   dense: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
-  // blockade / blocks (obstacle-fluency detour kinds): planner kinds like gates / dense — the openings (12-18 m)
-  // and corridors (>= 12 m) pass the 2.5 m margin's 4.5 m inflation, the 1.5 fallback keeps tight variants enumerable
+  // blockade / blocks (obstacle-fluency detour kinds): the planner runs UNCHANGED here but only as the SOLVABILITY
+  // GATE (DIRECT_LINE_KINDS — the guidance chain is the direct start -> target line, never a planner route); the
+  // openings (12-18 m) and corridors (>= 12 m) pass the 2.5 m margin's 4.5 m inflation, the 1.5 fallback keeps tight variants enumerable
   blockade: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   blocks: { margins: [2.5, 1.5], min: CAR_HALF_WIDTH + 0.5 },
   maze: { margins: [1.5, 1], min: CAR_HALF_WIDTH + 0.25 },
@@ -810,8 +811,71 @@ export function generateChains(setupKey: string, margin: number): Chain[] {
   return generate(setupKey, margin)
 }
 
-function generate(setupKey: string, margin: number): Chain[] {
+/**
+ * The cached planner grid of a setup at `inflate` — the variant-safe cache (see the comment in `generate`; the key
+ * carries the variant, so a variant's geometry can never poison another's A*). Shared by the planner acceptance and
+ * the direct-line ends below, so both see the SAME grid.
+ */
+function plannerGrid(setupKey: string, course: Course, inflate: number): Grid {
   const { kind, seed, variant, difficulty } = parseCourseKey(setupKey)
+  const gridKey = `${kind}:${seed}@${difficulty}:${inflate}${variant ? `~${variant}` : ''}`
+  let g = gridCache.get(gridKey)
+  if (!g) {
+    g = buildGrid(course, inflate, COURSE_START)
+    if (gridCache.size > 48) gridCache.delete(gridCache.keys().next().value!)
+    gridCache.set(gridKey, g)
+  }
+  return g
+}
+
+// --- direct-line guidance (blockade / blocks) -----------------------------------------------------------------------------------------
+
+/**
+ * DIRECT-LINE GUIDANCE (2026-10-15, the gen-95 stop redesign): `blockade` / `blocks` are the ONLY kinds where the
+ * chain is NOT the task. For every other kind the chain IS the drivable route the net is guided along; for these two
+ * the chain is the DIRECT start -> target line THROUGH the obstacles — the net (14 rays, 50 m range) must learn the
+ * detour itself, because the planner routes pre-chewed it (they were the guidance carrot of the stopped gen-95 run:
+ * the A* chain routed around the walls, so following it never demanded a detour). The planner acceptance still runs
+ * UNCHANGED, but only as a SOLVABILITY GATE (>= MIN_CHAINS routes must exist at some inflation margin — the world is
+ * provably drivable); the routes themselves are DISCARDED. The WallLos progress-credit gate (wallLos.ts) replaces the
+ * route's honesty: credit is only banked on frames whose car -> projected-chain-point segment crosses no wall, so a
+ * candidate cannot cheese progress by projecting through a blockade. The deviation penalty of these kinds runs at
+ * QUARTER weight (episode.ts `DETOUR_DEV_WEIGHT`) so the intended swing stays cheap without licensing cheese.
+ */
+export const DIRECT_LINE_KINDS: readonly CourseKind[] = ['blockade', 'blocks']
+export const isDirectLineKind = (kind: CourseKind): boolean => DIRECT_LINE_KINDS.includes(kind)
+
+/**
+ * Chains of a direct-line kind: the planner acceptance as the solvability gate, then the DIRECT [start, end] line per
+ * end target of the chooseEnds blockade/blocks branch (the plaza's goal point plus lateral neighbours) — one leg, no
+ * breadcrumbs, a PLAZA-SCALE offcourse tolerance (layout.hw + 10, never the 6 m default OFF_CHAIN_M of episode.ts:
+ * the intended swing around a wall end must never end the episode). [] when the gate fails (< MIN_CHAINS planner
+ * routes at every margin) — the same rejection contract as every other kind.
+ */
+function directLineChains(setupKey: string): Chain[] {
+  const { kind } = parseCourseKey(setupKey)
+  let gateMargin: number | undefined
+  for (const margin of CLEARANCE[kind].margins) {
+    if (generate(setupKey, margin).length >= MIN_CHAINS) {
+      gateMargin = margin
+      break
+    }
+  }
+  if (gateMargin === undefined) return []
+  const course = buildSetupCourse(setupKey)
+  const start: V2 = course.startAt ?? COURSE_START
+  const grid: Grid = { ...plannerGrid(setupKey, course, CAR_HALF_WIDTH + gateMargin), start }
+  const ends = chooseEnds(kind, course, grid, reachable(grid, cellOf(grid, start)), createRng(seedOf(setupKey)))
+  const chains: Chain[] = ends.map((e, idx) => {
+    const end = centre(grid, e[0], e[1])
+    return { points: [start, end], length: Math.hypot(end[0] - start[0], end[1] - start[1]), endIndex: idx, offM: (course.layout?.hw ?? 40) + 10 }
+  })
+  return chains.length >= MIN_CHAINS ? chains : []
+}
+
+
+function generate(setupKey: string, margin: number): Chain[] {
+  const { kind, seed } = parseCourseKey(setupKey)
   const advStyle = adversarialStyle(kind, seed)
   const minClearance = CLEARANCE[kind].min
   const course = buildSetupCourse(setupKey)
@@ -823,14 +887,7 @@ function generate(setupKey: string, margin: number): Chain[] {
   // computed gates:1~1 first cached a variant-1 grid, then gates:1's chains all failed the exact clearance check
   // against the variant-0 boxes and the episode crashed with "no chain 0"). For the variant-independent kinds the
   // grid content is identical anyway — the split only costs a rebuild per variant.
-  const gridKey = `${kind}:${seed}@${difficulty}:${inflate}${variant ? `~${variant}` : ''}`
-  let g = gridCache.get(gridKey)
-  if (!g) {
-    g = buildGrid(course, inflate, COURSE_START)
-    if (gridCache.size > 48) gridCache.delete(gridCache.keys().next().value!)
-    gridCache.set(gridKey, g)
-  }
-  const grid: Grid = { ...g, start }
+  const grid: Grid = { ...plannerGrid(setupKey, course, inflate), start }
   const sc = cellOf(grid, start)
   const reach = reachable(grid, sc)
   const rng = createRng(seedOf(setupKey))
@@ -899,6 +956,12 @@ export function chainsForSetup(setupKey: string): Chain[] {
   }
   if (isV3NewKind(kind)) {
     chains = generateV3Chains(setupKey)
+    chainCache.set(setupKey, chains)
+    return chains
+  }
+  // blockade / blocks: the planner acceptance gates SOLVABILITY, the guidance chain is the DIRECT line (see DIRECT_LINE_KINDS)
+  if (isDirectLineKind(kind)) {
+    chains = directLineChains(setupKey)
     chainCache.set(setupKey, chains)
     return chains
   }
