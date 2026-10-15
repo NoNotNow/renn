@@ -46,6 +46,15 @@
       "gen": 400,
       "hidden": 32,
       "detail": "stretch-4 candidate (focus bay/deadend/crux + full-fitness release) \u2014 mean finish 91.4%, maze 86% (= baseline), gates 100%, crux 100%; ship candidate"
+    },
+    {
+      "id": "wf40_recovery",
+      "label": "WF40 recovery",
+      "chipLabel": "R40",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2r-g423.candidate.json",
+      "gen": 400,
+      "hidden": 40,
+      "detail": "recovery ship candidate after the detour cycle (2026-10-15, rounds 6-7): fresh H=40 widen-freeze from S4, ~900 gens of detour pursuit (blockade unlearned at every geometry, blocks partial \u2014 both dropped from the chip band, WF_CHIP_KINDS = the clean 13-kind set; dialog rows stay), selection-blind drift (sigma-boost 2.25x + a blind T2) recovered from the wf-of2a-g200 base via 400 full-band re-polish gens under the T2 JSON watchdog \u2014 holdout mean 92.6% over the 13 chip kinds vs S4 90.9% on the SAME harder loosened courses: gates/grid/bay/corridor/field 100%, crux 98%, slalom 97%, dense 95%, rslalom 92%, maze 91%, crowd 88%, free 72%, deadend 71% (the known weakness: chain C, the two-bay double-reversal, offcourse at 111-136 m \u2014 all 7 deadend failures are that chain; blocks partial 8%, 17->12->8->8 through the recovery). A guarded deadend+free focus chunk was tried before ship and REJECTED on the band (deadend fixed 88% > S4 83, free 81, but the unexercised kinds drifted to a 63.9% mean \u2014 the focus-mode signature); the deadend-fix genome is preserved at wf-of2r-de-g523.candidate.json for a future deadend-focus + full-band-release pump. The detour kinds stay parked for the fitness-shaping revisit."
     }
   ]
 }
