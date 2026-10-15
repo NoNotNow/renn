@@ -20,7 +20,7 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
  *    forward obstacle-avoidance kinds (tight alternating gates; a dense jittered obstacle lattice). Their geometry is re-seeded
  *    per start VARIANT (`variantRng`), so the per-generation variant rotation re-jitters the obstacle world itself.
  *  - `blockade` / `blocks` (v3 setup kinds, obstacle-fluency 2026-10-14): see `blockadeCourse`, `blocksCourse` — two DETOUR kinds:
- * *    bounded plazas whose TARGET sits behind obstacle(s) that the direct start -> target line passes THROUGH, so the target
+ *    bounded plazas whose TARGET sits behind obstacle(s) that the direct start -> target line passes THROUGH, so the target
  *    vector points at the obstacle and forward progress demands a committed swing around its end. `blockade`: transverse wall
  *    PAIRS crossing the line, the seeded opening MID-PLAZA (2026-10-15 T1 course change: the swing must stay in the learnable
  *    band, ~14-21 m, not the side walls' 34-42 m), alternating sides; `blocks`: big jittered blocks with one ON the line.

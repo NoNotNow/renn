@@ -10,10 +10,22 @@
  */
 
 import type { RennWorld } from '@/types/world'
+import { V3_KINDS } from './courses'
 import { POLICY_CAR_ID } from './episode'
 
 /** Kinds exported per candidate: the widen-freeze kinds (where final and baseline differ most) + the key originals + the obstacle-fluency detour kinds (blockade / blocks, commit 8673d411). */
 export const WF_CANDIDATE_KINDS: readonly string[] = ['rslalom', 'deadend', 'gates', 'dense', 'maze', 'crux', 'bay', 'crowd', 'free', 'blockade', 'blocks']
+
+/**
+ * The CHIP / SHIP kind set (user decision 2026-10-15, critic round-6): the kinds every chip candidate is
+ * TRAINED, EVALUATED and shipped on — all v3 kinds EXCEPT `blockade`. Its direct-line finish rates sit at ~0
+ * (the detour never was learned: T1 round-5 fired, gen-800 meanProg 0.266), and a ~0 kind would poison the
+ * weakest-link lex-min of every future training warm-started from the chip. `blocks` STAYS (partial — 27 %
+ * finishes, the 1-13 m swings ARE learnable). The DIALOG world rows keep blockade (`WF_CANDIDATE_KINDS` above,
+ * informational rows + the exported wf_blockade_* worlds stay); only the chip/ship candidate drops it.
+ * The detour remains parked for the FITNESS-SHAPING revisit (see ESCALATION.md / the RESULTS block).
+ */
+export const WF_CHIP_KINDS: readonly string[] = V3_KINDS.filter((kind) => kind !== 'blockade')
 
 /** Holdout setups per kind — the same band the powered evals report on (holdoutV3Episodes(3, kinds)). */
 export const WF_HOLDOUTS_PER_KIND = 3

@@ -3,11 +3,12 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 import { warmCruxGate } from './cruxChains'
 import { chainsForSetup, holdoutV3Episodes } from './chains'
-import type { CourseKind } from './courses'
+import { V3_KINDS, type CourseKind } from './courses'
 import { POLICY_CAR_ID } from './episode'
 import { hiddenOfLength, N_IN_V3 } from './policy'
 import {
   WF_CANDIDATE_KINDS,
+  WF_CHIP_KINDS,
   WF_HOLDOUTS_PER_KIND,
   isWfCandidateWorldId,
   wfWorldId,
@@ -33,6 +34,19 @@ let specsCache: WfCandidateWorldSpec[] | null = null
 const allSpecs = (): WfCandidateWorldSpec[] => (specsCache ??= wfCandidateWorldSpecs())
 
 describe('wf candidate manifest', () => {
+  it('the CHIP kind set drops blockade while the dialog world rows keep it (user decision 2026-10-15)', () => {
+    // blockade stays a world kind (dialog rows + exported wf_blockade_* worlds, informational) but is OUT of
+    // the chip/ship band: its ~0 direct-line finish rates would poison the lex-min of every future training
+    // warm-started from the chip; blocks stays (partial, finishing chains)
+    expect(WF_CANDIDATE_KINDS).toContain('blockade')
+    expect(WF_CANDIDATE_KINDS).toContain('blocks')
+    expect(WF_CHIP_KINDS).not.toContain('blockade')
+    expect(WF_CHIP_KINDS).toContain('blocks')
+    // the chip band covers every v3 kind except blockade (training + eval + ship claims)
+    expect([...WF_CHIP_KINDS].sort()).toEqual([...V3_KINDS].filter((k) => k !== 'blockade').sort())
+    expect(WF_CHIP_KINDS).toHaveLength(V3_KINDS.length - 1)
+  })
+
   it('resolves every entry whose genome file exists; genomes are v3-shaped; stretch candidates are skipped while training', () => {
     const candidates = readWfCandidates()
     const ids = candidates.map((c) => c.id)
