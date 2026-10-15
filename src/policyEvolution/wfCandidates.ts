@@ -17,15 +17,17 @@ import { POLICY_CAR_ID } from './episode'
 export const WF_CANDIDATE_KINDS: readonly string[] = ['rslalom', 'deadend', 'gates', 'dense', 'maze', 'crux', 'bay', 'crowd', 'free', 'blockade', 'blocks']
 
 /**
- * The CHIP / SHIP kind set (user decision 2026-10-15, critic round-6): the kinds every chip candidate is
- * TRAINED, EVALUATED and shipped on — all v3 kinds EXCEPT `blockade`. Its direct-line finish rates sit at ~0
- * (the detour never was learned: T1 round-5 fired, gen-800 meanProg 0.266), and a ~0 kind would poison the
- * weakest-link lex-min of every future training warm-started from the chip. `blocks` STAYS (partial — 27 %
- * finishes, the 1-13 m swings ARE learnable). The DIALOG world rows keep blockade (`WF_CANDIDATE_KINDS` above,
- * informational rows + the exported wf_blockade_* worlds stay); only the chip/ship candidate drops it.
- * The detour remains parked for the FITNESS-SHAPING revisit (see ESCALATION.md / the RESULTS block).
+ * The CHIP / SHIP kind set (user decision 2026-10-15, critic rounds 6-7): the kinds every chip candidate is
+ * TRAINED, EVALUATED and shipped on — all v3 kinds EXCEPT the two detour kinds. `blockade`: direct-line finish
+ * rates sit at ~0 (the detour never was learned — T1 round-5 fired at gen 800, meanProg 0.266; ~900 gens of
+ * pursuit, three geometries), and a ~0 kind would poison the weakest-link lex-min of every future training
+ * warm-started from the chip. `blocks`: dropped at the ship decision (user 2026-10-15) — partial at 8 %
+ * (17 -> 12 -> 8 -> 8 % over the recovery chunks), out of the clean 13-kind ship band (= S4's kind set, on the
+ * harder loosened courses; wf40 g423 mean 92.6 % vs S4's 90.9 % there). The DIALOG world rows keep BOTH
+ * (`WF_CANDIDATE_KINDS` above, informational rows + the exported wf_* worlds stay). Both remain parked for the
+ * FITNESS-SHAPING revisit (see ESCALATION.md / the RESULTS block).
  */
-export const WF_CHIP_KINDS: readonly string[] = V3_KINDS.filter((kind) => kind !== 'blockade')
+export const WF_CHIP_KINDS: readonly string[] = V3_KINDS.filter((kind) => kind !== 'blockade' && kind !== 'blocks')
 
 /** Holdout setups per kind — the same band the powered evals report on (holdoutV3Episodes(3, kinds)). */
 export const WF_HOLDOUTS_PER_KIND = 3

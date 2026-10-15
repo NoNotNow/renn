@@ -34,17 +34,19 @@ let specsCache: WfCandidateWorldSpec[] | null = null
 const allSpecs = (): WfCandidateWorldSpec[] => (specsCache ??= wfCandidateWorldSpecs())
 
 describe('wf candidate manifest', () => {
-  it('the CHIP kind set drops blockade while the dialog world rows keep it (user decision 2026-10-15)', () => {
-    // blockade stays a world kind (dialog rows + exported wf_blockade_* worlds, informational) but is OUT of
-    // the chip/ship band: its ~0 direct-line finish rates would poison the lex-min of every future training
-    // warm-started from the chip; blocks stays (partial, finishing chains)
+  it('the CHIP kind set drops blockade AND blocks while the dialog world rows keep them (user decision 2026-10-15)', () => {
+    // blockade + blocks stay world kinds (dialog rows + exported wf_* worlds, informational) but are OUT of
+    // the chip/ship band: blockade's ~0 direct-line finish rates (T1 round-5, ~900 gens unlearned) and then
+    // blocks' partial 8% (17 -> 12 -> 8 -> 8 over the recovery chunks) would poison the lex-min of every
+    // future training warm-started from the chip — the ship band is the clean 13-kind set (= S4's kinds,
+    // on the harder loosened courses; wf40 g423 mean 92.6% vs S4's 90.9% there)
     expect(WF_CANDIDATE_KINDS).toContain('blockade')
     expect(WF_CANDIDATE_KINDS).toContain('blocks')
     expect(WF_CHIP_KINDS).not.toContain('blockade')
-    expect(WF_CHIP_KINDS).toContain('blocks')
-    // the chip band covers every v3 kind except blockade (training + eval + ship claims)
-    expect([...WF_CHIP_KINDS].sort()).toEqual([...V3_KINDS].filter((k) => k !== 'blockade').sort())
-    expect(WF_CHIP_KINDS).toHaveLength(V3_KINDS.length - 1)
+    expect(WF_CHIP_KINDS).not.toContain('blocks')
+    // the chip band covers every v3 kind except the two detour kinds (training + eval + ship claims)
+    expect([...WF_CHIP_KINDS].sort()).toEqual([...V3_KINDS].filter((k) => k !== 'blockade' && k !== 'blocks').sort())
+    expect(WF_CHIP_KINDS).toHaveLength(V3_KINDS.length - 2)
   })
 
   it('resolves every entry whose genome file exists; genomes are v3-shaped; stretch candidates are skipped while training', () => {
