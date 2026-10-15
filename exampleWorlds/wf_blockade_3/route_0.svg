@@ -4,8 +4,12 @@
 <rect x="10.3" y="10" width="71.3" height="1.7" fill="#444a55"/>
 <rect x="10.3" y="10.8" width="1.7" height="198.3" fill="#444a55"/>
 <rect x="80" y="10.8" width="1.7" height="198.3" fill="#444a55"/>
-<rect x="12" y="148.5" width="53.2" height="1.7" fill="#444a55"/>
-<rect x="23.2" y="105.7" width="56.7" height="1.7" fill="#444a55"/>
+<rect x="37.1" y="148.5" width="42.9" height="1.7" fill="#444a55"/>
+<rect x="12" y="148.5" width="10.3" height="1.7" fill="#444a55"/>
+<rect x="12" y="113.6" width="43.5" height="1.7" fill="#444a55"/>
+<rect x="69.3" y="113.6" width="10.7" height="1.7" fill="#444a55"/>
+<rect x="37.9" y="72" width="42.1" height="1.7" fill="#444a55"/>
+<rect x="12" y="72" width="12.7" height="1.7" fill="#444a55"/>
 <polyline points="46.9,189 48.9,30.6" fill="none" stroke="#ff8c42" stroke-width="1.5" stroke-opacity="0.9"/>
 <circle cx="46.9" cy="189" r="5" fill="#ffd24a"/>
 <circle cx="48.9" cy="30.6" r="5" fill="#ff4444"/>
