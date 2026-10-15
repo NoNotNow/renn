@@ -535,20 +535,22 @@ export const SIMPLIFY_M = 1.5
  * construction — it just stops pre-choreographing every weave (fewer, straighter legs: more of the obstacle threading
  * is the net's own work). The values are the LOOSEST that keep the bands intact: measured against the pre-loosening
  * chains, the train-band VARIANT acceptance (8 setups x variants 1-4) stays at or above baseline (gates 28/32 vs 27,
- * dense 20/32 vs 18, crowd / blockade / blocks 32/32) and the pinned v2 example world crowd:1002 still accepts (it
- * rejects above simplify 2.5). maze is NOT in the map: its chains are already decision-sparse (2-14 pts, hairpin
- * waypoints the route needs). Measured train band (pts/chain): gates 217.8 -> 95.0, dense 105.7 -> 26.6,
- * crowd 122.5 -> 55.0.
+ * dense 20/32 vs 18, crowd / blockade / blocks 32/32). maze is NOT in the map: its chains are already decision-sparse
+ * (2-14 pts, hairpin waypoints the route needs). Measured train band (pts/chain): gates 217.8 -> 95.0,
+ * dense 105.7 -> 26.6, crowd 122.5 -> 55.0.
  */
 const LOOSE_KIND_M: Partial<Record<CourseKind, { simplify: number; arcStep: number }>> = {
   gates: { simplify: 2.5, arcStep: 6 },
   dense: { simplify: 5, arcStep: 6 },
-  // crowd curves: the SECOND loosening (2026-10-15, user request "zu viele waypoints in den kurven — schlampiger,
-  // damit das netz seinen job beweist"): arcStep 6 -> 10 only — the turn arcs are sampled half as densely, so the
-  // curve legs carry fewer waypoints and more of the steering is the net's own work. simplify stays 2.5 (the
-  // pinned v2 example world crowd:1002 rejects above it); measured train band: 55.0 -> 54.5 pts/chain (crowd
-  // corners are shallow arcs, so the sampling saving is small per corner), variant acceptance 32/32 unchanged.
-  crowd: { simplify: 2.5, arcStep: 10 },
+  // crowd routes (2026-10-15, user request "zu viele waypoints in den kurven — schlampiger, damit das netz seinen
+  // job beweist"), THREE steps: (1) the 10-14 loosening to simplify 2.5 / arcStep 6 (55.0 pts/chain), (2) arcStep
+  // 6 -> 10 (measured COSMETIC: 54.5 pts/chain — crowd corners are shallow arcs, the sampling saving is small per
+  // corner), (3) the user decision to make the COMMANDED routes genuinely sloppier: simplify 2.5 -> 3.5 — simplify
+  // is the real lever (it drops whole micro-weaves from the route), measured train band 54.5 -> 43.9 pts/chain.
+  // Acceptance guard at 3.5 (scan-crowd): train band 8/8 canonical + 32/32 variants, holdout band 8/8 + 24/24 —
+  // full acceptance. The old pinned v2 example world crowd:1002 REJECTS above simplify 2.5, so the pin moved to
+  // crowd:1001 (the first accepted canonical holdout seed at 3.5; crowd:1002-1004 enumerate 0 chains there).
+  crowd: { simplify: 3.5, arcStep: 10 },
   blockade: { simplify: 5, arcStep: 6 },
   blocks: { simplify: 5, arcStep: 6 },
 }

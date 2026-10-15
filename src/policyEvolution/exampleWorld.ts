@@ -84,7 +84,9 @@ export const POLICY_CHAINS_EXAMPLE_WORLDS: PolicyChainsExampleWorld[] = [
   { id: 'policy_chains_field', setupKey: 'field:1001@0.3', spacing: 100, camera: LOW_CAMERA },
   { id: 'policy_chains_slalom', setupKey: 'slalom:1001', spacing: 110, camera: LOW_CAMERA },
   { id: 'policy_chains_maze', setupKey: 'maze:1009', spacing: 160, camera: { distance: 40, height: 60 } },
-  { id: 'policy_chains_crowd', setupKey: 'crowd:1002', spacing: 110, camera: LOW_CAMERA },
+  // crowd pin (2026-10-15): crowd:1002 — the pin of the 10-14 loosening — REJECTS at the new simplify 3.5
+  // (0 chains); crowd:1001 is the first accepted canonical holdout seed there (2 chains)
+  { id: 'policy_chains_crowd', setupKey: 'crowd:1001', spacing: 110, camera: LOW_CAMERA },
 ]
 
 export function shippedGenomeV2(): number[] {
