@@ -362,3 +362,62 @@ lineage) is widened to H=32 with the old core FROZEN, the new units evolved on h
   - Verdict: S4 is the best net so far — the widen-freeze strategy's end-to-end result (warm H=24 at maze 86 %, H=32 with new
     kinds + collision avoidance + reverse robustness at 91.4 % mean). SHIP CANDIDATE. S4 chip selectable in the training
     dialogs; remaining polish: slalom 93 %, field 92 %, gates touch 39 %.
+
+## Obstacle-fluency (2026-10-14/15): the detour kinds, the direct-line guidance redesign, and the RECOVERY run
+- **The detour kinds** (`blockade`, `blocks`, commit 8673d411): bounded plazas whose TARGET sits behind obstacles the direct
+  start -> target line passes THROUGH; v3 fluency shaping (windowed jerk) priced into every episode; WF waypoint loosening
+  (three crowd difficulty steps in total — the numbers of gates/dense/crowd across this section are INCOMPARABLE with the
+  2026-10-14 S4 numbers and between the steps: gates 217.8 -> 95.0, dense 105.7 -> 26.6, crowd 122.5 -> 55.0 -> 54.5 -> 43.9
+  pts/chain; the crowd pin moved crowd:1002 -> crowd:1001 at the simplify-3.5 step).
+- **The gen-95 stop and the DIRECT-LINE GUIDANCE redesign (commits 0034fe98, ff1085c4, efbcb9ac)**: the first run
+  (wf-of1a, archived) pre-chewed the detour — the planner chains routed around the walls and fed the guidance. Redesign:
+  the chain IS the direct line THROUGH the obstacles (`DIRECT_LINE_KINDS`), the planner acceptance gates solvability only,
+  per-chain offM is plaza scale, the deviation penalty runs at QUARTER weight (`DETOUR_DEV_WEIGHT`), and the WallLos gate
+  keeps credit honest (frozen behind walls, resumes past every crossing — pinned by tests). A mid-run crowd decision
+  (simplify 3.5) re-pinned the crowd example world mid-cycle.
+- **The detour pursuit cost (~900 gens, three geometries)**: fresh H=32 -> H=40 widen-freeze from S4 (`--freeze-old`);
+  Fokus 300 gens (weakness set + detour kinds) -> tripwire (best flat 125 gens); early Release + detour-focus phases to
+  gen 800. `blocks` PARTIALLY learned (the 1-13 m fat-block arcs: 4-5/24 finishes, meanProg ~0.50); `blockade` NEVER did
+  (0/24 finishes at every geometry — side-wall openings demanding 34-42 m swings, mid-plaza 14-21 m after the T1
+  user-authorized course change, commit 1e3bd002). Measured plateau mechanics: WallLos freezes credit 12-40 m before each
+  wall and a PARTIAL lateral swing banks ZERO incremental credit — no gradient toward the swing; the 14-21 m swings sit
+  outside the population's discovery radius at sigma 0.1-0.225.
+- **The band collapse (critic round-6)**: during the detour-focus phases every non-detour kind went UNRANKED and drifted
+  (selection-blind), compounded by the built-in sigma-boost compounding to 2.25x on a stagnating island — gates 92 -> 17 %,
+  free 80 -> 40 %, dense 93 -> 36 %, field 89 -> 39 %, rslalom/deadend -> 0 %, bay -> 7 %, corridor 73 % (grid 100 % /
+  crux 93 % survived) — while T2 stayed silent: its log-parse read the PATH STRING instead of the file
+  (continue-of2-detour.sh:96). TWO watchdog lessons, both recorded in ESCALATION.md: (1) a blind parser must fail loudly,
+  never print ok; (2) the first live arming of the fixed JSON watchdog then killed a HEALTHY run on a pre-first-epoch
+  snapshot (epoch: null is KNOWN-empty, not parser blindness) — state model v2 distinguishes pre-epoch / truncated / complete,
+  red-checked on five cases.
+- **The RECOVERY (commit c5aa6089 + `wf-of2r.json`)**: `WF_CHIP_KINDS` drops blockade from the chip/ship band (its ~0 would
+  poison the lex-min of every future training; dialog rows + wf_blockade_* worlds stay, informational; blocks stays);
+  recovery base = the preserved wf-of2a-g200 candidate (the frozen S4 core bit-identical + fresh-neuron polish — verified by
+  a full-band eval BEFORE recovery training: gates 89 %, free 78 %, dense 86 %, field 96 %, rslalom 79 %, deadend 92 %);
+  400 full-band re-polish gens (14 chip kinds, lr 0.012, the T2 JSON watchdog armed per epoch, gen-plateau rule, file.best
+  tripwire retired as a fossil).
+- **RESULTS (2026-10-15, final eval g423 = the gen-400 epochBest, 8 holdouts/kind, current courses) — SHIP:
+  `wf40_recovery`** — holdout mean **92.6 %** over the clean 13-kind chip band (blockade AND blocks dropped,
+  user decision; dialog rows for both stay as informational): gates/grid/bay/corridor/field **100 %**, crux 98 %,
+  slalom 97 %, dense 95 %, rslalom 92 %, maze 91 %, crowd 88 %, free 72 %, deadend 71 %. Against S4 ON THE SAME
+  harder loosened courses (L1-powered eval, same band): S4 means 90.9 % (13 kinds) / 85.6 % (incl. blocks) —
+  **wf40 wins the fallback comparison** (92.6 vs 90.9; per-kind S4: free 78, bay 92, corridor 100, rslalom 75,
+  deadend 83, field 92, slalom 93, maze 86, crowd 96, gates 100, dense 86, blocks 17, grid 100, crux 100).
+  within-band restoration: gates 17->100, free 40->72, dense 36->95, field 39->100, rslalom 0->92, deadend 0->71,
+  bay 7->100. **The known weakness, cleanly diagnosed**: deadend chain C — the two-bay double-reversal (225-245 m),
+  offcourse at 111-136 m progress; ALL 7 deadend failures at g423 are that one chain (chains 0/1 finish everywhere).
+  **The guarded deadend(+free)-focus chunk was tried before ship and REJECTED on the band** (user's ship-the-better rule):
+  it FIXED the C chain (deadend 88 % > S4's 83, free 81 %) but the unexercised kinds drifted exactly like the detour phase
+  (gates 100->28, dense 95->29, rslalom 92->25, field 100->38, crowd 88->38, slalom 97->66, maze 91->59, crux 98->89;
+  13-kind mean 63.9 %) — g423 ships; the deadend-fix genome is preserved (`wf-of2r-de-g523.candidate.json`) for a future
+  deadend-focus + full-band-release pump. blocks trend through the recovery chunks: 17 -> 12 -> 8 -> 8 % (meanProg ~0.46-0.48).
+- **Watchdog lesson #3 (L1-found, fixed + red-checked)**: the two-epoch confirmation keyed on the full reason string,
+  which embeds the LIVE rate — a drifting kind's string differs every epoch, so the confirmation could never fire
+  (the deadend-focus collapse logged 100->83->42->33 as ok). Confirmation now keys on (kind, breach-TYPE); the detailed
+  reason rides the fire message. Red-checked: gates 1.00 -> 0.83 -> 0.42 (different rates) FIRES at the second
+  consecutive breach. All three lessons are now in ESCALATION.md and baked into t2-watchdog.py.
+- **PARKED — the detour revisit plan (user decision)**: FITNESS SHAPING — credit for laterally CLEARING the wall plane
+  (a shaped reward that pays partial swings, bridging the zero-credit gap the plateau analysis measured), as a designed
+  cycle with an ANTI-CHEESE AUDIT (clearing but stalling / farming lateral distance must not score), gate tests and
+  re-exports, trained WITH the T2 JSON watchdog. H=48 only as a secondary consideration, and only from a recovered base.
+  No further geometry changes without a user call.
