@@ -20,9 +20,10 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
  *    forward obstacle-avoidance kinds (tight alternating gates; a dense jittered obstacle lattice). Their geometry is re-seeded
  *    per start VARIANT (`variantRng`), so the per-generation variant rotation re-jitters the obstacle world itself.
  *  - `blockade` / `blocks` (v3 setup kinds, obstacle-fluency 2026-10-14): see `blockadeCourse`, `blocksCourse` — two DETOUR kinds:
- *    bounded plazas whose TARGET sits behind obstacle(s) that the direct start -> target line passes THROUGH, so the target
+ * *    bounded plazas whose TARGET sits behind obstacle(s) that the direct start -> target line passes THROUGH, so the target
  *    vector points at the obstacle and forward progress demands a committed swing around its end. `blockade`: transverse wall
- *    segments crossing the line, the free opening alternating sides; `blocks`: big jittered blocks with one ON the line.
+ *    PAIRS crossing the line, the seeded opening MID-PLAZA (2026-10-15 T1 course change: the swing must stay in the learnable
+ *    band, ~14-21 m, not the side walls' 34-42 m), alternating sides; `blocks`: big jittered blocks with one ON the line.
  */
 export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid' | 'crux' | 'rslalom' | 'deadend' | 'gates' | 'dense' | 'blockade' | 'blocks'
 
@@ -595,12 +596,16 @@ function denseCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'way
 
 /**
  * `blockade` (v3 detour setup kind): a bounded plaza whose TARGET sits 160-200 m ahead, with 2-4 TRANSVERSE WALL
- * SEGMENTS crossing the direct start -> target line: every wall spans from one side wall across x = 0 (it covers the
- * whole middle band the target line runs in), leaving ONE opening of 12-18 m at the seeded side, and the sides
- * ALTERNATE — forward progress is a sequence of committed lateral swings around the open ends at speed, not the
- * tight threading of `gates`. The opening always fits the planner's 2.5 m inflation (>= 9 m), so the world is
- * solvable by construction. layout: hw (plaza half width), tx / tz (the target), t (wall thickness), openMin /
- * openMax of the seeded opening band.
+ * PAIRS crossing the direct start -> target line: each wall's opening sits MID-PLAZA (T1 user-authorized course
+ * change 2026-10-15 — see the measured reason below), its centre seeded in a band across the plaza width and the
+ * sides ALTERNATING, so forward progress is still a sequence of committed lateral swings, but the swing is
+ * PROPORTIONATE: opening centres land 14-21 m off the middle band the target line runs in (the demonstrated
+ * learnable band — the net finishes `blocks` arcs of 1-13 m; the old side-wall-hugging openings demanded
+ * hw = 34-42 m). Every wall still SPANS ACROSS x = 0 (both segments cover the middle band), so the direct line
+ * passes THROUGH a wall whatever the jittered start / target x (|x| <= 6, the opening's near edge stays
+ * >= 8 m off x = 0). The opening always fits the planner's 2.5 m inflation (>= 12 m), so the world is solvable
+ * by construction. layout: hw (plaza half width), tx / tz (the target), t (wall thickness), openMin / openMax
+ * of the seeded opening band.
  */
 function blockadeCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
   const rng = variantRng('blockade', seed, variant)
@@ -618,10 +623,17 @@ function blockadeCourse(seed: number, variant: number): Pick<Course, 'boxes' | '
   let side = rng.next() < 0.5 ? -1 : 1
   for (let z = -range(rng, 42, 55); z > tz + range(rng, 34, 50); z -= range(rng, 40, 58)) {
     const open = range(rng, openMin, openMax)
-    const wallLen = 2 * hw - open
-    // the wall hugs the `side` wall: its span covers [-open + hw... ] — always across x = 0 (open <= hw - 10),
-    // so the direct line to the target passes THROUGH it whatever the jittered start / target x (|x| <= 10)
-    boxes.push({ at: [side * (hw - wallLen / 2), z], size: [wallLen, t], yawDeg: 0 })
+    // opening centre: mid-plaza band, 14-21 m off x = 0 — near edge >= 8 m keeps the whole jittered line
+    // (|x| <= 6) inside the wall (the direct line always demands the swing), far edge <= hw - 4 keeps the
+    // outer wall segment a real wall whatever the seeded centre
+    const centre = side * range(rng, open / 2 + 8, Math.min(hw - open / 2 - 3, 21))
+    const ac = Math.abs(centre)
+    const sgn = Math.sign(centre) || 1
+    // the wall is TWO SEGMENTS with the seeded opening between them: the inner segment always spans across
+    // x = 0 (its edge at the opening stays >= 8 m past the middle), the outer segment closes the plaza to
+    // the side wall — same total wall coverage as the old one-piece wall, only the opening moved mid-plaza
+    boxes.push({ at: [(sgn * (ac - open / 2 - hw)) / 2, z], size: [ac - open / 2 + hw, t], yawDeg: 0 })
+    boxes.push({ at: [(sgn * (ac + open / 2 + hw)) / 2, z], size: [hw - ac - open / 2, t], yawDeg: 0 })
     side = -side
   }
   return { boxes, waypoints: [[tx, tz]], layout: { hw, tx, tz, t, openMin, openMax } }

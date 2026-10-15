@@ -4,8 +4,12 @@
 <rect x="10.2" y="10" width="71.3" height="1.7" fill="#444a55"/>
 <rect x="10.2" y="10.8" width="1.7" height="198.3" fill="#444a55"/>
 <rect x="79.9" y="10.8" width="1.7" height="198.3" fill="#444a55"/>
-<rect x="11.9" y="148.5" width="53.2" height="1.7" fill="#444a55"/>
-<rect x="23.1" y="105.7" width="56.7" height="1.7" fill="#444a55"/>
+<rect x="37" y="148.5" width="42.9" height="1.7" fill="#444a55"/>
+<rect x="11.9" y="148.5" width="10.3" height="1.7" fill="#444a55"/>
+<rect x="11.9" y="113.6" width="43.5" height="1.7" fill="#444a55"/>
+<rect x="69.2" y="113.6" width="10.7" height="1.7" fill="#444a55"/>
+<rect x="37.8" y="72" width="42.1" height="1.7" fill="#444a55"/>
+<rect x="11.9" y="72" width="12.7" height="1.7" fill="#444a55"/>
 <polyline points="46.8,189 48.8,30.6" fill="none" stroke="#ff8c42" stroke-width="1.5" stroke-opacity="0.9"/>
 <circle cx="46.8" cy="189" r="5" fill="#ffd24a"/>
 <circle cx="48.8" cy="30.6" r="5" fill="#ff4444"/>
@@ -13,8 +17,12 @@
 <rect x="102.7" y="10" width="71.3" height="1.7" fill="#444a55"/>
 <rect x="102.7" y="10.8" width="1.7" height="198.3" fill="#444a55"/>
 <rect x="172.3" y="10.8" width="1.7" height="198.3" fill="#444a55"/>
-<rect x="104.3" y="148.5" width="53.2" height="1.7" fill="#444a55"/>
-<rect x="115.6" y="105.7" width="56.7" height="1.7" fill="#444a55"/>
+<rect x="129.4" y="148.5" width="42.9" height="1.7" fill="#444a55"/>
+<rect x="104.3" y="148.5" width="10.3" height="1.7" fill="#444a55"/>
+<rect x="104.3" y="113.6" width="43.5" height="1.7" fill="#444a55"/>
+<rect x="161.6" y="113.6" width="10.7" height="1.7" fill="#444a55"/>
+<rect x="130.2" y="72" width="42.1" height="1.7" fill="#444a55"/>
+<rect x="104.3" y="72" width="12.7" height="1.7" fill="#444a55"/>
 <polyline points="139.2,189 131.2,30.6" fill="none" stroke="#42a5ff" stroke-width="1.5" stroke-opacity="0.9"/>
 <circle cx="139.2" cy="189" r="5" fill="#7cf2ff"/>
 <circle cx="131.2" cy="30.6" r="5" fill="#ff4444"/>
@@ -22,8 +30,12 @@
 <rect x="195.1" y="10" width="71.3" height="1.7" fill="#444a55"/>
 <rect x="195.1" y="10.8" width="1.7" height="198.3" fill="#444a55"/>
 <rect x="264.7" y="10.8" width="1.7" height="198.3" fill="#444a55"/>
-<rect x="196.8" y="148.5" width="53.2" height="1.7" fill="#444a55"/>
-<rect x="208" y="105.7" width="56.7" height="1.7" fill="#444a55"/>
+<rect x="221.9" y="148.5" width="42.9" height="1.7" fill="#444a55"/>
+<rect x="196.8" y="148.5" width="10.3" height="1.7" fill="#444a55"/>
+<rect x="196.8" y="113.6" width="43.5" height="1.7" fill="#444a55"/>
+<rect x="254.1" y="113.6" width="10.7" height="1.7" fill="#444a55"/>
+<rect x="222.7" y="72" width="42.1" height="1.7" fill="#444a55"/>
+<rect x="196.8" y="72" width="12.7" height="1.7" fill="#444a55"/>
 <polyline points="231.7,189 243.8,30.6" fill="none" stroke="#ff4a6e" stroke-width="1.5" stroke-opacity="0.9"/>
 <circle cx="231.7" cy="189" r="5" fill="#ffb0c2"/>
 <circle cx="243.8" cy="30.6" r="5" fill="#ff4444"/>

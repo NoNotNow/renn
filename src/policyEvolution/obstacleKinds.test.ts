@@ -64,24 +64,48 @@ describe('obstacle-fluency kinds registry', () => {
   })
 })
 
-describe('blockade (transverse walls crossing the target line)', () => {
-  it('the direct line passes THROUGH every wall; one 12-18 m opening per wall, alternating sides', () => {
+describe('blockade (transverse wall pairs crossing the target line)', () => {
+  /**
+   * T1 USER-AUTHORIZED COURSE CHANGE (2026-10-15): the openings moved from the side walls (demanded swing
+   * hw = 34-42 m, measured plateau 0.253 after 600 detour-focus gens) to MID-PLAZA — seeded centres in the
+   * demonstrated learnable band (~10-20 m), alternating sides so forward progress stays a sequence of
+   * committed lateral swings. Each wall is TWO SEGMENTS whose union still spans across x = 0.
+   */
+  it('the direct line passes THROUGH every wall; MID-PLAZA 12-18 m openings in the learnable swing band, alternating sides', () => {
     for (const seed of [1, 2, 3]) {
       const course = buildSetupCourse(`blockade:${seed}`)
       const hw = course.layout!.hw!
-      const walls = course.boxes.filter((b) => b.size[1] === 2 && b.size[0] > 20 && b.at[1] < -20 && b.at[1] > course.layout!.tz! + 20)
-      expect(walls.length).toBeGreaterThanOrEqual(2)
-      for (const w of walls) {
-        const opening = 2 * hw - w.size[0]
-        expect(opening).toBeGreaterThanOrEqual(12)
-        expect(opening).toBeLessThanOrEqual(18)
-        // the wall hugs one side: its span reaches across x = 0 (the line the target sits on)
-        expect(w.size[0]).toBeGreaterThan(hw)
+      const tz = course.layout!.tz!
+      // transverse wall SEGMENTS (thickness 2, interior z); every wall = a PAIR of segments at the same z
+      const segs = course.boxes.filter((b) => b.size[1] === 2 && b.size[0] > 4 && b.at[1] < -20 && b.at[1] > tz + 20)
+      const byZ = new Map<number, typeof segs>()
+      for (const s of segs) byZ.set(s.at[1]!, [...(byZ.get(s.at[1]!) ?? []), s])
+      expect(byZ.size).toBeGreaterThanOrEqual(2)
+      const centres: number[] = []
+      for (const pair of byZ.values()) {
+        expect(pair).toHaveLength(2)
+        const [left, right] = [...pair].sort((a, b) => a.at[0]! - b.at[0]!)
+        const gapL = left.at[0]! + left.size[0] / 2
+        const gapR = right.at[0]! - right.size[0] / 2
+        const open = gapR - gapL
+        const centre = (gapL + gapR) / 2
+        centres.push(centre)
+        expect(open).toBeGreaterThanOrEqual(12)
+        expect(open).toBeLessThanOrEqual(18)
+        // mid-plaza swing band: the seeded centre sits 12-22 m off the middle the target line runs in
+        expect(Math.abs(centre)).toBeGreaterThanOrEqual(12)
+        expect(Math.abs(centre)).toBeLessThanOrEqual(22)
+        // the opening never touches the middle band: the whole jittered line (|x| <= 6) stays inside the wall
+        expect(Math.abs(centre) - open / 2).toBeGreaterThanOrEqual(8)
+        // both segments are real walls: the inner one spans across x = 0, the outer one closes to the side wall
+        expect(left.at[0]! - left.size[0] / 2).toBeLessThanOrEqual(-hw + 0.5)
+        expect(right.at[0]! + right.size[0] / 2).toBeGreaterThanOrEqual(hw - 0.5)
+        expect(hw - Math.abs(centre) - open / 2).toBeGreaterThanOrEqual(1)
       }
-      const sides = walls.map((w) => Math.sign(w.at[0]))
-      expect(sides.some((s, i) => i > 0 && s === sides[i - 1])).toBe(false) // strictly alternating: the detour weaves
+      // the openings alternate sides: the detour weaves
+      expect(centres.map(Math.sign).some((s, i) => i > 0 && s === centres.map(Math.sign)[i - 1])).toBe(false)
       // the direct line crosses EVERY wall — the target vector points through the whole blockade
-      expect(lineCrossedBoxes(course)).toBeGreaterThanOrEqual(walls.length)
+      expect(lineCrossedBoxes(course)).toBeGreaterThanOrEqual(byZ.size)
     }
   })
 

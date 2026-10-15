@@ -3138,12 +3138,12 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 63.33125986484811,
+        "width": 51.016078651962914,
         "height": 6,
         "depth": 2
       },
       "position": [
-        -8.777570622274652,
+        14.93516122871725,
         3,
         -47.158736703917384
       ],
@@ -3160,14 +3160,102 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 67.52751503419131,
+        "width": 12.315181212885197,
         "height": 6,
         "depth": 2
       },
       "position": [
-        6.6794430376030505,
+        -34.28560994825611,
         3,
-        -98.12678414955735
+        -47.158736703917384
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_6_0",
+      "name": "Box 6_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 51.733630206402026,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        -14.576385451497693,
+        3,
+        -88.69651320250705
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_7_0",
+      "name": "Box 7_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 12.69814684431664,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        34.094127132540386,
+        3,
+        -88.69651320250705
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_8_0",
+      "name": "Box 8_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 50.07162423077855,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        15.407388439309427,
+        3,
+        -138.1944185225293
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_9_0",
+      "name": "Box 9_0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15.102285910678315,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        -32.892057599359546,
+        3,
+        -138.1944185225293
       ],
       "rotation": [
         0,
@@ -3358,12 +3446,12 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 63.33125986484811,
+        "width": 51.016078651962914,
         "height": 6,
         "depth": 2
       },
       "position": [
-        101.22242937772535,
+        124.93516122871725,
         3,
         -47.158736703917384
       ],
@@ -3380,14 +3468,102 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 67.52751503419131,
+        "width": 12.315181212885197,
         "height": 6,
         "depth": 2
       },
       "position": [
-        116.67944303760305,
+        75.71439005174389,
         3,
-        -98.12678414955735
+        -47.158736703917384
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_6_1",
+      "name": "Box 6_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 51.733630206402026,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        95.42361454850231,
+        3,
+        -88.69651320250705
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_7_1",
+      "name": "Box 7_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 12.69814684431664,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        144.0941271325404,
+        3,
+        -88.69651320250705
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_8_1",
+      "name": "Box 8_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 50.07162423077855,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        125.40738843930943,
+        3,
+        -138.1944185225293
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_9_1",
+      "name": "Box 9_1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15.102285910678315,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        77.10794240064045,
+        3,
+        -138.1944185225293
       ],
       "rotation": [
         0,
@@ -3578,12 +3754,12 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 63.33125986484811,
+        "width": 51.016078651962914,
         "height": 6,
         "depth": 2
       },
       "position": [
-        211.22242937772535,
+        234.93516122871725,
         3,
         -47.158736703917384
       ],
@@ -3600,14 +3776,102 @@
       "bodyType": "static",
       "shape": {
         "type": "box",
-        "width": 67.52751503419131,
+        "width": 12.315181212885197,
         "height": 6,
         "depth": 2
       },
       "position": [
-        226.67944303760305,
+        185.7143900517439,
         3,
-        -98.12678414955735
+        -47.158736703917384
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_6_2",
+      "name": "Box 6_2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 51.733630206402026,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        205.42361454850231,
+        3,
+        -88.69651320250705
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_7_2",
+      "name": "Box 7_2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 12.69814684431664,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        254.0941271325404,
+        3,
+        -88.69651320250705
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_8_2",
+      "name": "Box 8_2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 50.07162423077855,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        235.40738843930941,
+        3,
+        -138.1944185225293
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_9_2",
+      "name": "Box 9_2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 15.102285910678315,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        187.10794240064047,
+        3,
+        -138.1944185225293
       ],
       "rotation": [
         0,
