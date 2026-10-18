@@ -47,6 +47,7 @@
   {"key": "gapWallClear", "type": "number", "default": 3.5, "group": "Evasion", "min": 0, "advanced": true},
   {"key": "gapWallFilter", "type": "boolean", "default": true, "group": "Evasion", "advanced": true},
   {"key": "gapWallMin", "type": "number", "default": 60, "group": "Evasion", "min": 0, "advanced": true},
+  {"key": "gapWallAlign", "type": "number", "default": 0, "group": "Evasion", "min": 0, "max": 1, "description": "0..1 scale of the escape-heading alignment term while the straight line car -> real goal crosses a known wall on the persistent map (needs gapWalls): a heading that merely points at the walled goal is not progress toward it, so 0 (default) keeps the commit on the open-space heading instead of turning back toward the wall.", "advanced": true},
   {"key": "gapWallNeed", "type": "number", "default": 60, "group": "Evasion", "min": 0, "advanced": true},
   {"key": "gapWallPen", "type": "number", "default": 0, "group": "Evasion", "min": 0, "advanced": true},
   {"key": "gapWallTrade", "type": "number", "default": 8, "group": "Evasion", "min": 0, "advanced": true},
@@ -59,6 +60,7 @@
   {"key": "fleeBadAlign", "type": "number", "default": 1, "group": "Evasion", "min": 0, "max": 1, "description": "Weight of the alignment with the real goal in escape-heading scoring while the goal is flagged unreachable (1 = unchanged).", "advanced": true},
   {"key": "fleeReleaseT", "type": "number", "default": 1, "group": "Evasion", "unit": "s", "min": 0, "advanced": true},
   {"key": "fleeReleaseNear", "type": "number", "default": 0, "group": "Evasion", "unit": "m", "min": 0, "description": "m, 0 = off: engagement radius of the pursuit sim — a NEW escape only starts while a moving tracked threat is within this distance of the car, and a committed escape goal is released once none is (the release keeps its fleeReleaseT timer as hysteresis; without this, long-range intercept predictions with chasers 60-100 m away start and keep flees that read as 'escape goal with no chaser nearby').", "advanced": true},
+  {"key": "escapeGoalDash", "type": "boolean", "default": false, "group": "Evasion", "description": "bool, default OFF; opt-in, needs gapCommit: a NEW escape does not start while the real goal is directly reachable (free straight run on the persistent map) and the car reaches it before the earliest predicted intercept (goal distance < own speed x the trigger horizon) — the car dashes to the goal instead of fleeing from a pursuit that arrives after it is done. A committed escape is untouched (release / fleeReleaseNear own it).", "advanced": true},
   {"key": "gapWalls", "type": "boolean", "default": false, "group": "Evasion", "description": "bool, default OFF; opt-in, needs gapCommit", "advanced": true},
   {"key": "gapWarmup", "type": "number", "default": 0, "group": "Evasion", "unit": "s", "min": 0, "description": "s, 0.1: no commit before the pursuers' velocities are filtered", "advanced": true},
   {"key": "goalOpen", "type": "boolean", "default": true, "group": "Evasion", "description": "bool, default ON; false disables; flee / escape goals only, never mission goals", "advanced": true},
@@ -129,7 +131,7 @@
 // (escapeAccel 15 m/s^2, escapeSpeed 36 m/s top, kappa <= maxCurvature, lateral accel <= maxLatAccel) for escapeHorizon (5 s) against the pursuit-predicted pursuers (pure pursuit with their observed turn
 // rate, as the motion planner); score = smallest centre distance reached (capped at escapeSafe) + goal alignment / turn penalties. The heading is kept (hysteresis) and the goal is 90 m ahead on it. It also
 // triggers when the heading to the real goal is predicted to come within escapeTrigger (m, 16) of a pursuer, which can be far outside the 90 m geometric danger range. escapeRange (m, 160): pursuers considered.
-// gapWalls (bool, default OFF; opt-in, needs gapCommit): the escape headings also need a free run over the persistent static map (av.prevSmap = last frame's av.smap, 2 m cells, car half-width + gapWallClear 3.5 m): headings shorter than gapWallMin (60 m) are not candidates unless that costs more than gapWallTrade (8) score points against the best short one (race first); none long enough = the longest run; the goal is put at the last free point of the run (min 8 m, gapWallClamp:false = off), a held goal whose heading hits a known wall is re-picked, a goal clamped that way is re-picked once the car is within gapReach (10 m). Cuts the lab seed-6 maze-pocket shuttle (path 955 -> 1500-1750 m) but flips other lab seeds (chaotic), hence off.
+// gapWalls (bool, default OFF; opt-in, needs gapCommit): while the straight line to the real goal crosses a known wall, the alignment term of the escape-heading score is scaled by gapWallAlign (default 0): straight-line alignment through a wall is not progress toward the goal (measured regression of the Oct 10-12 flee tuning: the commit turned back mid-wall-run toward the walled goal and the wall-runaround never happened). The escape headings also need a free run over the persistent static map (av.prevSmap = last frame's av.smap, 2 m cells, car half-width + gapWallClear 3.5 m): headings shorter than gapWallMin (60 m) are not candidates unless that costs more than gapWallTrade (8) score points against the best short one (race first); none long enough = the longest run; the goal is put at the last free point of the run (min 8 m, gapWallClamp:false = off), a held goal whose heading hits a known wall is re-picked, a goal clamped that way is re-picked once the car is within gapReach (10 m). Cuts the lab seed-6 maze-pocket shuttle (path 955 -> 1500-1750 m) but flips other lab seeds (chaotic), hence off.
 // gapCommit (bool, default ON; false disables): fleeSim's escape-heading search, but only against >= 2 pursuers, and the chosen goal (escapeGoalDist 150 m) is an ABSOLUTE point kept until reached / clearly worse (escapeSwitch 6, eval every 0.3 s) so the motion planner gets a fixed target. Also with gapCommit: gapWarmup (s, 0.1: no commit before the pursuers' velocities are filtered), gapTrackRange (m, 160: far list av.threatsFar for the sim only), escapeAccel default 9, av.fleeSim (motion planner `fleeAimDirect`, default on, aims at the committed goal instead of the route carrot).
 // goalOpen (bool, default ON; false disables; flee / escape goals only, never mission goals): candidate goals are scored by openness on the persistent static map (av.prevSmap, 2 m cells): the geometric ring subtracts goalOpenW (1.5) x (wall cells within goalOpenRadius 15 m of the candidate / 100; goalOpenLine:true also the share of the straight way past the first wall, off: it flips corner-trap), the gapCommit escape headings subtract goalOpenGap (6) x (1 - free run / goalOpenRun 60 m); a held escape goal is re-scored every evaluation so new walls around it make it lose.
 // mazeModule (bool, default off; on in self_hunt_flexible): in a confined space (labyrinth) the flee goal is a waypoint on the least-resistance route to the nearest reachable exit instead of a ring / heading goal; watch `av.maze`, overlay = violet route (see mazeStep below and agent-context/feature-av-stack.md 'Maze module').
@@ -662,6 +664,23 @@ function fleeGoal(av, thrs, input, params, state, api) {
     }
   }
   if (!fl && simDanger && !engaged) simDanger = false
+  // escapeGoalDash (opt-in): while the real goal is directly reachable (free straight run over the persistent map) and the car reaches it within
+  // the trigger horizon at its own speed, a NEW escape does not start: no predicted intercept can land before the car is at the goal, so fleeing
+  // from it only spends the time the dash needs (measured: the flee commit turned the car away 30-50 m before the goal and the run timed out).
+  var dashActive = false
+  if (params.escapeGoalDash === true && !bad) {
+    var dashD = Math.sqrt((g0[0] - pos[0]) * (g0[0] - pos[0]) + (g0[2] - pos[2]) * (g0[2] - pos[2]))
+    var dashH = qTrig ? qTrig.H : params.escapeHorizon != null ? params.escapeHorizon : 5
+    if (dashD < Math.max(1, Math.abs(av.ego.speedF)) * dashH) {
+      var dashOK = true
+      if (av.prevSmap && av.prevSmap.list && av.prevSmap.list.length) {
+        var rr2 = Math.min(dashD, params.fleeReleaseRun != null ? params.fleeReleaseRun : 80)
+        dashOK = freeRun(wallGrid(av.prevSmap.list, state), pos[0], pos[2], Math.atan2(g0[2] - pos[2], g0[0] - pos[0]), rr2, 3.5) >= rr2 - 2
+      }
+      dashActive = dashOK
+    }
+  }
+  if (!fl && simDanger && dashActive) simDanger = false
   // fleeRelease (default on, false = off): a committed gap goal is an absolute point ~150 m away that is held until the car is within 25 m of it, i.e. the car flees for many seconds although the pursuers
   // are 50-150 m away and the real goal is safe again (measured: 59 % of the flee frames have the nearest chaser > 40 m away). Release it once the simulated run to the REAL goal keeps
   // >= fleeReleaseD (30 m, trigger is 16) from every pursuer for fleeReleaseT (1 s) with a clear straight way (the persistent static map shows a free straight run to the goal (fleeReleaseRun 80 m); not while the watchdog says the goal is unreachable — except when not engaged, see fleeReleaseNear): the car drives to its goal again.
@@ -727,7 +746,7 @@ function fleeGoal(av, thrs, input, params, state, api) {
     // not engaged (no moving tracked threat within fleeReleaseNear): release without the sim's blessing — the pursuit sim keeps a far chaser's
     // predicted intercept (simGoalD < fleeReleaseD) committed for the goal's whole run although nothing is near; this also ends a goal held only by the
     // watchdog's unreachable flag (bad). The timers stay as hysteresis; a threat entering the radius re-arms the escape at once.
-    if ((!engaged || (directGoal && simGoalD > (params.fleeReleaseD != null ? params.fleeReleaseD : 30) && !danger(g0[0], g0[2]))) && now - fl.t0 > (params.escapeHold != null ? params.escapeHold : 1.5)) {
+    if ((!engaged || (directGoal && simGoalD > (params.fleeReleaseD != null ? params.fleeReleaseD : 30) && !danger(g0[0], g0[2])) || dashActive) && now - fl.t0 > (params.escapeHold != null ? params.escapeHold : 1.5)) {
       if (fl.rel === undefined) fl.rel = now
       if (now - fl.rel >= (params.fleeReleaseT != null ? params.fleeReleaseT : 1)) {
         state.flee = null
@@ -743,7 +762,9 @@ function fleeGoal(av, thrs, input, params, state, api) {
   }
   if (sim && fl && now - fl.t0 < (params.escapeHold != null ? params.escapeHold : 1.5)) simDanger = true
   if (!sim && fl && fl.gap) fl = state.flee = null
-  if ((!bad || !engaged) && !simDanger && !danger(g0[0], g0[2])) {
+  // dashActive: a hot goal line (danger) does not start a new escape either while the dash can win the race — the motion planner's
+  // threat prediction and the AEB still dodge the pursuer locally; only the goal is held (the flee layer stays off).
+  if ((!bad || !engaged) && !simDanger && (!danger(g0[0], g0[2]) || dashActive)) {
     state.flee = null
     av.fleeing = false
     return
@@ -1574,6 +1595,13 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
   var wFilter = params.gapWallFilter !== false
   var wMin = params.gapWallMin != null ? params.gapWallMin : 60
   var wHalf = params.gapWallClear != null ? params.gapWallClear : 3.5
+  // gapWallAlign: the straight line car -> real goal stops at a known wall cell (the map the wall grid is built from): straight-line alignment
+  // then reads as zero progress (see the header). The alignment returns by itself once the car rounds a wall end (the goal line runs clear again).
+  var goalWalled = false
+  if (walls) {
+    var gdR2 = Math.sqrt((g0[0] - pos[0]) * (g0[0] - pos[0]) + (g0[2] - pos[2]) * (g0[2] - pos[2]))
+    goalWalled = gdR2 > 12 && freeRun(walls, pos[0], pos[2], goalAng, gdR2, wHalf) < gdR2 - 2
+  }
   function scoreOf(ang, dGoal) {
     var d0 = escapeSim(thrs, pos, yaw0, v0, ang, 0, q)
     var d1 = escapeSim(thrs, pos, yaw0, v0, ang, 1, q)
@@ -1581,7 +1609,7 @@ function fleeSim(av, input, params, state, g0, area, fl, now, thrs, q, yaw0) {
     var turn = Math.abs(ang - yaw0)
     while (turn > Math.PI) turn = Math.abs(turn - 2 * Math.PI)
     // fleeBadAlign (0..1, default 1 = unchanged): weight of the alignment with the real goal while the watchdog says that goal is unreachable (the car then picks its own goals; steering them at the unreachable goal ends at its wall)
-    var al = Math.cos(ang - goalAng) * (av.goalBad && params.fleeBadAlign != null ? params.fleeBadAlign : 1)
+    var al = Math.cos(ang - goalAng) * (av.goalBad && params.fleeBadAlign != null ? params.fleeBadAlign : 1) * (goalWalled ? (params.gapWallAlign != null ? params.gapWallAlign : 0) : 1)
     var run = D
     var wp = 0
     var blocked = false
