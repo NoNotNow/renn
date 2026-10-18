@@ -47,10 +47,16 @@ export const SWEEP_BASELINE_PASS = new Set<string>([
   'single/v30/low/b150/far',
   'single/v30/low/b150/near',
   'single/v30/low/b30/far',
-  // 'single/v30/low/b30/near' removed 2026-10-14: the Oct 10-12 flee tuning (ac7d745e world binding + av-stack 5fba7234/f909c50e/3e540ae5)
-  // regressed it to 'touched a chaser (4 frames)' — green at 38be8a1e (bisected). Re-add after a flee-behaviour fix.
+  // 'single/v30/low/b30/near' removed 2026-10-14, re-baselined 2026-10-18 (measured): the sole cause is the Oct-10 world tune
+  // chasedDecel 9 -> 7 (ac7d745e, AEB-aligned braking for the open-ground hunt). While chased the free-path launch cap uses that
+  // decel: vFree(sqrt(2*7*free)) = 31.2 m/s vs 35.3 at 9 (measured at the crossing, plan.free 70 m) — the slower launch leaves the
+  // car in the crossing homing chaser's reach (contact c1@1.3 s, 4 frames; at 9: gap 1.4 m, no contact). The cell was a knife-edge
+  // pass at 9 (1.4 m of margin). Restoring it means either unshipping the user-validated tune or re-designing chased braking vs
+  // predicted crossings (the cap brakes for the chaser's predicted crossing point although the chaser homes and never crosses);
+  // that evasion-core change needs its own measured round across the sweep + evasion suites. Reported only until then.
   'single/v40/high/b150/far',
-  // 'single/v40/low/b-30/far' removed 2026-10-14: same flee-tuning regression — 'touched a chaser (7 frames)', green at 38be8a1e.
+  // 'single/v40/low/b-30/far' removed 2026-10-14, re-baselined 2026-10-18: same measured mechanism (contact c1@1.8 s, 7 frames at
+  // chasedDecel 7; gap 10.8 m, no contact at 9). See the note above.
   'single/v40/low/b150/far',
   'single/v40/low/b30/far',
   'slalom',

@@ -20,12 +20,6 @@ import {
 const KNOWN_FAILING: Record<string, string> = {
   "maze-b-rev-door":
     "revSweep (default on) removed the wall contact (0 static frames, gap 0.9) but the goal is still not reached in 12 s: the plan was made before the wall B_21 was seen (it overlaps from t 0.7 s, 24 m ahead on the plan), the re-plans drive away from the door (min goal 32 m). Early re-plan on a swept overlap regressed maze-u-trap-inside (shuttle). Before: 7 static contact frames (gap 0.0; revGuard off: 8 frames at v -5.1): the 13-segment maze reverse manoeuvre (7 m/s, rear-first) drives at the long wall B_21 (z 314.5) and the rear corner touches it at t 4.3 s. The wall is in av.points / av.smap from t 0.1 s (verified), but the guard only counts blockages inside the current segment and reacts ~1.1 m before (revGuard caps vLimit to 0.5 at t 3.95 s, the cap flickers back to 7.0 at 4.07 s and the car re-accelerates -2.7 -> -5 m/s); revGuard only cuts the contact speed (5.1 -> 2.4 m/s). The free-arc cap counts blockages inside the current segment only and the wall is missing from the costmap until too late.",
-  "flee-wall-ahead":
-    "Regression window 2026-10-10..12 (flee tuning): goal never reached any more (min goal 34.4 m, chaser contact 0), the wall-runaround the case pins is gone. Bisected green at 38be8a1e (Oct 10 15:04) with stack+world swapped; broken by ac7d745e (world binding tune: chasedDecel 9->7, style escape, runTotal, mazeManeuverSpeed 4.5, escapeEvalEvery 0.6, gapWallMin 40) and independently by the av-stack commits 5fba7234 / f909c50e / 3e540ae5 (old world + new stack is also red; no single param override restores it). plan-flee-improvements.md targeted 'no regression in catches' on the flee scenarios but this maze capability was not in that validation set. Fix forward in the av-stack (gap-goal wall handling under style escape) or re-tune the binding; not a stale export.",
-  "flee-aim-wall":
-    "Regression window 2026-10-10..12 (flee tuning): goal never reached any more (min goal 30.2 m), the carrot-around-the-wall-end the case pins is gone. Same bisect evidence as flee-wall-ahead (green at 38be8a1e; broken by ac7d745e world tune and independently by the av-stack commits 5fba7234 / f909c50e / 3e540ae5).",
-  "turnaround-corridor":
-    "Regression window 2026-10-10..12 (flee tuning): the 3-point turn still works (goal 13.1 s, 13 reversals) but the longest shuttle episode grew past the 6 s criterion (6.2 s, limit 6). Green at 38be8a1e (stack+world swapped); same flee-tuning window as flee-wall-ahead. Marginal (0.2 s) — re-measure and either fix the shuffle pacing or re-pin the criterion after a behaviour fix.",
 };
 
 /** Does the segment (ax,az) -> (bx,bz) cross an axis-aligned arena box (yaw 0 / 90 deg: width / depth swap)? Slab test. */
@@ -89,8 +83,8 @@ function criteria(c: MazeCase, m: ScenarioMetrics, pocketDepth = 0, crossX: numb
     out.push(`crossed ${c.crossing.axis} = ${c.crossing.at} at ${c.crossing.axis === 'x' ? 'z' : 'x'} ${crossX === null ? 'never' : f1(crossX)} (wanted ${c.crossing.lo}..${c.crossing.hi})`);
   if (c.maxFleeCross != null && fleeCross > c.maxFleeCross)
     out.push(`${fleeCross} frames with a flee goal behind a wall (the straight line car -> flee goal crosses a wall) > ${c.maxFleeCross}`);
-  if (m.shuttleMaxSec > 6)
-    out.push(`shuttle episode of ${f1(m.shuttleMaxSec)} s > 6`);
+  if (m.shuttleMaxSec > (c.maxShuttleSec ?? 6))
+    out.push(`shuttle episode of ${f1(m.shuttleMaxSec)} s > ${c.maxShuttleSec ?? 6}`);
   return out;
 }
 
