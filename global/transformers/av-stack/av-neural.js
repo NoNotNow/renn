@@ -234,7 +234,7 @@ function deriveCmdV3(params, state, dt, pos, speed) {
   return [state.aim[0], state.aim[1], state.nxt[0], state.nxt[1]]
 }
 
-// AV stack · NEURAL drive mode (Phase 1: the evolved policy net, 26 inputs incl. the two touch flags, no speed command). GENERATED from src/policyEvolution/policyStage.ts: do not edit by hand.
+// AV stack · NEURAL drive mode (Phase 1: the evolved policy net, 26 inputs incl. the two touch flags, no speed command). GENERATED from src/policyEvolution/avNeuralStage.ts: do not edit by hand.
 // The shipped net (the policy evolved in src/policyEvolution) follows the command the AV stack hands over: the car is projected onto av.routePath
 // (fallback: straight line to av.carrot / maze goal / input.target), aim = clamp(lmin + tau * v, lmin, 40) m ahead along it, next = direction of the
 // segment beyond the aim, refreshed every period s: the SAME rule as in training (deriveCmd above). It writes steering / throttle / brake; the lateral,
