@@ -10,7 +10,6 @@
  */
 
 import type { RennWorld } from '@/types/world'
-import { V3_KINDS } from './courses'
 import { POLICY_CAR_ID } from './episode'
 
 /** Kinds exported per candidate: the widen-freeze kinds (where final and baseline differ most) + the key originals + the obstacle-fluency detour kinds (blockade / blocks, commit 8673d411). */
@@ -26,8 +25,16 @@ export const WF_CANDIDATE_KINDS: readonly string[] = ['rslalom', 'deadend', 'gat
  * harder loosened courses; wf40 g423 mean 92.6 % vs S4's 90.9 % there). The DIALOG world rows keep BOTH
  * (`WF_CANDIDATE_KINDS` above, informational rows + the exported wf_* worlds stay). Both remain parked for the
  * FITNESS-SHAPING revisit (see ESCALATION.md / the RESULTS block).
+ *
+ * The band is an EXPLICIT list (user decision 2026-10-18), not a V3_KINDS.filter: a future kind must be
+ * added consciously — the pin test in wfCandidateWorlds.test.ts goes red when this list drifts, and the
+ * coverage assertion there goes red when a new v3 kind is not decided into (or out of) the band.
  */
-export const WF_CHIP_KINDS: readonly string[] = V3_KINDS.filter((kind) => kind !== 'blockade' && kind !== 'blocks')
+export const WF_CHIP_KINDS: readonly string[] = [
+  'free', 'bay', 'corridor', 'rslalom', 'deadend',
+  'field', 'slalom', 'maze', 'crowd',
+  'gates', 'dense', 'grid', 'crux',
+]
 
 /** Holdout setups per kind — the same band the powered evals report on (holdoutV3Episodes(3, kinds)). */
 export const WF_HOLDOUTS_PER_KIND = 3

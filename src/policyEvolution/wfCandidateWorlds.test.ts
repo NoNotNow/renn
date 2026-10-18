@@ -34,6 +34,18 @@ let specsCache: WfCandidateWorldSpec[] | null = null
 const allSpecs = (): WfCandidateWorldSpec[] => (specsCache ??= wfCandidateWorldSpecs())
 
 describe('wf candidate manifest', () => {
+  it('WF_CHIP_KINDS is the EXPLICIT 13-kind ship band, not derived — a new v3 kind turns this red until consciously added (user decision 2026-10-18)', () => {
+    // the explicit pin: before 2026-10-18 the band was V3_KINDS.filter(...), so a future kind would
+    // silently slip into the chip band. This hardcoded list cannot drift without this test going red;
+    // a new V3_KINDS entry is caught by the coverage assertion in the 2026-10-15 test below — adding
+    // a kind means deciding its chip fate in wfCandidates.ts consciously.
+    expect([...WF_CHIP_KINDS]).toEqual([
+      'free', 'bay', 'corridor', 'rslalom', 'deadend',
+      'field', 'slalom', 'maze', 'crowd',
+      'gates', 'dense', 'grid', 'crux',
+    ])
+  })
+
   it('the CHIP kind set drops blockade AND blocks while the dialog world rows keep them (user decision 2026-10-15)', () => {
     // blockade + blocks stay world kinds (dialog rows + exported wf_* worlds, informational) but are OUT of
     // the chip/ship band: blockade's ~0 direct-line finish rates (T1 round-5, ~900 gens unlearned) and then
