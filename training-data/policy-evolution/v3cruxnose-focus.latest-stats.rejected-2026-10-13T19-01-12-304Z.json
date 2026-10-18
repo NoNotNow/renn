@@ -1,0 +1,102 @@
+{
+ "schema": "renn.policy-evolution.latest-stats/1",
+ "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/v3cruxnose-focus.json",
+ "policy": "v3",
+ "kinds": [
+  "crux"
+ ],
+ "speedCap": 10,
+ "gen": 4400,
+ "updatedAt": "2026-10-13T19:01:09.833Z",
+ "elapsedSec": 86,
+ "islands": {
+  "centers": [
+   0.861,
+   0.356,
+   0.77
+  ],
+  "ages": [
+   700,
+   0,
+   250
+  ],
+  "stagns": [
+   2,
+   0,
+   2
+  ],
+  "boosts": [
+   1,
+   1,
+   1
+  ],
+  "globalStagn": 2,
+  "globalBoost": 1,
+  "focus": {
+   "set": [
+    0,
+    2
+   ],
+   "epochs": 0,
+   "sinceGen": 4400,
+   "max": 4
+  }
+ },
+ "stage": {
+  "share": 0,
+  "ema": 0
+ },
+ "epoch": {
+  "gen": 4400,
+  "scores": [
+   0.9428365957184893,
+   0.346081823642296,
+   0.9223077561471981
+  ],
+  "bestIsland": 0,
+  "replaced": 1,
+  "by": "immigrant",
+  "train": {
+   "fitness": 0.3422881202897435,
+   "finished": 85,
+   "total": 94,
+   "worst3": [
+    0.3422881202897435,
+    0.3522394629608944,
+    0.3779593922746485
+   ]
+  },
+  "holdout": {
+   "fitness": 0.2765955961053482,
+   "finished": 47,
+   "total": 54
+  },
+  "perKind": [
+   {
+    "kind": "crux",
+    "chains": 54,
+    "finished": 47,
+    "finishRate": 0.8703703703703703,
+    "setups": 10,
+    "setupsAllFinished": 7,
+    "allFinishedShare": 0.7,
+    "offcourse": 1,
+    "crashes": 6,
+    "reverseShare": 0.0011066843736166443,
+    "maxReverseM": 0.02014209299217656,
+    "reversedEpisodes": 0
+   }
+  ]
+ },
+ "best": {
+  "gen": 3575,
+  "train": 0.938194255719633,
+  "holdout": 0.8762614723388671,
+  "worst3": [
+   0.938194255719633,
+   0.9383181293370026,
+   0.939997330174071
+  ]
+ },
+ "why": "every 20 gens"
+}

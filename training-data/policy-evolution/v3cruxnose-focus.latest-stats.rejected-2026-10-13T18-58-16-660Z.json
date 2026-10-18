@@ -1,0 +1,92 @@
+{
+ "schema": "renn.policy-evolution.latest-stats/1",
+ "source": "/Users/manuelgilbertriviere/Documents/Dev/renn/training-data/policy-evolution/v3cruxnose-focus.json",
+ "policy": "v3",
+ "kinds": [
+  "crux"
+ ],
+ "speedCap": 10,
+ "gen": 4375,
+ "updatedAt": "2026-10-13T18:58:14.130Z",
+ "elapsedSec": 72,
+ "islands": {
+  "centers": [
+   0.921,
+   0.13,
+   0.915
+  ],
+  "ages": [
+   675,
+   50,
+   225
+  ],
+  "stagns": [
+   1,
+   1,
+   1
+  ],
+  "boosts": [
+   1,
+   1,
+   1
+  ],
+  "globalStagn": 1,
+  "globalBoost": 1,
+  "focus": null
+ },
+ "stage": {
+  "share": 0,
+  "ema": 0
+ },
+ "epoch": {
+  "gen": 4375,
+  "scores": [
+   0.93388723679376,
+   0.3777095786123842,
+   0.41070316934867723
+  ],
+  "bestIsland": 0,
+  "train": {
+   "fitness": 0.34811354393258953,
+   "finished": 87,
+   "total": 94,
+   "worst3": [
+    0.34811354393258953,
+    0.3772632652401664,
+    0.3778435442918371
+   ]
+  },
+  "holdout": {
+   "fitness": 0.35896117463675214,
+   "finished": 49,
+   "total": 54
+  },
+  "perKind": [
+   {
+    "kind": "crux",
+    "chains": 54,
+    "finished": 49,
+    "finishRate": 0.9074074074074074,
+    "setups": 10,
+    "setupsAllFinished": 7,
+    "allFinishedShare": 0.7,
+    "offcourse": 0,
+    "crashes": 5,
+    "reverseShare": 0.0006785795068988917,
+    "maxReverseM": 0.021283491156135873,
+    "reversedEpisodes": 0
+   }
+  ]
+ },
+ "best": {
+  "gen": 3575,
+  "train": 0.938194255719633,
+  "holdout": 0.8762614723388671,
+  "worst3": [
+   0.938194255719633,
+   0.9383181293370026,
+   0.939997330174071
+  ]
+ },
+ "why": "epoch end"
+}
