@@ -8,6 +8,8 @@ export interface WorkerJob {
   genome: number[]
   key: string
   seconds?: number
+  /** opt-in detour fitness shaping (v3 direct-line kinds only; see detourShaping.ts) */
+  shaping?: boolean
 }
 
 // the first job waits for the physics engine: crux chain lookups run the SYNC pursuit gate before the episode starts,
@@ -17,7 +19,7 @@ let queue: Promise<void> = initRapier()
 parentPort!.on('message', (job: WorkerJob) => {
   queue = queue.then(async () => {
     try {
-      parentPort!.postMessage({ id: job.id, metrics: await runPolicyEpisode(job.genome, job.key, { seconds: job.seconds }) })
+      parentPort!.postMessage({ id: job.id, metrics: await runPolicyEpisode(job.genome, job.key, { seconds: job.seconds, shaping: job.shaping }) })
     } catch (e) {
       parentPort!.postMessage({ id: job.id, error: e instanceof Error ? (e.stack ?? e.message) : String(e) })
     }

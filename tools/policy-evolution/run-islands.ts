@@ -40,6 +40,9 @@
  * --lex-eps E (v3, creation only - persisted in config like speedCap): rank-tie tolerance for the lex vector ranks; near-tie
  *   candidates share their rank instead of getting opposite ranks off evaluation noise. 0/absent = strict (old behaviour).
  *   Calibration: the per-gen log prints `lex ties F`, the share of candidate pairs sharing a rank (starves the gradient when high).
+ * --detour-shaping (v3, creation only - persisted like csa; --no-detour-shaping clears it on resume): opt-in fitness
+ *   shaping for the direct-line detour kinds blockade/blocks (src/policyEvolution/detourShaping.ts) - lateral progress toward
+ *   the next wall's opening pays metrics.shapingBonus on top of peakNorm (es.ts episodeValues). Off (default) = bit-identical.
  * --csa (creation only - persisted like speedCap): Hansen cumulative step-size adaptation per island - the island's BASE sigma
  *   adapts to its evolution path every generation, the stagnation boost keeps multiplying on top. Off (default) = bit-identical.
  * --freeze-old (v2/v3, creation only - persisted in config.freeze like speedCap): with --warm FILE and --hidden N > warm H the warm
@@ -99,6 +102,8 @@ interface RunFile {
   csa?: boolean
   /** failure-focus mode (v3): the ONLY setups trained/ranked on (all their chains); persisted so a resume keeps it, --no-focus-setups clears it */
   focusSetups?: string[]
+  /** opt-in detour fitness shaping (v3 direct-line kinds blockade/blocks, detourShaping.ts — lateral-passing credit); creation-only, persisted so --resume keeps it, --no-detour-shaping clears it */
+  detourShaping?: boolean
   /** last epoch-end focus pass check (the driver's phase-exit signal): per-setup finished chains on the canonical focus episodes */
   focusPass?: FocusPassReport
   /** opt-in v3 epoch-best tracking (--epoch-best, persisted so --resume keeps it): the best island's center is stored at every epoch end */
@@ -229,6 +234,10 @@ async function main() {
   // --speed-cap / --csa only at creation (persisted); a resume uses the stored value, so a resume without the flag behaves as before
   const speedCap = resumed ? file!.speedCap : args['speed-cap'] !== undefined ? num(args['speed-cap'], 0) || undefined : undefined
   const csa = resumed ? !!file!.csa : !!args.csa
+  // --detour-shaping (creation only - persisted like csa): pays lateral progress toward the next wall's
+  // opening on the direct-line detour kinds (metrics.shapingBonus; see src/policyEvolution/detourShaping.ts).
+  // eval-candidate.ts deliberately has NO such flag: decision-grade evals never shape.
+  const detourShaping = args['no-detour-shaping'] !== undefined ? false : resumed ? !!file!.detourShaping : !!args['detour-shaping']
   const fitness: FitnessFn = v3 ? (m) => aggregateKindMin(m, speedCap) : v2 ? aggregateEvenness : aggregateFitness
   // v3 weakest link as a VECTOR (ascending episode values): its LEXICOGRAPHIC order ranks candidates (ES step),
   // islands (reproduce) and the stored best — one immediate stall saturates the scalar min to 0 and would make all
@@ -263,6 +272,7 @@ async function main() {
       v3,
       ...(speedCap ? { speedCap } : {}),
       ...(csa ? { csa: true } : {}),
+      ...(detourShaping ? { detourShaping: true } : {}),
       stage: v3 && !args['no-stage'] ? initialStage({ ...DEFAULT_STAGE, start: num(args['stage-start'], DEFAULT_STAGE.start) }) : null,
       curriculum: v3 || args['no-curriculum'] ? null : initialCurriculum({ ...DEFAULT_CURRICULUM, start: num(args['curriculum-start'], DEFAULT_CURRICULUM.start) }),
       state: initialIslands(config, islands, warm),
@@ -282,7 +292,7 @@ async function main() {
   if (epochBestOn) file!.epochBestOn = true
   else delete file!.epochBestOn
   const isl = new IslandEs(file!.config, file!.islands, file!.state, fitness, fitnessVec, csa)
-  const pool = new PolicyPool(workers)
+  const pool = new PolicyPool(workers, undefined, detourShaping || undefined)
   const evaluate = pool.evaluator()
   fs.mkdirSync(path.dirname(out), { recursive: true })
   // agent-facing export of the latest best candidate: one stable path (default <out dir>/latest-best.json),

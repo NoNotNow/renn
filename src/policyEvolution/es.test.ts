@@ -59,6 +59,18 @@ describe('v3 lexicographic weakest link (candidates compared as ascending episod
     expect(episodeValues([])).toEqual([])
   })
 
+  it('shapingBonus rides the peakNorm value (opt-in detour shaping): added on top, fail factor applies to the SUM', () => {
+    const finish = { key: 'blockade:1#0v3', norm: 0.9, peakNorm: 0.28, shapingBonus: 0.06, outcome: 'finish' as const }
+    const stalled = { key: 'blockade:2#0v3', norm: 0.2, peakNorm: 0.28, shapingBonus: 0.06, outcome: 'stall' as const }
+    const plain = { key: 'gates:1#0v3', norm: 0.7, peakNorm: 0.7, outcome: 'finish' as const }
+    const v = episodeValues([finish, stalled, plain])
+    expect(v[0]).toBeCloseTo(V3_FAIL_FACTOR * (0.28 + 0.06), 12)
+    expect(episodeValues([finish])[0]).toBeCloseTo(0.28 + 0.06, 12)
+    // absent field = unshaped run: unchanged value (bit-identical default)
+    expect(episodeValues([{ key: 'blockade:1#0v3', norm: 0.9, peakNorm: 0.28, outcome: 'finish' as const }])[0]).toBeCloseTo(0.28, 12)
+    void plain
+  })
+
   it('breaks min-0 deadlocks: an equal worst run, a better second-worst wins ranks and the best-update', () => {
     const a = [0, 0.05, 0.9]
     const b = [0, 0.4, 0.5]

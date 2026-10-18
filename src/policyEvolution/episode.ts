@@ -7,6 +7,7 @@ import { buildCourse, buildSetupCourse, parseCourseKey, polylineNearestDist, Rou
 import { chainOfEpisode, isChainEpisodeKey, isDirectLineKind, parseChainEpisodeKey, polylineLength, type Chain } from './chains'
 import { LegProgress } from './legs'
 import { WallLos } from './wallLos'
+import { DetourShaping } from './detourShaping'
 import { V3_FLUENCY_WINDOW_FRAMES, V3_LAT_JERK_PENALTY, V3_LAT_JERK_RADS, V3_LONG_JERK_MPS2, V3_LONG_JERK_PENALTY, V3_OBJECT_TOUCH_PENALTY, V3_WALL_TOUCH_PENALTY } from './es'
 import { hiddenOfLength, N_IN_V2, N_IN_V3, NOSE_M, POLICY_ACTUATOR_ID, POLICY_STAGE_ID } from './policy'
 import { policyDriveStage, policyInputStage, policyV1Stage, policyV2Stage, POLICY_INPUT_STAGE_ID } from './policyStages'
@@ -119,6 +120,14 @@ export interface PolicyEpisodeMetrics {
    * immediately, where the drained end value (`norm` minus whole-episode penalties, floored at 0) saturates both to 0.
    */
   peakNorm?: number
+  /**
+   * OPT-IN fitness shaping (v3 direct-line detour kinds only, `blockade` / `blocks` — run-level
+   * `--detour-shaping`): the high-water lateral-passing credit of `DetourShaping` (detourShaping.ts), in
+   * norm currency. Absent = the run did not shape (every existing run / eval — bit-identical metrics).
+   * Priced into the fitness by es.ts `episodeValues` ON TOP of `peakNorm` (times V3_FAIL_FACTOR on failed
+   * outcomes), so `peakNorm` itself stays pure credit and the shaped share is always auditable.
+   */
+  shapingBonus?: number
 }
 
 /** Entities + transformer stages of one course driven by one policy; `origin` shifts the whole course (several courses in one world). */
@@ -254,6 +263,8 @@ export interface EpisodeDriveCtx {
   wallIds: Set<string>
   /** determinism handle advanced once per frame (legacy stage timers) */
   det: ReturnType<typeof installDeterminism>
+  /** OPT-IN v3 direct-line detour shaping (DetourShaping; absent = off, bit-identical behaviour) */
+  shaping?: DetourShaping
   onFrame?: (x: number, z: number, t: number, extra?: FrameExtra) => void
 }
 
@@ -264,7 +275,7 @@ export interface EpisodeDriveCtx {
  * a reimplementation of it.
  */
 export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
-  const { sim, key, v3, route, routeLength, offCourseM, chainPoints, walls, wallIds, det, onFrame } = o
+  const { sim, key, v3, route, routeLength, offCourseM, chainPoints, walls, wallIds, det, shaping, onFrame } = o
   // deviation weight: quarter for the direct-line detour kinds (the chain is not the task there — see DETOUR_DEV_WEIGHT), full otherwise
   const devWeight = v3 && isDirectLineKind(parseCourseKey(parseChainEpisodeKey(key).setupKey).kind) ? DETOUR_DEV_WEIGHT : 1
   const t0 = performance.now()
@@ -299,6 +310,8 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
   let jerkLongWins = 0
   let jerkLatWins = 0
   let fluencyPenalty = 0
+  // opt-in detour shaping (v3 direct-line kinds): the shaper is stepped with the car CENTER once per frame
+  let shapingBonus = 0
   // v3: which end of the car leads (hysteresis at +-0.5 m/s of forward speed): false = the nose, true = the tail
   let anchorRev = false
   for (let frame = 0; frame < frames; frame++) {
@@ -359,6 +372,7 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
       // the episode's max deviation from the model's points, so following the path vector is the only free route
       const devOrig = polylineNearestDist(chainPoints!, cp[0], cp[2])
       if (devOrig > maxDevOrig) maxDevOrig = devOrig
+      if (shaping) shapingBonus = shaping.step(cp[0], cp[2])
       stillT = Math.hypot(v[0], v[2]) < STILL_SPEED ? stillT + DEFAULT_DT : 0
       if (vf < -REVERSE_SPEED) {
         reverseFrames++
@@ -440,6 +454,7 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
     touchWallFrames,
     touchObjectFrames,
     peakNorm,
+    ...(shaping ? { shapingBonus } : {}),
     ...(v3 ? { reverseShare: (reverseFrames * DEFAULT_DT) / Math.max(t, 1e-3), maxReverseM: maxReverse, maxDevOrigM: maxDevOrig, jerkLongWins, jerkLatWins } : {}),
   }
 }
@@ -447,7 +462,7 @@ export function drivePolicyEpisode(o: EpisodeDriveCtx): PolicyEpisodeMetrics {
 export async function runPolicyEpisode(
   genome: ArrayLike<number>,
   key: string,
-  opts: { seconds?: number; noise?: number; stageChain?: V2[]; chainOverride?: Chain; onFrame?: (x: number, z: number, t: number, extra?: FrameExtra) => void } = {},
+  opts: { seconds?: number; noise?: number; stageChain?: V2[]; chainOverride?: Chain; shaping?: boolean; onFrame?: (x: number, z: number, t: number, extra?: FrameExtra) => void } = {},
 ): Promise<PolicyEpisodeMetrics> {
   const isChain = isChainEpisodeKey(key)
   let course: Course
@@ -485,6 +500,10 @@ export async function runPolicyEpisode(
   // v3 line-of-sight gate: the same course walls the touch test uses — progress credit is only given on frames
   // whose car -> projected chain point segment crosses no wall (LegProgress holds the gated credit high-water)
   const los = v3 ? new WallLos(walls.map((w) => w.poly)) : undefined
+  // OPT-IN fitness shaping: only the direct-line detour kinds (the chain is the direct line THROUGH the
+  // obstacles — the shaper pays lateral progress toward the next wall's opening; see detourShaping.ts).
+  // Every other kind and every unshaped run constructs nothing: bit-identical behaviour.
+  const shaping = opts.shaping && v3 && isDirectLineKind(parseCourseKey(parseChainEpisodeKey(key).setupKey).kind) ? new DetourShaping(chainPoints!, walls, routeLength) : undefined
   const route = v3 ? new LegProgress(chainPoints!, legEnds, offM, los) : new RouteProgress(chainPoints ?? course)
   const det = installDeterminism(1, 0)
   const prevWarn = console.warn
@@ -504,6 +523,7 @@ export async function runPolicyEpisode(
       walls,
       wallIds,
       det,
+      shaping,
       onFrame: opts.onFrame,
     })
   } finally {

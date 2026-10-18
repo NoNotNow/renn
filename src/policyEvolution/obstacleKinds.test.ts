@@ -6,6 +6,7 @@ import { genomeLengthV3 } from './policy'
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { LegProgress } from './legs'
 import { WallLos } from './wallLos'
+import { DetourShaping } from './detourShaping'
 import { initRapier } from '@/physics/rapierPhysics'
 import { installDeterminism } from '@/test/avLab/determinism'
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
@@ -331,5 +332,133 @@ describe('the WallLos progress-credit gate freezes behind walls and RESUMES past
     expect(gated.done).toBe(true)
     expect(gated.progress).toBe(chain.length)
     expect(frozenSeen).toBe(true)
+  })
+})
+
+describe('fitness shaping (opt-in lateral-passing credit, DESIGN test-results/policy-evolution/fitness-shaping/)', () => {
+  /**
+   * Scripted swing episode on a synthetic one-gate plaza (chain (0,0)->(0,-100), gate at z = -50.7 with
+   * opening [-23.8, -11.3], side walls at |x| in [36, 38]): the car drives straight to z = -30, then
+   * swings 5 m toward the opening and stops. The drive-level seam: with the shaper on the ctx the
+   * metrics carry `shapingBonus` (= 5/100 for the partial swing); without it the field is absent.
+   */
+  const scriptedSwing = (withShaper: boolean) => {
+    const dt = DEFAULT_DT
+    const seconds = 4
+    const frames = Math.round(seconds / dt)
+    const straight = 3 // 3 s at 10 m/s -> z = -30
+    const path: V2[] = Array.from({ length: frames + 1 }, (_, f) => {
+      const t = f * dt
+      const z = -Math.min(t, straight) * 10
+      const x = t <= straight ? 0 : -Math.min((t - straight) * 10, 5)
+      return [x, z] as V2
+    })
+    let frame = 0
+    const sim = {
+      runFrames: (n: number) => {
+        frame += n
+      },
+      getPosition: () => {
+        const p = path[Math.min(frame, frames)]!
+        return [p[0], 0.5, p[1]]
+      },
+      getRotation: () => ({ x: 0, y: 0, z: 0, w: 1 }),
+      getVelocity: () => [0, 0, -10],
+      getTouchingEntityIds: () => [],
+    } as unknown as WorldSimulator
+    const chain: V2[] = [
+      [0, 0],
+      [0, -100],
+    ]
+    const wallBoxes: Array<{ at: [number, number]; size: [number, number] }> = [
+      { at: [-29.9, -50.7], size: [12.2, 2] },
+      { at: [12.35, -50.7], size: [47.3, 2] },
+      { at: [37, -50], size: [2, 100] },
+      { at: [-37, -50], size: [2, 100] },
+    ]
+    const walls = wallBoxes.map((b) => ({ cx: b.at[0], cz: b.at[1], r: Math.hypot(b.size[0], b.size[1]) / 2, poly: rectPoly(b.at[0], b.at[1], 0, b.size[0], b.size[1]) }))
+    const ctx: EpisodeDriveCtx = {
+      sim,
+      key: 'blockade:1#0v3',
+      seconds,
+      v3: true,
+      route: new LegProgress(chain, undefined, 30),
+      routeLength: 100,
+      offCourseM: 30,
+      chainPoints: chain,
+      walls,
+      wallIds: new Set(),
+      det: installDeterminism(1, 0),
+      ...(withShaper ? { shaping: new DetourShaping(chain, walls, 100) } : {}),
+    }
+    try {
+      return drivePolicyEpisode(ctx)
+    } finally {
+      ctx.det.restore()
+    }
+  }
+
+  it('a scripted PARTIAL swing earns shapingBonus while its credited arc is stuck before the wall', () => {
+    const m = scriptedSwing(true)
+    expect(m.shapingBonus).toBeCloseTo(5 / 100, 4)
+    // the credited arc never passed the straight-run distance (the wall blocks it) — the zero-credit gap
+    expect(m.progress).toBeLessThan(35)
+  })
+
+  it('without the shaper the metrics have NO shapingBonus field (opt-in, byte-identical default)', () => {
+    const m = scriptedSwing(false)
+    expect('shapingBonus' in m).toBe(false)
+  })
+
+  it('runPolicyEpisode: the flag shapes ONLY direct-line kinds; without it the field is absent', async () => {
+    await initRapier()
+    const zero = new Array<number>(genomeLengthV3(24)).fill(0)
+    const detourKey = `${acceptedSetupKeys(1, ['blockade'], 1)[0]}#0v3`
+    const plainKey = `${acceptedSetupKeys(1, ['gates'], 1)[0]}#0v3`
+    const shaped = await runPolicyEpisode(zero, detourKey, { shaping: true })
+    expect('shapingBonus' in shaped).toBe(true)
+    expect(shaped.shapingBonus).toBe(0) // the zero policy never moves
+    const unshaped = await runPolicyEpisode(zero, detourKey)
+    expect('shapingBonus' in unshaped).toBe(false)
+    const plain = await runPolicyEpisode(zero, plainKey, { shaping: true })
+    expect('shapingBonus' in plain).toBe(false)
+  }, 120_000)
+
+  it('REAL geometry pin: on a real blockade setup a partial swing pays while the credited arc is frozen', () => {
+    const wallsOf = (course: Course) => course.boxes.map((b) => rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1]))
+    const key = acceptedSetupKeys(1, ['blockade'], 1)[0]!
+    const course = buildSetupCourse(key)
+    const chain = chainsForSetup(key)[0]!
+    const gated = new LegProgress(chain.points, undefined, chain.offM, new WallLos(wallsOf(course)))
+    const shaper = new DetourShaping(chain.points, wallsOf(course).map((p) => ({ cx: 0, cz: 0, r: 0, poly: p })), chain.length)
+    // first wall plane + its opening, read off the course geometry (independent of the shaper's frame)
+    const z0 = Math.max(...course.boxes.filter((b) => b.size[1] === 2 && b.size[0] > 20 && b.at[1]! < -20 && b.at[1]! > course.layout!.tz! + 20).map((b) => b.at[1]!))
+    const segs = course.boxes
+      .filter((b) => Math.abs(b.at[1]! - z0) < 0.5 && b.size[1] === 2 && b.size[0] < 2 * course.layout!.hw!)
+      .map((b) => [Math.min(b.at[0]! - b.size[0] / 2, b.at[0]! + b.size[0] / 2), Math.max(b.at[0]! - b.size[0] / 2, b.at[0]! + b.size[0] / 2)] as [number, number])
+      .sort((a, b) => a[0] - b[0])
+    expect(segs.length).toBe(2)
+    const openLo = segs[0]![1]
+    const openHi = segs[1]![0]
+    const [sx, sz] = chain.points[0]!
+    const [ex, ez] = chain.points[1]!
+    const at = (f: number): V2 => [sx + (ex - sx) * f, sz + (ez - sz) * f]
+    // walk: 30 m along the line (the wall is 20+ m ahead), then a PARTIAL swing 40 % of the way to the
+    // NEAREST edge of the opening interval (the line passes through the wall, so the start is outside it)
+    const before = at(30 / chain.length)
+    const nearEdge = before[0]! < openLo ? openLo : before[0]! > openHi ? openHi : before[0]!
+    const d0 = Math.abs(nearEdge - before[0]!)
+    expect(d0).toBeGreaterThan(5)
+    const walkPts: V2[] = [chain.points[0]!, before, [before[0]! + 0.4 * (nearEdge - before[0]!), before[1]!]]
+    let credited = 0
+    let bonus = 0
+    for (const p of densify(walkPts, 1)) {
+      credited = gated.update(p[0], p[1])
+      bonus = shaper.step(p[0], p[1])
+    }
+    // the credited arc is stuck at the ~30 m mark: the swing itself banks no arc (the zero-credit gap)
+    expect(credited).toBeLessThan(32)
+    // ... while the shaper pays 40 % of the line-to-near-edge distance, in route metres over the chain length
+    expect(bonus).toBeCloseTo((0.4 * d0) / chain.length, 3)
   })
 })

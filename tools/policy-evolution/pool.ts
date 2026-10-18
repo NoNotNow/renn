@@ -18,7 +18,7 @@ export class PolicyPool {
   private nextId = 1
   private ready: Promise<void>
 
-  constructor(n: number, private readonly seconds?: number) {
+  constructor(n: number, private readonly seconds?: number, private readonly shaping?: boolean) {
     const url = new URL('./worker-boot.mjs', import.meta.url)
     const boots: Promise<void>[] = []
     for (let i = 0; i < n; i++) {
@@ -59,7 +59,7 @@ export class PolicyPool {
 
   episode(genome: number[], key: string): Promise<PolicyEpisodeMetrics> {
     return new Promise((resolve, reject) => {
-      this.queue.push({ job: { id: this.nextId++, genome, key, seconds: this.seconds }, resolve, reject })
+      this.queue.push({ job: { id: this.nextId++, genome, key, seconds: this.seconds, shaping: this.shaping }, resolve, reject })
       void this.ready.then(() => this.pump())
     })
   }

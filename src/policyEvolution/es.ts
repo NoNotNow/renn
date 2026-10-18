@@ -110,7 +110,9 @@ export function aggregateEvenness(metrics: Array<Pick<PolicyEpisodeMetrics, 'key
 
 /**
  * v3 fitness, weakest link: a candidate's fitness is the MINIMUM over all its episode values — the worst run decides.
- * Per-episode value: `peakNorm` (episode.ts) with the opt-in speed cap, times V3_FAIL_FACTOR when the outcome failed;
+ * Per-episode value: `peakNorm` (episode.ts) with the opt-in speed cap, plus the OPT-IN `shapingBonus` (direct-line
+ * detour kinds only, detourShaping.ts — lateral-passing credit; absent = 0 for every unshaped run), times
+ * V3_FAIL_FACTOR when the outcome failed;
  * fallback for metrics without `peakNorm`: the old end-value formula (norm - deviation - touch penalties, floored at 0).
  * A candidate that aces most courses and catastrophically fails one ranks below one that is merely solid everywhere:
  * robustness over specialists. No kind grouping, no coverage bonus — a missing kind simply contributes no value, and
@@ -197,7 +199,7 @@ export function capNorm(norm: number, meanSpeed: number | undefined, speedCap?: 
  * weakest link"). The per-episode value is final (peakNorm-based, incl. failFactor / penalties); see the block comment
  * above. Empty batch -> 0; a non-finite episode value counts as 0.
  */
-export type EpisodeValueMetrics = Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number; peakNorm?: number; jerkLongWins?: number; jerkLatWins?: number }>
+export type EpisodeValueMetrics = Array<Pick<PolicyEpisodeMetrics, 'key' | 'norm'> & { outcome?: PolicyEpisodeMetrics['outcome']; meanSpeed?: number; maxDevOrigM?: number; length?: number; touchWallFrames?: number; touchObjectFrames?: number; peakNorm?: number; jerkLongWins?: number; jerkLatWins?: number; shapingBonus?: number }>
 
 /** The per-episode values behind `aggregateKindMin` (same formula), ASCENDING: vec[0] is the worst run. */
 export function episodeValues(metrics: EpisodeValueMetrics, speedCap?: number): number[] {
@@ -211,7 +213,7 @@ export function episodeValues(metrics: EpisodeValueMetrics, speedCap?: number): 
     // run files): the old end-value formula with its floor at 0, unchanged.
     const norm =
       raw.peakNorm !== undefined
-        ? capNorm(raw.peakNorm, raw.meanSpeed, speedCap)
+        ? capNorm(raw.peakNorm, raw.meanSpeed, speedCap) + (raw.shapingBonus ?? 0)
         : Math.max(0, capNorm(raw.norm, raw.meanSpeed, speedCap) - devPenaltyNorm(raw.maxDevOrigM, raw.length) - touchPenaltyNorm(raw.touchWallFrames, raw.touchObjectFrames) - fluencyPenaltyNorm(raw.jerkLongWins, raw.jerkLatWins))
     return Number.isFinite(norm) ? (failed ? norm * V3_FAIL_FACTOR : norm) : 0
   })
