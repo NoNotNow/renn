@@ -6,9 +6,11 @@
  * apart. Shared contract with the world builders: `src/policyEvolution/mazeTraining.ts` + `cruxTraining.ts`
  * + `wfCandidates.ts` (the wf worlds: `wfCandidateWorlds.ts`).
  */
-import { MAZE_TRAINING_WORLDS, mazeCarId, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
-import { CRUX_TRAINING_WORLDS, cruxCarId, cruxTrainingInfo, type CruxTrainingMeta } from '@/policyEvolution/cruxTraining'
+import type { RennWorld } from '@/types/world'
+import { MAZE_TRAINING_WORLDS, focusMazeRoute, mazeCarId, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
+import { CRUX_TRAINING_WORLDS, cruxCarId, cruxTrainingInfo, focusCruxChain, type CruxTrainingMeta } from '@/policyEvolution/cruxTraining'
 import {
+  focusWfWorldRoute,
   wfCarId,
   wfTrainingWorldViews,
   type WfTrainingMeta,
@@ -51,6 +53,10 @@ export interface TrainingSet {
   badge: (meta: TrainingMeta) => string | null
   /** noun of the weakest-link label and the tile title ("way" / "chain") */
   noun: string
+  /** focuses the loaded world on copy `routeIndex` (camera target + visualize line: focusMazeRoute / focusCruxChain / focusWfWorldRoute) */
+  focus: (world: RennWorld, routeIndex: number) => RennWorld
+  /** uiLogger.select label of the "load into builder" action */
+  loadLogLabel: string
 }
 
 const isMazeMeta = (meta: TrainingMeta): meta is MazeTrainingMeta => 'seed' in meta
@@ -81,6 +87,8 @@ export const MAZE_TRAINING_SET: TrainingSet = {
   },
   badge: (meta) => (isMazeMeta(meta) ? routesLabel(meta) : null),
   noun: 'way',
+  focus: focusMazeRoute,
+  loadLogLabel: 'Load training maze into builder',
 }
 
 /** The training-crux set: the 25 crux band worlds, base + jittered chain tiles, "chain" wording. */
@@ -99,6 +107,8 @@ export const CRUX_TRAINING_SET: TrainingSet = {
       : { name: `Chain ${i + 1}`, short: '(jitter)', long: 'jittered variant' },
   badge: (meta) => (isCruxMeta(meta) && meta.chains ? `${meta.chains.base + meta.chains.jittered} chains` : null),
   noun: 'chain',
+  focus: focusCruxChain,
+  loadLogLabel: 'Load training crux into builder',
 }
 
 /**
@@ -119,6 +129,8 @@ export const WF_TRAINING_SET: TrainingSet = {
   tileText: (_meta, i) => ({ name: `Chain ${i + 1}`, short: '(v3)', long: 'v3 chain of this holdout setup' }),
   badge: (meta) => (isWfMeta(meta) ? `${meta.chains} chains · ${meta.setupKey}` : null),
   noun: 'chain',
+  focus: focusWfWorldRoute,
+  loadLogLabel: 'Load widen-freeze world into builder',
 }
 
 /**
@@ -130,4 +142,15 @@ export const TRAINING_SETS: TrainingSet[] = [MAZE_TRAINING_SET, CRUX_TRAINING_SE
 /** The training set of a tab key (the merged dialog's active tab; unknown keys fall back to the mazes). */
 export function trainingSetByKey(key: TrainingSet['key']): TrainingSet {
   return TRAINING_SETS.find((set) => set.key === key) ?? MAZE_TRAINING_SET
+}
+
+/**
+ * The training set a world id belongs to (world-id prefix: `crux_*` → crux, `wf_*` → widen-freeze, everything
+ * else → the mazes, like the pre-seam Builder cascade). ONE place for the discrimination so the Builder's load
+ * path never re-spells it.
+ */
+export function trainingSetOfWorldId(worldId: string): TrainingSet {
+  if (worldId.startsWith('crux_')) return CRUX_TRAINING_SET
+  if (worldId.startsWith('wf_')) return WF_TRAINING_SET
+  return MAZE_TRAINING_SET
 }

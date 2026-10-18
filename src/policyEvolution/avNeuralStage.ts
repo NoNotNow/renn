@@ -22,7 +22,7 @@ export const AV_NEURAL_STAGE_WEIGHTS_V3_FILE = 'avNeuralWeightsV3.json'
 export const NEURAL_CMD_DEFAULTS = { lmin: 8, tau: 0.6, period: 0.5 } as const
 
 function replaceOnce(src: string, find: string, repl: string): string {
-  if (!src.includes(find)) throw new Error(`policyStage: expected snippet not found in the shared policy code: ${find}`)
+  if (!src.includes(find)) throw new Error(`avNeuralStage: expected snippet not found in the shared policy code: ${find}`)
   return src.replace(find, repl)
 }
 
@@ -95,7 +95,7 @@ export const NEURAL_PARAM_DEFS = [
 ] as const
 
 const AV_NEURAL_BODY = `
-// AV stack · NEURAL drive mode (Phase 1: the evolved policy net, 26 inputs incl. the two touch flags, no speed command). GENERATED from src/policyEvolution/policyStage.ts: do not edit by hand.
+// AV stack · NEURAL drive mode (Phase 1: the evolved policy net, 26 inputs incl. the two touch flags, no speed command). GENERATED from src/policyEvolution/avNeuralStage.ts: do not edit by hand.
 // The shipped net (the policy evolved in src/policyEvolution) follows the command the AV stack hands over: the car is projected onto av.routePath
 // (fallback: straight line to av.carrot / maze goal / input.target), aim = clamp(lmin + tau * v, lmin, 40) m ahead along it, next = direction of the
 // segment beyond the aim, refreshed every period s: the SAME rule as in training (deriveCmd above). It writes steering / throttle / brake; the lateral,

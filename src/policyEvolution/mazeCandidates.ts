@@ -4,7 +4,7 @@
  * `public/policy-evolution/candidates.json` (refreshed by the auto-trial watcher while the training runs).
  *
  * A candidate is loaded by swapping `params.w` of the drive stages of the LOADED world instance
- * (`applyMazeCandidate`) — the exported `world.json` keeps the deployed best baked in (on-disk gate untouched),
+ * (`applyTrainingCandidate`) — the exported `world.json` keeps the deployed best baked in (on-disk gate untouched),
  * the dialog shows which candidate drives and the scores in the meta.json describe the deployed one.
  */
 
@@ -62,9 +62,9 @@ export async function fetchMazeCandidates(baseUrl: string): Promise<MazeCandidat
  * DIFFER from the baked-in one (the v3 stage infers H from `params.w.length`, so an H=32 widen-freeze candidate
  * can drive the H=24 training worlds).
  */
-export function applyMazeCandidate(world: RennWorld, candidate: MazeCandidate): RennWorld {
+export function applyTrainingCandidate(world: RennWorld, candidate: MazeCandidate): RennWorld {
   if (!hiddenOfLength(candidate.genome.length, N_IN_V3)) {
-    throw new Error(`applyMazeCandidate: candidate ${candidate.id} has ${candidate.genome.length} weights — not a v3 genome (29 H + 2)`)
+    throw new Error(`applyTrainingCandidate: candidate ${candidate.id} has ${candidate.genome.length} weights — not a v3 genome (29 H + 2)`)
   }
   const w = JSON.parse(JSON.stringify(world)) as {
     transformers?: Record<string, { params?: Record<string, unknown> }>
@@ -75,6 +75,6 @@ export function applyMazeCandidate(world: RennWorld, candidate: MazeCandidate): 
     transformer.params.w = candidate.genome.slice()
     swapped++
   }
-  if (swapped === 0) throw new Error(`applyMazeCandidate: no drive stage (${POLICY_STAGE_ID}_*) with params.w found`)
+  if (swapped === 0) throw new Error(`applyTrainingCandidate: no drive stage (${POLICY_STAGE_ID}_*) with params.w found`)
   return w as unknown as RennWorld
 }

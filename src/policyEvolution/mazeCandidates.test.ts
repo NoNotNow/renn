@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyMazeCandidate, type MazeCandidate } from './mazeCandidates'
+import { applyTrainingCandidate, type MazeCandidate } from './mazeCandidates'
 import { genomeLengthV2, genomeLengthV3 } from './policy'
 import type { RennWorld } from '@/types/world'
 
@@ -25,10 +25,10 @@ function makeWorld(): RennWorld {
   } as unknown as RennWorld
 }
 
-describe('applyMazeCandidate', () => {
+describe('applyTrainingCandidate', () => {
   it('swaps params.w of every drive stage and leaves everything else (input/score stages) untouched', () => {
     const world = makeWorld()
-    const next = applyMazeCandidate(world, CANDIDATE)
+    const next = applyTrainingCandidate(world, CANDIDATE)
     const transformers = (next as unknown as { transformers: Record<string, { params?: Record<string, unknown> }> }).transformers
     expect(transformers.policy_drive_0?.params?.w).toEqual(CANDIDATE.genome)
     expect(transformers.policy_drive_1?.params?.w).toEqual(CANDIDATE.genome)
@@ -45,18 +45,18 @@ describe('applyMazeCandidate', () => {
 
   it('accepts a hidden size DIFFERENT from the baked-in one (the v3 stage infers H from w.length)', () => {
     // an H=32 widen-freeze candidate into H=24-baked training worlds
-    const next = applyMazeCandidate(makeWorld(), CANDIDATE)
+    const next = applyTrainingCandidate(makeWorld(), CANDIDATE)
     const transformers = (next as unknown as { transformers: Record<string, { params?: Record<string, unknown> }> }).transformers
     expect(transformers.policy_drive_0?.params?.w).toHaveLength(genomeLengthV3(32))
   })
 
   it('throws on a non-v3 genome (a v2-shaped candidate cannot drive a v3 stage)', () => {
     const v2: MazeCandidate = { ...CANDIDATE, id: 'island-0', genome: Array.from({ length: genomeLengthV2(24) }, (_, i) => i) }
-    expect(() => applyMazeCandidate(makeWorld(), v2)).toThrow(/island-0 has \d+ weights/)
+    expect(() => applyTrainingCandidate(makeWorld(), v2)).toThrow(/island-0 has \d+ weights/)
   })
 
   it('throws when no drive stage with params.w exists', () => {
     const world = { version: '1.0', world: {}, transformers: { policy_input_0: { type: 'custom', params: {} } }, entities: [] } as unknown as RennWorld
-    expect(() => applyMazeCandidate(world, CANDIDATE)).toThrow(/no drive stage/)
+    expect(() => applyTrainingCandidate(world, CANDIDATE)).toThrow(/no drive stage/)
   })
 })

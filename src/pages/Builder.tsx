@@ -12,12 +12,9 @@ import SceneView, { type SceneViewHandle } from '@/components/SceneView'
 import BuilderHeader from '@/components/BuilderHeader'
 import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
-import MazeTrainingDialog, { type MazeTrainingLiveRun } from '@/components/MazeTrainingDialog'
-import { TRAINING_SETS, trainingSetByKey, type TrainingSet } from '@/components/trainingSets'
-import { applyMazeCandidate, type MazeCandidate } from '@/policyEvolution/mazeCandidates'
-import { focusMazeRoute } from '@/policyEvolution/mazeTraining'
-import { focusWfWorldRoute } from '@/policyEvolution/wfCandidates'
-import { focusCruxChain } from '@/policyEvolution/cruxTraining'
+import MazeTrainingDialog, { type TrainingLiveRun } from '@/components/MazeTrainingDialog'
+import { TRAINING_SETS, trainingSetByKey, trainingSetOfWorldId, type TrainingSet } from '@/components/trainingSets'
+import { applyTrainingCandidate, type MazeCandidate } from '@/policyEvolution/mazeCandidates'
 import EntitySidebar from '@/components/EntitySidebar'
 import PropertySidebar, { type RightTab, VALID_RIGHT_TABS } from '@/components/PropertySidebar'
 import Workspace from '@/components/Workspace'
@@ -166,12 +163,15 @@ export default function Builder() {
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
   /** Active set of the training section in the right sidebar (File → "Training…"): Mazes / Crux / Widen-freeze. */
   const [trainingSetKey, setTrainingSetKey] = useState<TrainingSet['key']>('maze')
-  /** Training-maze world+route currently loaded and driving in the builder (live active-vector overlay in the dialog). */
-  const [mazeTrainingLive, setMazeTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
-  /** Training-crux world+chain currently loaded and driving in the builder (live overlay in the crux tab). */
-  const [cruxTrainingLive, setCruxTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
-  /** Widen-freeze world+chain currently loaded and driving in the builder (live overlay in the Widen-freeze tab). */
-  const [wfTrainingLive, setWfTrainingLive] = useState<MazeTrainingLiveRun | null>(null)
+  /**
+   * Per training set: the world+route currently loaded and driving in the builder (live active-vector overlay of
+   * that set's tab). ONE record replaces the three parallel live states; the overlay follows the world's own set.
+   */
+  const [trainingLive, setTrainingLive] = useState<Record<TrainingSet['key'], TrainingLiveRun | null>>({
+    maze: null,
+    crux: null,
+    wf: null,
+  })
   const [avEvolutionOpen, setAvEvolutionOpen] = useState(false)
   useEffect(() => installAvEvolutionAgentApi(getAvEvolutionStore()), [])
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
@@ -455,9 +455,7 @@ export default function Builder() {
   // it right after the load call, in the same synchronous flow (so its set wins).
   const handleOpenExampleWorld = useCallback(
     (worldJson: Parameters<typeof handleOpenExampleWorldBase>[0], name: string, assets?: Map<string, Blob>) => {
-      setMazeTrainingLive(null)
-      setCruxTrainingLive(null)
-      setWfTrainingLive(null)
+      setTrainingLive({ maze: null, crux: null, wf: null })
       handleOpenExampleWorldBase(worldJson, name, assets)
     },
     [handleOpenExampleWorldBase],
@@ -467,23 +465,22 @@ export default function Builder() {
   // example world into the builder (no play mode): the world sets world.debugTargetLineEntityId, so the
   // guidance chain overlay renders in builder mode. The tile clicked in the section focuses the run on that
   // way (target vector): camera, visualizeLine display entity and HUD score move to the selected copy's car
-  // (focusMazeRoute / focusCruxChain — the crux worlds carry crux_score_* stages, every other world id is a
-  // maze one). The section stays mounted; the game HUD is force-enabled so the score watch is visible.
+  // (trainingSetOfWorldId picks the set and with it the focus fn). The section stays mounted; the game HUD is
+  // force-enabled so the score watch is visible.
   // A selected candidate model (chips row) swaps the drive-stage weights of the LOADED world
-  // (applyMazeCandidate — the split drive stages are identical in both sets, so the swap is
+  // (applyTrainingCandidate — the split drive stages are identical across the sets, so the swap is
   // world-agnostic) — the export on disk keeps the deployed best (on-disk gate untouched).
   const handlePlayExampleWorld = useCallback(
     async (worldId: string, routeIndex: number, candidate: MazeCandidate | null) => {
       try {
         const { world, assets } = await loadExampleWorldFromPublicBase(import.meta.env.BASE_URL || '/', worldId)
-        const crux = worldId.startsWith('crux_')
-        const wf = worldId.startsWith('wf_')
-        let next = crux ? focusCruxChain(world, routeIndex) : wf ? focusWfWorldRoute(world, routeIndex) : focusMazeRoute(world, routeIndex)
-        if (candidate) next = applyMazeCandidate(next, candidate)
+        const set = trainingSetOfWorldId(worldId)
+        let next = set.focus(world, routeIndex)
+        if (candidate) next = applyTrainingCandidate(next, candidate)
         handleOpenExampleWorld(next, worldId, assets)
-        ;(crux ? setCruxTrainingLive : wf ? setWfTrainingLive : setMazeTrainingLive)({ worldId, routeIndex })
+        setTrainingLive((prev) => ({ ...prev, [set.key]: { worldId, routeIndex } }))
         setShowGameHud(true)
-        uiLogger.select('Builder', crux ? 'Load training crux into builder' : wf ? 'Load widen-freeze world into builder' : 'Load training maze into builder', {
+        uiLogger.select('Builder', set.loadLogLabel, {
           worldName: worldId,
           routeIndex,
           candidate: candidate?.id ?? 'deployed',
@@ -720,8 +717,7 @@ export default function Builder() {
   const traceActive = selectedEntityIds.length === 1 && workspaceOpen
   const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || trainingTabActive
   /** Live run of the ACTIVE tab's set (the dialog's live overlay only matches worlds of the open tab). */
-  const activeTrainingLive =
-    trainingSetKey === 'crux' ? cruxTrainingLive : trainingSetKey === 'wf' ? wfTrainingLive : mazeTrainingLive
+  const activeTrainingLive = trainingLive[trainingSetKey]
   useEffect(() => {
     if (traceActive) {
       setTransformerTraceTargetEntityId(selectedEntityIds[0]!)

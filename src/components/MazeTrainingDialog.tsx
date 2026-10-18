@@ -21,7 +21,8 @@ import {
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
 
-export interface MazeTrainingLiveRun {
+/** World+route currently loaded and driving in the Builder (drives the live active-vector overlay and live score); shared by all three training sets. */
+export interface TrainingLiveRun {
   worldId: string
   routeIndex: number
 }
@@ -48,8 +49,8 @@ export interface MazeTrainingDialogProps {
    * weights of the loaded world to it (null = the deployed candidate baked into the export).
    */
   onPlayExampleWorld: (worldId: string, routeIndex: number, candidate: MazeCandidate | null) => void
-  /** Training-maze world+route currently loaded and driving in the Builder (drives the live active-vector overlay and live score). */
-  liveRun?: MazeTrainingLiveRun | null
+  /** World+route of the ACTIVE set currently loaded and driving in the Builder (drives the live active-vector overlay and live score). */
+  liveRun?: TrainingLiveRun | null
 }
 
 interface MazeCardState {

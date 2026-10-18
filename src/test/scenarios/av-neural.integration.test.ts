@@ -6,7 +6,7 @@ import { readNeuralStageWeights, readNeuralStageWeightsV3, AV_STACK_STAGE_FILES 
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import shippedV3 from '@/policyEvolution/shippedPolicyV3.json'
 import { GENOME_LENGTH, GENOME_LENGTH_V3, N_IN_V3, N_RAYS, padV1Genome, padV2Genome, POLICY_STAGE_CODE_V2, POLICY_STAGE_CODE_V3, policyForwardV3, widenHidden } from '@/policyEvolution/policy'
-import { AV_NEURAL_STAGE_FILE, neuralStageFile } from '@/policyEvolution/policyStage'
+import { AV_NEURAL_STAGE_FILE, neuralStageFile } from '@/policyEvolution/avNeuralStage'
 import { setAgentObservationWatchActive } from '@/runtime/transformerWatchBridge'
 import { loadLabWorld, watchValues } from '@/test/avLab/lab'
 import { ARENA_CAR_ID, AV_CAR_SOURCE_WORLD, buildArenaWorld, type ArenaSpec } from '@/test/fixtures/avEvasionArena'

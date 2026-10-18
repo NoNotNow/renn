@@ -101,6 +101,25 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 
 ---
 
+## Phase 35 — Code-review findings: training-set seam + exporter dedup (completed, 2026-10-18)
+
+**Performance:** none (UI cold path, tooling, test helpers).
+
+### Changes
+- **Exporter dedup:** `tools/renn-mcp/exportTrainingWorlds.ts` — shared per-world orchestration driver (world.json → score → tiles → meta → thumb → cache-invalidate → log); `export-maze-training-worlds.ts` + `export-crux-training-worlds.ts` are thin per-set configs. Byte-identical output verified against the pre-refactor exporters.
+- **worldSimulator dedup:** `src/test/helpers/worldSimulator.ts` — `create`/`createSync` share private `prepare`/`resolvedConfigs`/`assemble` builders (migration, config resolution, input-getter wiring); chain construction stays per-path by design.
+- **Builder training-set seam:** `src/components/trainingSets.ts` — `TrainingSet` carries `focus` + `loadLogLabel`; new `trainingSetOfWorldId` (one prefix discrimination); `src/pages/Builder.tsx` — the three parallel live states collapse into one `Record<key, TrainingLiveRun | null>`, no `crux_`/`wf_` cascades left in the Builder.
+- **Renames (shared across all three sets):** `MazeTrainingLiveRun` → `TrainingLiveRun` (`MazeTrainingDialog.tsx`), `applyMazeCandidate` → `applyTrainingCandidate` (`mazeCandidates.ts`).
+- **Naming pair fix:** `src/policyEvolution/policyStage.ts` → `avNeuralStage.ts` (one letter apart from `policyStages.ts`, different roles); generated `av-neural.js` + embedded example worlds + shipped library regenerated (`export-av-neural-stage.ts`, `export-av-neural-example-world.ts`, `npm run sync:global-pipeline`); `agent-context/` path references updated.
+
+### Deferred
+- `MazeCandidate` / `MazeCandidatesFile` / `fetchMazeCandidates` naming (the chips store) — left as-is; a rename would touch the candidates.json tooling for little gain.
+
+### Tests
+- Full `npx vitest run`: 376 files / 3444 passed / 58 skipped / 0 failed; `npx tsc --noEmit -p tsconfig.app.json` clean.
+
+---
+
 ## Phase 34 — Registry mesh/shape/material sync (completed, 2026-09-18)
 
 **Performance:** none (cold-path / inspector incremental sync only; `executeTransformers` untouched).
