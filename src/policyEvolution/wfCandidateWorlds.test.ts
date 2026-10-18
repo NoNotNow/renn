@@ -61,10 +61,10 @@ describe('wf candidate manifest', () => {
     }
   })
 
-  it('bakes exactly the manifest entry with bakeWorlds (the pipeline-A final, H=32)', () => {
+  it('bakes exactly the manifest entry with bakeWorlds (the R40 recovery ship, H=40 — user decision 2026-10-18)', () => {
     const baked = bakedWfCandidate()
-    expect(baked.id).toBe('wf32_final')
-    expect(baked.genome).toHaveLength(29 * 32 + 2)
+    expect(baked.id).toBe('wf40_recovery')
+    expect(baked.genome).toHaveLength(29 * 40 + 2)
   })
 
   // the crux kind's band enumeration runs the pursuit gate — heavy under the full suite's parallel load

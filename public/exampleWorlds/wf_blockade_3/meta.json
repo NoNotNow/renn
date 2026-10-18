@@ -5,10 +5,10 @@
   "setupIndex": 3,
   "name": "WF blockade 3",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
-  "bestScore": 46,
+  "bestScore": 47,
   "chains": 3,
   "tileSvg": {
     "w": 92,
@@ -51,7 +51,7 @@
             30.6
           ]
         ],
-        "score": 46
+        "score": 47
       }
     ]
   }

@@ -3,7 +3,7 @@
  * Write the widen-freeze candidate example worlds to public/exampleWorlds/wf_<kind>_<n>/ — one world per kind x
  * holdout setup of the eval band (holdoutV3Episodes(3, kinds)), every chain of the setup in its own copy with one
  * car each. The BAKED candidate is the manifest entry with `bakeWorlds: true` (public/policy-evolution/
- * wf-candidates.json — the pipeline-A final H=32); the OTHER candidates (warm baseline, later stretches) drive
+ * wf-candidates.json — currently the R40 recovery ship, H=40); the OTHER candidates (warm baseline, later stretches) drive
  * the SAME worlds through the training dialogs' candidate chips (export-maze-candidates.ts). The worlds are
  * reachable through the Widen-freeze Worlds dialog only — the generic Example Worlds menu excludes wf_* ids.
  *

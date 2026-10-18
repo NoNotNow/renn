@@ -102,8 +102,8 @@ export const CRUX_TRAINING_SET: TrainingSet = {
 }
 
 /**
- * The widen-freeze candidate worlds set: the holdout setups of the eval band (wf_<kind>_<n>, the pipeline-A final
- * H=32 baked in), one tile per chain; the candidate chips (candidates.json: WF32 / WF24 / later stretches) swap the
+ * The widen-freeze candidate worlds set: the holdout setups of the eval band (wf_<kind>_<n>, the R40 recovery
+ * ship baked in), one tile per chain; the candidate chips (candidates.json: R40 / WF32 / WF24 / later stretches) swap the
  * driving net at load time. Car ids + world loading go through the same paths as the maze set; the worlds carry no
  * score stage (live score stays "-", the headless tile scores come from meta.json).
  */

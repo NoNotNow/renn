@@ -5,10 +5,10 @@
   "setupIndex": 3,
   "name": "WF bay 3",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
-  "bestScore": 146,
+  "bestScore": 177,
   "chains": 3,
   "tileSvg": {
     "w": 154,
@@ -70,7 +70,7 @@
             141.2
           ]
         ],
-        "score": 128
+        "score": 157
       },
       {
         "pts": [
@@ -99,7 +99,7 @@
             190
           ]
         ],
-        "score": 123
+        "score": 177
       }
     ]
   }

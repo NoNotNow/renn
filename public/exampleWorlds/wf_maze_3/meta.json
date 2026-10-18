@@ -5,8 +5,8 @@
   "setupIndex": 3,
   "name": "WF maze 3",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
   "bestScore": 62,
   "chains": 2,
@@ -162,7 +162,7 @@
             94.5
           ]
         ],
-        "score": 0
+        "score": 1
       }
     ]
   }
