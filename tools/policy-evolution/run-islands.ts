@@ -47,7 +47,7 @@
  *   freezeOldMask in policy.ts); only the new units' parameters evolve (they start silent; the freeze puts the selection pressure
  *   on them). Island replacement (crossover / immigrants) is blocked while the mask is active - frozen dims are identical across
  *   islands, an immigrant would destroy the warm core. A plain resume keeps the mask (phase 1 continues).
- * --unfreeze (resume only): clears the persisted freeze mask - phase 2, all dims evolve again (use a reduced --lr, e.g. 0.01).
+ * --unfreeze (resume only): clears the persisted freeze mask - phase 2, all dims evolve again (the stored config.lr keeps applying; --lr is a creation flag - for a smaller phase-2 step edit config.lr in the run file).
  * The best mean policy by TRAIN score (checked at every epoch end) is stored as `best.genome` (same layout as run.ts; ship.ts reads it).
  * Agent exports (next to --out): latest-best.json on every best change + resume (trial via RENN_V3_GENOME_FILE), and
  *   latest-stats.json every --stats-every gens (default 20) + every epoch end + resume (--latest-best/--latest-stats override the paths).
@@ -273,7 +273,7 @@ async function main() {
   // A plain resume of a freeze file KEEPS the mask (like speedCap / focusSetups); this flag is the explicit release.
   if (args.unfreeze !== undefined) {
     if (!resumed) throw new Error('--unfreeze is a resume flag (a fresh run has no freeze mask: create it with --freeze-old)')
-    if (file!.config.freeze !== undefined) console.log(`unfreeze: config.freeze cleared at gen ${file!.state.gen} (phase 2 — all ${file!.config.dim} dims evolve; consider a reduced --lr, e.g. 0.01)`)
+    if (file!.config.freeze !== undefined) console.log(`unfreeze: config.freeze cleared at gen ${file!.state.gen} (phase 2 — all ${file!.config.dim} dims evolve; the stored config.lr keeps applying — --lr is a creation flag, for a smaller phase-2 step edit config.lr in the run file)`)
     delete file!.config.freeze
   }
   // the effective focus set is part of the run file (like speedCap): a plain resume of a focused run stays focused
