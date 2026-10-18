@@ -25,7 +25,7 @@ import { migrateEntityTransformersToRegistry, migrateCustomTransformerNames } fr
 import { DEFAULT_GRAVITY } from '@/types/world'
 import type { RennWorld, Entity } from '@/types/world'
 import type { LoadedEntity } from '@/loader/loadWorld'
-import type { RawInput, RawKeyboardState, Transformer } from '@/types/transformer'
+import type { RawInput, RawKeyboardState, Transformer, TransformerConfig } from '@/types/transformer'
 import { createMeshForShape } from './three'
 
 export const DEFAULT_DT = 1 / 60
@@ -95,67 +95,42 @@ export class WorldSimulator {
   }
 
   /**
-   * Build a simulator from a RennWorld definition.
-   * Rapier is initialised once globally; subsequent calls are no-ops.
-   *
-   * @param world  Parsed RennWorld (from JSON import or inline).
-   * @param warmupFrames  Frames to advance before returning so transformer chains
-   *                      finish their async init. Default 15 (~250 ms at 60 fps).
+   * Prep a raw document for simulation: migrate legacy transformer formats to the registry format (test worlds
+   * (JSON) with inline TransformerConfig objects work transparently) and build the loaded entities.
    */
-  static async create(world: RennWorld, warmupFrames = 15): Promise<WorldSimulator> {
-    await initRapier()
-
-    // Migrate legacy embedded-transformer format to the registry format.
-    // This allows test worlds (JSON) with inline TransformerConfig objects to work transparently.
+  private static prepare(world: RennWorld): LoadedEntity[] {
     migrateCustomTransformerNames(world)
     migrateEntityTransformersToRegistry(world)
+    return buildLoadedEntities(world)
+  }
 
-    const entities = buildLoadedEntities(world)
-    const physicsWorld = await createPhysicsWorld(world, entities)
+  /** Resolved transformer configs of an entity (merged pipe stages, else its raw registry entries); undefined when it declares none. */
+  private static resolvedConfigs(world: RennWorld, entity: Entity): TransformerConfig[] | undefined {
+    if (!entity.transformers || entity.transformers.length === 0) return undefined
+    return (
+      resolveMergedTransformerConfigsForEntitySync(world, entity.id) ??
+      entity.transformers
+        .map((id) => world.transformers?.[id])
+        .filter((c): c is TransformerConfig => c != null)
+    )
+  }
 
-    const currentKeys: Partial<RawKeyboardState> = {}
-    const rawInputGetter = (): RawInput => buildRawInput(currentKeys)
-
-    const registry = RenderItemRegistry.create(entities, physicsWorld, rawInputGetter, undefined, world.transformers)
-
-    // Eagerly build transformer chains for entities that declare them so tests
-    // don't need to wait for the async fire-and-forget inside RenderItemRegistry.
-    for (const { entity } of entities) {
-      if (entity.transformers && entity.transformers.length > 0) {
-        const configs =
-          resolveMergedTransformerConfigsForEntitySync(world, entity.id) ??
-          entity.transformers
-            .map((id) => world.transformers?.[id])
-            .filter((c): c is NonNullable<typeof c> => c != null)
-        const chain = await createTransformerChain(
-          configs,
-          rawInputGetter,
-          entity,
-          // other entities' poses for `follow`-style goal sources (the real runtime provides the same)
-          (id) => {
-            const cached = physicsWorld.getCachedTransform(id)
-            // static bodies are not in the physics cache and headless meshes sit at the origin: use the document pose
-            const doc = world.entities.find((e) => e.id === id)
-            const position = cached ? ([cached.position.x, cached.position.y, cached.position.z] as [number, number, number]) : doc?.position
-            if (!position) return null
-            return { position: [position[0], position[1], position[2]], rotation: doc?.rotation ?? [0, 0, 0] }
-          },
-        )
-        const item = registry.get(entity.id)
-        if (item && chain) {
-          item.transformerChain = chain
-        }
-      }
-    }
-
-    registry.setRawInputGetter(rawInputGetter)
-
+  /**
+   * Shared tail of `create`/`createSync`: the instance, the wind field and the input-getter wiring — the registry
+   * and every transformer must read the SAME mutable currentKeys the instance's setInput/clearInput replace (the
+   * getter captured at registry construction reads the original scope, so it is re-pointed at sim.currentKeys).
+   */
+  private static assemble(
+    world: RennWorld,
+    physicsWorld: PhysicsWorld,
+    registry: RenderItemRegistry,
+    entities: LoadedEntity[],
+    currentKeys: Partial<RawKeyboardState>,
+    warmupFrames: number,
+  ): WorldSimulator {
     const wind = world.world.wind as [number, number, number] | undefined
     const sim = new WorldSimulator(physicsWorld, registry, entities, wind)
-    // currentKeys lives in the outer scope; wire it through the instance so
-    // setInput updates the same reference the getter captures.
     sim.currentKeys = currentKeys
-    // Replace the getter reference so it always reads from sim.currentKeys.
     const simInputGetter = (): RawInput => buildRawInput(sim.currentKeys)
     registry.setRawInputGetter(simInputGetter)
     for (const { entity } of entities) {
@@ -169,12 +144,56 @@ export class WorldSimulator {
         })
       }
     }
-
     if (warmupFrames > 0) {
       sim.runFrames(warmupFrames)
     }
-
     return sim
+  }
+
+  /**
+   * Build a simulator from a RennWorld definition.
+   * Rapier is initialised once globally; subsequent calls are no-ops.
+   *
+   * @param world  Parsed RennWorld (from JSON import or inline).
+   * @param warmupFrames  Frames to advance before returning so transformer chains
+   *                      finish their async init. Default 15 (~250 ms at 60 fps).
+   */
+  static async create(world: RennWorld, warmupFrames = 15): Promise<WorldSimulator> {
+    await initRapier()
+    const entities = WorldSimulator.prepare(world)
+    const physicsWorld = await createPhysicsWorld(world, entities)
+
+    const currentKeys: Partial<RawKeyboardState> = {}
+    const rawInputGetter = (): RawInput => buildRawInput(currentKeys)
+
+    const registry = RenderItemRegistry.create(entities, physicsWorld, rawInputGetter, undefined, world.transformers)
+
+    // Eagerly build transformer chains for entities that declare them so tests
+    // don't need to wait for the async fire-and-forget inside RenderItemRegistry.
+    for (const { entity } of entities) {
+      const configs = WorldSimulator.resolvedConfigs(world, entity)
+      if (!configs) continue
+      const chain = await createTransformerChain(
+        configs,
+        rawInputGetter,
+        entity,
+        // other entities' poses for `follow`-style goal sources (the real runtime provides the same)
+        (id) => {
+          const cached = physicsWorld.getCachedTransform(id)
+          // static bodies are not in the physics cache and headless meshes sit at the origin: use the document pose
+          const doc = world.entities.find((e) => e.id === id)
+          const position = cached ? ([cached.position.x, cached.position.y, cached.position.z] as [number, number, number]) : doc?.position
+          if (!position) return null
+          return { position: [position[0], position[1], position[2]], rotation: doc?.rotation ?? [0, 0, 0] }
+        },
+      )
+      const item = registry.get(entity.id)
+      if (item && chain) {
+        item.transformerChain = chain
+      }
+    }
+
+    return WorldSimulator.assemble(world, physicsWorld, registry, entities, currentKeys, warmupFrames)
   }
 
   /**
@@ -187,9 +206,7 @@ export class WorldSimulator {
    */
   static createSync(world: RennWorld): WorldSimulator {
     if (!rapierReady()) throw new Error('WorldSimulator.createSync: Rapier is not initialized - await initRapier() first')
-    migrateCustomTransformerNames(world)
-    migrateEntityTransformersToRegistry(world)
-    const entities = buildLoadedEntities(world)
+    const entities = WorldSimulator.prepare(world)
     const physicsWorld = new PhysicsWorld(world.world.gravity ?? DEFAULT_GRAVITY, world.world.sleeping)
     for (const { entity, mesh } of entities) {
       physicsWorld.addEntity(entity, mesh, world.scripts)
@@ -198,12 +215,8 @@ export class WorldSimulator {
     const rawInputGetter = (): RawInput => buildRawInput(currentKeys)
     const registry = RenderItemRegistry.create(entities, physicsWorld, rawInputGetter, undefined, world.transformers)
     for (const { entity } of entities) {
-      if (!entity.transformers || entity.transformers.length === 0) continue
-      const configs =
-        resolveMergedTransformerConfigsForEntitySync(world, entity.id) ??
-        entity.transformers
-          .map((id) => world.transformers?.[id])
-          .filter((c): c is NonNullable<typeof c> => c != null)
+      const configs = WorldSimulator.resolvedConfigs(world, entity)
+      if (!configs) continue
       // the sync factories of the transformer types a policy world uses; anything else is not built sync on purpose
       const chain = new TransformerChain()
       for (const [i, config] of configs.entries()) {
@@ -224,24 +237,7 @@ export class WorldSimulator {
         item.transformerChain = chain
       }
     }
-    registry.setRawInputGetter(rawInputGetter)
-    const wind = world.world.wind as [number, number, number] | undefined
-    const sim = new WorldSimulator(physicsWorld, registry, entities, wind)
-    sim.currentKeys = currentKeys
-    const simInputGetter = (): RawInput => buildRawInput(sim.currentKeys)
-    registry.setRawInputGetter(simInputGetter)
-    for (const { entity } of entities) {
-      const item = registry.get(entity.id)
-      if (item?.transformerChain) {
-        item.transformerChain.getAll().forEach((t) => {
-          const withRawInput = t as { setRawInputGetter?: (getter: () => RawInput) => void }
-          if (typeof withRawInput.setRawInputGetter === 'function') {
-            withRawInput.setRawInputGetter(simInputGetter)
-          }
-        })
-      }
-    }
-    return sim
+    return WorldSimulator.assemble(world, physicsWorld, registry, entities, currentKeys, 0)
   }
 
   // ---------------------------------------------------------------------------
