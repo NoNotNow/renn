@@ -5,10 +5,10 @@
   "setupIndex": 2,
   "name": "WF deadend 2",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
-  "bestScore": 103,
+  "bestScore": 107,
   "chains": 3,
   "tileSvg": {
     "w": 144,
@@ -119,7 +119,7 @@
             183.4
           ]
         ],
-        "score": 103
+        "score": 107
       }
     ]
   }

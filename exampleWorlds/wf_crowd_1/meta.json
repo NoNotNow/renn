@@ -5,8 +5,8 @@
   "setupIndex": 1,
   "name": "WF crowd 1",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
   "bestScore": 414,
   "chains": 2,
@@ -133,7 +133,7 @@
             38.7
           ]
         ],
-        "score": 313
+        "score": 405
       },
       {
         "pts": [

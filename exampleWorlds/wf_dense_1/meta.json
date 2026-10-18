@@ -5,10 +5,10 @@
   "setupIndex": 1,
   "name": "WF dense 1",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
-  "bestScore": 404,
+  "bestScore": 413,
   "chains": 4,
   "tileSvg": {
     "w": 37,
@@ -528,7 +528,7 @@
             25.3
           ]
         ],
-        "score": 361
+        "score": 413
       }
     ]
   }

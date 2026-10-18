@@ -5,10 +5,10 @@
   "setupIndex": 3,
   "name": "WF gates 3",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
-  "bestScore": 470,
+  "bestScore": 474,
   "chains": 2,
   "tileSvg": {
     "w": 35,
@@ -810,7 +810,7 @@
             25.3
           ]
         ],
-        "score": 30
+        "score": 474
       }
     ]
   }

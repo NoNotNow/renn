@@ -5,8 +5,8 @@
   "setupIndex": 3,
   "name": "WF crux 3",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
   "bestScore": 36,
   "chains": 6,

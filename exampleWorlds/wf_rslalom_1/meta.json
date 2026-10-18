@@ -5,8 +5,8 @@
   "setupIndex": 1,
   "name": "WF rslalom 1",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
   "bestScore": 90,
   "chains": 3,
@@ -70,7 +70,7 @@
             31.1
           ]
         ],
-        "score": 66
+        "score": 90
       },
       {
         "pts": [

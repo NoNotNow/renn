@@ -5,10 +5,10 @@
   "setupIndex": 1,
   "name": "WF maze 1",
   "candidate": {
-    "label": "WF32 final (gen 1500)",
-    "gen": 1500
+    "label": "WF40 recovery (gen 400)",
+    "gen": 400
   },
-  "bestScore": 75,
+  "bestScore": 258,
   "chains": 3,
   "tileSvg": {
     "w": 221,
@@ -282,7 +282,7 @@
             26.5
           ]
         ],
-        "score": 75
+        "score": 133
       },
       {
         "pts": [
@@ -459,7 +459,7 @@
             72.7
           ]
         ],
-        "score": 49
+        "score": 258
       }
     ]
   }
