@@ -109,22 +109,39 @@ export default function LayerTransformOverlay({
 
   const pct = (v: number, dim: number) => `${(v / dim) * 100}%`
 
+  /** Touch hit target; the visible box stays 12px (child element). */
+  const HANDLE_HIT_PX = 44
+  const HANDLE_VISUAL_PX = 12
+
   const handleStyle = (left: string, top: string, cursor: string): CSSProperties => ({
     position: 'absolute',
     left,
     top,
-    width: 12,
-    height: 12,
+    width: HANDLE_HIT_PX,
+    height: HANDLE_HIT_PX,
     pointerEvents: interactive ? 'auto' : 'none',
     cursor,
-    border: '2px solid #e6e9f2',
-    borderRadius: 2,
-    background: '#2563eb',
+    border: 'none',
+    background: 'transparent',
     padding: 0,
     boxSizing: 'border-box',
     zIndex: 2,
     transform: 'translate(-50%, -50%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    touchAction: 'none',
   })
+
+  const handleVisualStyle: CSSProperties = {
+    width: HANDLE_VISUAL_PX,
+    height: HANDLE_VISUAL_PX,
+    border: '2px solid #e6e9f2',
+    borderRadius: 2,
+    background: '#2563eb',
+    boxSizing: 'border-box',
+    pointerEvents: 'none',
+  }
 
   return (
     <div
@@ -159,6 +176,7 @@ export default function LayerTransformOverlay({
           margin: 0,
           background: 'rgba(125, 211, 252, 0.12)',
           zIndex: 1,
+          touchAction: 'none',
         }}
         onPointerDown={(e) => startDrag('move', e)}
       />
@@ -168,56 +186,72 @@ export default function LayerTransformOverlay({
         aria-label="Resize nw"
         style={handleStyle('0%', '0%', 'nwse-resize')}
         onPointerDown={(e) => startDrag('nw', e)}
-      />
+      >
+        <div aria-hidden style={handleVisualStyle} />
+      </button>
       <button
         type="button"
         data-testid="texture-maker-handle-n"
         aria-label="Resize n"
         style={handleStyle('50%', '0%', 'ns-resize')}
         onPointerDown={(e) => startDrag('n', e)}
-      />
+      >
+        <div aria-hidden style={handleVisualStyle} />
+      </button>
       <button
         type="button"
         data-testid="texture-maker-handle-ne"
         aria-label="Resize ne"
         style={handleStyle('100%', '0%', 'nesw-resize')}
         onPointerDown={(e) => startDrag('ne', e)}
-      />
+      >
+        <div aria-hidden style={handleVisualStyle} />
+      </button>
       <button
         type="button"
         data-testid="texture-maker-handle-e"
         aria-label="Resize e"
         style={handleStyle('100%', '50%', 'ew-resize')}
         onPointerDown={(e) => startDrag('e', e)}
-      />
+      >
+        <div aria-hidden style={handleVisualStyle} />
+      </button>
       <button
         type="button"
         data-testid="texture-maker-handle-se"
         aria-label="Resize se"
         style={handleStyle('100%', '100%', 'nwse-resize')}
         onPointerDown={(e) => startDrag('se', e)}
-      />
+      >
+        <div aria-hidden style={handleVisualStyle} />
+      </button>
       <button
         type="button"
         data-testid="texture-maker-handle-s"
         aria-label="Resize s"
         style={handleStyle('50%', '100%', 'ns-resize')}
         onPointerDown={(e) => startDrag('s', e)}
-      />
+      >
+        <div aria-hidden style={handleVisualStyle} />
+      </button>
       <button
         type="button"
         data-testid="texture-maker-handle-sw"
         aria-label="Resize sw"
         style={handleStyle('0%', '100%', 'nesw-resize')}
         onPointerDown={(e) => startDrag('sw', e)}
-      />
+      >
+        <div aria-hidden style={handleVisualStyle} />
+      </button>
       <button
         type="button"
         data-testid="texture-maker-handle-w"
         aria-label="Resize w"
         style={handleStyle('0%', '50%', 'ew-resize')}
         onPointerDown={(e) => startDrag('w', e)}
-      />
+      >
+        <div aria-hidden style={handleVisualStyle} />
+      </button>
     </div>
   )
 }

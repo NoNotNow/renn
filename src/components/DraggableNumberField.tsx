@@ -275,6 +275,7 @@ export default function DraggableNumberField({
         minWidth: 0,
         cursor: disabled ? 'not-allowed' : 'ew-resize',
         boxSizing: 'border-box',
+        touchAction: 'none',
         ...style,
       }}
     />

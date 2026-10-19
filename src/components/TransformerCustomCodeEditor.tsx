@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import type { OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
@@ -7,6 +7,7 @@ import { transformerCtxDecl, TRANSFORMER_CODE_EXTRA_LIB_URI } from '@/transforme
 import { ctxDeclFor, CTX_EXTRA_LIB_URI } from '@/scripts/scriptCtxDecl'
 import type { ScriptEvent } from '@/types/world'
 import { clamp } from '@/utils/numberUtils'
+import { usePointerDrag } from '@/hooks/usePointerDrag'
 import { theme } from '@/config/theme'
 import { MONACO_ESCAPE_CLOSE_WORKSPACE_WHEN } from '@/utils/monacoEscape'
 
@@ -89,7 +90,7 @@ export default function TransformerCustomCodeEditor({
   /** Last value emitted via onChange — skips echoing controlled updates back into Monaco while typing. */
   const lastEmittedValueRef = useRef(value)
   const extraLibRef = useRef<{ dispose(): void } | null>(null)
-  const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null)
+  const resizeDragRef = useRef<{ startHeight: number } | null>(null)
   const delayedLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const uid = useId()
 
@@ -237,30 +238,20 @@ export default function TransformerCustomCodeEditor({
   const monacoTheme = transparent ? GLASS_THEME : 'vs-dark'
   const effectiveHeight = clampHeight(heightPx)
 
-  const handleResizeMouseDown = useCallback(
-    (e: ReactMouseEvent<HTMLDivElement>) => {
-      if (layout === 'fill' || onHeightPxChange == null) return
-      e.preventDefault()
-      resizeDragRef.current = {
-        startY: e.clientY,
-        startHeight: effectiveHeight,
-      }
-      const onMove = (move: MouseEvent) => {
-        const data = resizeDragRef.current
-        if (data == null) return
-        const dy = move.clientY - data.startY
-        onHeightPxChange(clampHeight(data.startHeight + dy))
-      }
-      const onUp = () => {
-        resizeDragRef.current = null
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-      }
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
+  const heightResizeDrag = usePointerDrag({
+    onStart: () => {
+      if (layout === 'fill' || onHeightPxChange == null) return false
+      resizeDragRef.current = { startHeight: effectiveHeight }
     },
-    [clampHeight, effectiveHeight, layout, onHeightPxChange],
-  )
+    onMove: ({ dy }) => {
+      const data = resizeDragRef.current
+      if (data == null || onHeightPxChange == null) return
+      onHeightPxChange(clampHeight(data.startHeight + dy))
+    },
+    onEnd: () => {
+      resizeDragRef.current = null
+    },
+  })
 
   if (layout === 'fill') {
     return (
@@ -320,7 +311,7 @@ export default function TransformerCustomCodeEditor({
           aria-orientation="horizontal"
           title="Drag to resize code height"
           data-testid="custom-code-editor-resize-handle"
-          onMouseDown={handleResizeMouseDown}
+          {...heightResizeDrag}
           style={{
             height: 6,
             flexShrink: 0,
@@ -328,6 +319,7 @@ export default function TransformerCustomCodeEditor({
             background: theme.border.default,
             borderRadius: 2,
             marginTop: 2,
+            touchAction: 'none',
           }}
         />
       ) : null}

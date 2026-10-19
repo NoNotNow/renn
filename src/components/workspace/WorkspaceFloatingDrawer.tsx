@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -19,6 +19,7 @@ import {
   writeStoredDrawerLayout,
   type StoredDrawerLayout,
 } from '@/components/workspace/floatingDrawerLayout'
+import { usePointerDrag } from '@/hooks/usePointerDrag'
 import { theme } from '@/config/theme'
 
 const WORKSPACE_FLOATING_DRAWER_STYLE: CSSProperties = {
@@ -175,11 +176,9 @@ export default function WorkspaceFloatingDrawer({
   const sizeRef = useRef(initialSize)
   sizeRef.current = size
   const drawerRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null)
-  const resizeRef = useRef<{
+  const headerDragStartRef = useRef<{ x: number; y: number } | null>(null)
+  const resizeStartRef = useRef<{
     edge: DrawerResizeEdge
-    startX: number
-    startY: number
     startWidth: number
     startHeight: number
     startPosX: number
@@ -237,62 +236,38 @@ export default function WorkspaceFloatingDrawer({
     setPos(clamped)
   }, [clampPos])
 
-  const handleMouseDown = (e: ReactMouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return
-
-    e.preventDefault()
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startPosX: pos.x,
-      startPosY: pos.y,
-    }
-    const onMove = (move: MouseEvent) => {
-      if (!dragRef.current) return
-      const dx = move.clientX - dragRef.current.startX
-      const dy = move.clientY - dragRef.current.startY
-      const next = clampPos({
-        x: dragRef.current.startPosX + dx,
-        y: dragRef.current.startPosY + dy,
-      })
+  const headerDrag = usePointerDrag({
+    onStart: (e) => {
+      if ((e.target as HTMLElement).closest('button')) return false
+      headerDragStartRef.current = { x: posRef.current.x, y: posRef.current.y }
+    },
+    onMove: ({ dx, dy }) => {
+      const start = headerDragStartRef.current
+      if (!start) return
+      const next = clampPos({ x: start.x + dx, y: start.y + dy })
       posRef.current = next
       setPos(next)
-    }
-    const onUp = () => {
-      dragRef.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
+    },
+    onEnd: () => {
+      headerDragStartRef.current = null
       persistLayout(posRef.current, resizable ? sizeRef.current : undefined)
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }
+    },
+  })
 
-  const handleResizeMouseDown = (edge: DrawerResizeEdge) => (e: ReactMouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    resizeRef.current = {
-      edge,
-      startX: e.clientX,
-      startY: e.clientY,
-      startWidth: size.width,
-      startHeight: size.height,
-      startPosX: posRef.current.x,
-      startPosY: posRef.current.y,
-    }
-    const onMove = (move: MouseEvent) => {
-      if (!resizeRef.current) return
-      const { edge: resizeEdge, startX, startY, startWidth, startHeight, startPosX, startPosY } = resizeRef.current
+  const resizeDrag = usePointerDrag({
+    onMove: ({ dx, dy }) => {
+      const start = resizeStartRef.current
+      if (!start) return
       const hostWidth = portalTarget.clientWidth
       const hostMaxWidth = maxWidth ?? Math.max(minWidth, hostWidth - 20)
       const next = computeDrawerResizeNext({
-        edge: resizeEdge,
-        dx: move.clientX - startX,
-        dy: move.clientY - startY,
-        startWidth,
-        startHeight,
-        startPosX,
-        startPosY,
+        edge: start.edge,
+        dx,
+        dy,
+        startWidth: start.startWidth,
+        startHeight: start.startHeight,
+        startPosX: start.startPosX,
+        startPosY: start.startPosY,
         minWidth,
         minHeight,
         maxWidth: hostMaxWidth,
@@ -310,16 +285,32 @@ export default function WorkspaceFloatingDrawer({
         posRef.current = nextPos
         setPos(nextPos)
       }
-    }
-    const onUp = () => {
-      resizeRef.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
+    },
+    onEnd: () => {
+      resizeStartRef.current = null
       persistLayout(posRef.current, resizable ? sizeRef.current : undefined)
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }
+    },
+  })
+
+  const resizeHandleProps = useCallback(
+    (edge: DrawerResizeEdge) => ({
+      onPointerDown: (e: ReactPointerEvent<HTMLElement>) => {
+        resizeStartRef.current = {
+          edge,
+          startWidth: sizeRef.current.width,
+          startHeight: sizeRef.current.height,
+          startPosX: posRef.current.x,
+          startPosY: posRef.current.y,
+        }
+        resizeDrag.onPointerDown(e)
+      },
+      onPointerMove: resizeDrag.onPointerMove,
+      onPointerUp: resizeDrag.onPointerUp,
+      onPointerCancel: resizeDrag.onPointerCancel,
+      onLostPointerCapture: resizeDrag.onLostPointerCapture,
+    }),
+    [resizeDrag],
+  )
 
   return createPortal(
     <div
@@ -341,7 +332,7 @@ export default function WorkspaceFloatingDrawer({
       }}
     >
       <div
-        onMouseDown={handleMouseDown}
+        {...headerDrag}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -353,6 +344,7 @@ export default function WorkspaceFloatingDrawer({
           cursor: 'move',
           userSelect: 'none',
           flexShrink: 0,
+          touchAction: 'none',
         }}
       >
         <span style={{ fontSize: 10, fontWeight: 700, color: theme.text.secondary, textTransform: 'uppercase' }}>
@@ -387,7 +379,7 @@ export default function WorkspaceFloatingDrawer({
       <div style={{ padding: bodyPadding, overflow: bodyOverflow, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {children}
       </div>
-      {resizable ? <FloatingDrawerResizeHandles onResizeMouseDown={handleResizeMouseDown} /> : null}
+      {resizable ? <FloatingDrawerResizeHandles onResizeHandleProps={resizeHandleProps} /> : null}
     </div>,
     portalTarget,
   )

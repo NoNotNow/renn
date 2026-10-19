@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { useEffect } from 'react'
 import TransformerCustomCodeEditor from './TransformerCustomCodeEditor'
 
@@ -110,5 +110,54 @@ describe('TransformerCustomCodeEditor model sync', () => {
       'model-path-sync',
       expect.arrayContaining([expect.objectContaining({ text: 'from-undo' })]),
     )
+  })
+})
+
+describe('TransformerCustomCodeEditor height resize handle', () => {
+  const getHandle = () => screen.getByTestId('custom-code-editor-resize-handle')
+
+  it('mouse drag on the handle changes the height', () => {
+    const onHeightPxChange = vi.fn()
+    render(
+      <TransformerCustomCodeEditor value="v" onChange={vi.fn()} heightPx={280} onHeightPxChange={onHeightPxChange} />,
+    )
+    const handle = getHandle()
+    expect(handle.style.touchAction).toBe('none')
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 1, pointerType: 'mouse', clientY: 100 })
+    fireEvent.pointerMove(handle, { pointerId: 1, pointerType: 'mouse', clientY: 200 })
+    fireEvent.pointerUp(handle, { pointerId: 1, pointerType: 'mouse' })
+    expect(onHeightPxChange).toHaveBeenLastCalledWith(380)
+  })
+
+  it('touch drag changes the height; pointercancel ends the drag', () => {
+    const onHeightPxChange = vi.fn()
+    render(
+      <TransformerCustomCodeEditor value="v" onChange={vi.fn()} heightPx={280} onHeightPxChange={onHeightPxChange} />,
+    )
+    const handle = getHandle()
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 1, pointerType: 'touch', clientY: 100 })
+    fireEvent.pointerMove(handle, { pointerId: 1, pointerType: 'touch', clientY: 180 })
+    expect(onHeightPxChange).toHaveBeenLastCalledWith(360)
+    fireEvent.pointerCancel(handle, { pointerId: 1, pointerType: 'touch' })
+    const calls = onHeightPxChange.mock.calls.length
+    fireEvent.pointerMove(handle, { pointerId: 1, pointerType: 'touch', clientY: 300 })
+    expect(onHeightPxChange).toHaveBeenCalledTimes(calls)
+  })
+
+  it('clamps to the configured max height', () => {
+    const onHeightPxChange = vi.fn()
+    render(
+      <TransformerCustomCodeEditor
+        value="v"
+        onChange={vi.fn()}
+        heightPx={280}
+        maxHeightPx={300}
+        onHeightPxChange={onHeightPxChange}
+      />,
+    )
+    const handle = getHandle()
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 1, pointerType: 'mouse', clientY: 100 })
+    fireEvent.pointerMove(handle, { pointerId: 1, pointerType: 'mouse', clientY: 500 })
+    expect(onHeightPxChange).toHaveBeenLastCalledWith(300)
   })
 })

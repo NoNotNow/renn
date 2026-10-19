@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { theme } from '@/config/theme'
 
@@ -231,7 +231,10 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
               <div
                 key={index}
                 style={{ position: 'relative' }}
-                onMouseEnter={() => {
+                onPointerEnter={(e: ReactPointerEvent<HTMLDivElement>) => {
+                  // Hover-open is mouse-only: touch browsers synthesize hover around a tap,
+                  // which would open the submenu and make the tap's toggle close it again.
+                  if (e.pointerType !== 'mouse') return
                   if (submenuCloseTimeoutRef.current) {
                     clearTimeout(submenuCloseTimeoutRef.current)
                     submenuCloseTimeoutRef.current = null
@@ -241,7 +244,8 @@ export default function DropdownMenu({ label, items, onOpenChange }: DropdownMen
                     setOpenSubmenuIndex(currentItemIndex)
                   }
                 }}
-                onMouseLeave={() => {
+                onPointerLeave={(e: ReactPointerEvent<HTMLDivElement>) => {
+                  if (e.pointerType !== 'mouse') return
                   if (isSubmenu) {
                     if (submenuCloseTimeoutRef.current) clearTimeout(submenuCloseTimeoutRef.current)
                     submenuCloseTimeoutRef.current = setTimeout(() => {

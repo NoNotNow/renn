@@ -1,14 +1,14 @@
 import {
   useRef,
   useState,
-  useCallback,
   useEffect,
   type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
 import { SidebarToggleButton } from '../SidebarToggleButton'
 import SidebarTabs, { type TabConfig } from '../SidebarTabs'
+import { usePointerDrag } from '@/hooks/usePointerDrag'
 import { SIDEBAR_MIN_WIDTH, clampSidebarWidth } from './sidebarLayout'
 
 const RESIZE_THRESHOLD_PX = 5
@@ -58,7 +58,6 @@ export default function Sidebar({
   const isLeft = side === 'left'
   const isOverlay = layout === 'overlay'
   const [isResizing, setIsResizing] = useState(false)
-  const resizeRef = useRef<{ startX: number; startWidth: number; resizing: boolean } | null>(null)
 
   const [_viewportRevision, bumpViewportRevision] = useState(0)
   useEffect(() => {
@@ -69,43 +68,49 @@ export default function Sidebar({
 
   const effectiveWidth = clampSidebarWidth(width)
 
-  const handleResizeMouseDown = useCallback(
-    (e: ReactMouseEvent<HTMLElement>, toggleOnClick = true) => {
-      if (onWidthChange == null) return
-      resizeRef.current = {
-        startX: e.clientX,
-        startWidth: effectiveWidth,
-        resizing: false,
+  const resizeStartRef = useRef<{ startWidth: number; toggleOnClick: boolean; resizing: boolean } | null>(null)
+
+  const resizeDrag = usePointerDrag({
+    onMove: ({ dx }) => {
+      const data = resizeStartRef.current
+      if (data == null || onWidthChange == null) return
+      if (!data.resizing && Math.abs(dx) > RESIZE_THRESHOLD_PX) {
+        data.resizing = true
+        setIsResizing(true)
       }
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        const data = resizeRef.current
-        if (data == null) return
-        const deltaX = Math.abs(moveEvent.clientX - data.startX)
-        if (!data.resizing && deltaX > RESIZE_THRESHOLD_PX) {
-          data.resizing = true
-          setIsResizing(true)
-        }
-        if (data.resizing) {
-          const delta = isLeft ? moveEvent.clientX - data.startX : data.startX - moveEvent.clientX
-          const newWidth = clampSidebarWidth(data.startWidth + delta)
-          onWidthChange(newWidth)
-        }
+      if (data.resizing) {
+        const delta = isLeft ? dx : -dx
+        onWidthChange(clampSidebarWidth(data.startWidth + delta))
       }
-      const onMouseUp = () => {
-        const data = resizeRef.current
-        resizeRef.current = null
-        setIsResizing(false)
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-        if (toggleOnClick && data != null && !data.resizing) {
-          onToggle()
-        }
-      }
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
     },
-    [isLeft, effectiveWidth, onWidthChange, onToggle]
-  )
+    onEnd: ({ cancelled }) => {
+      const data = resizeStartRef.current
+      resizeStartRef.current = null
+      setIsResizing(false)
+      if (!cancelled && data != null && data.toggleOnClick && !data.resizing) {
+        onToggle()
+      }
+    },
+  })
+
+  const beginEdgeResize = (e: ReactPointerEvent<HTMLElement>) => {
+    resizeStartRef.current = { startWidth: effectiveWidth, toggleOnClick: false, resizing: false }
+    resizeDrag.onPointerDown(e)
+  }
+
+  const toggleButtonResizeProps =
+    onWidthChange != null
+      ? {
+          onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => {
+            resizeStartRef.current = { startWidth: effectiveWidth, toggleOnClick: true, resizing: false }
+            resizeDrag.onPointerDown(e)
+          },
+          onPointerMove: resizeDrag.onPointerMove,
+          onPointerUp: resizeDrag.onPointerUp,
+          onPointerCancel: resizeDrag.onPointerCancel,
+          onLostPointerCapture: resizeDrag.onLostPointerCapture,
+        }
+      : undefined
 
   const outerStyle: CSSProperties = {
     display: 'flex',
@@ -173,10 +178,11 @@ export default function Sidebar({
           aria-orientation="vertical"
           aria-label={`Resize ${side} sidebar`}
           data-testid={`sidebar-edge-resize-${side}`}
-          onMouseDown={(e) => {
-            e.preventDefault()
-            handleResizeMouseDown(e, false)
-          }}
+          onPointerDown={beginEdgeResize}
+          onPointerMove={resizeDrag.onPointerMove}
+          onPointerUp={resizeDrag.onPointerUp}
+          onPointerCancel={resizeDrag.onPointerCancel}
+          onLostPointerCapture={resizeDrag.onLostPointerCapture}
           style={{
             position: 'absolute',
             top: 0,
@@ -185,6 +191,7 @@ export default function Sidebar({
             [isLeft ? 'left' : 'right']: effectiveWidth - 2,
             cursor: 'ew-resize',
             zIndex: 1000,
+            touchAction: 'none',
             transition: isResizing ? 'none' : 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1), right 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
         />
@@ -195,7 +202,7 @@ export default function Sidebar({
         onToggle={onToggle}
         side={side}
         logContext={toggleLogContext}
-        onResizeHandleMouseDown={onWidthChange != null ? handleResizeMouseDown : undefined}
+        resizeHandlePointerProps={toggleButtonResizeProps}
       />
     </div>
   )

@@ -1,14 +1,13 @@
 import {
-  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
 import { TransformerDocsContent } from '@/components/TransformerDocs'
 import { theme } from '@/config/theme'
+import { usePointerDrag } from '@/hooks/usePointerDrag'
 import { clamp } from '@/utils/numberUtils'
 
 const DOCS_SPLIT_MIN_PX = 300
@@ -32,7 +31,7 @@ export default function WorkspaceDocsSplit({ open, onClose, children }: Workspac
   const docsContainerRef = useRef<HTMLDivElement>(null)
   const docsWidthRef = useRef(0)
   docsWidthRef.current = docsWidthPx
-  const docsSplitDragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const docsSplitDragRef = useRef<{ startWidth: number } | null>(null)
 
   useEffect(() => {
     if (!open || typeof window === 'undefined') return
@@ -88,12 +87,10 @@ export default function WorkspaceDocsSplit({ open, onClose, children }: Workspac
     return () => ro.disconnect()
   }, [open])
 
-  const handleDocsSplitMouseDown = useCallback(
-    (e: ReactMouseEvent<HTMLDivElement>): void => {
-      e.preventDefault()
-      if (!open) return
+  const docsSplitDrag = usePointerDrag({
+    onStart: () => {
       const row = splitRowRef.current
-      if (!row || row.clientWidth <= 0) return
+      if (!row || row.clientWidth <= 0) return false
 
       const inner = Math.max(0, row.clientWidth - DOCS_SPLIT_HANDLE_PX)
       const maxDocs = Math.max(DOCS_SPLIT_MIN_PX, inner - DOCS_SPLIT_MAIN_MIN_PX)
@@ -106,49 +103,36 @@ export default function WorkspaceDocsSplit({ open, onClose, children }: Workspac
           ? roundedMeas
           : Math.round(Math.max(docsWidthRef.current || 0, DOCS_SPLIT_MIN_PX))
 
-      const startWidth = clamp(startBase, DOCS_SPLIT_MIN_PX, maxDocs)
-
-      docsSplitDragRef.current = { startX: e.clientX, startWidth }
-
-      let lastCommitted = startWidth
-
-      const onMove = (move: MouseEvent): void => {
-        const data = docsSplitDragRef.current
-        if (data == null) return
-
-        const r = splitRowRef.current
-        if (!r || r.clientWidth <= 0) return
-        const inW = Math.max(0, r.clientWidth - DOCS_SPLIT_HANDLE_PX)
-        const max = Math.max(DOCS_SPLIT_MIN_PX, inW - DOCS_SPLIT_MAIN_MIN_PX)
-
-        const dx = move.clientX - data.startX
-        const next = clamp(data.startWidth - dx, DOCS_SPLIT_MIN_PX, max)
-        docsWidthRef.current = next
-        lastCommitted = next
-        setDocsWidthPx(next)
-      }
-
-      const onUp = (): void => {
-        docsSplitDragRef.current = null
-        document.body.style.removeProperty('cursor')
-        document.body.style.removeProperty('user-select')
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-        try {
-          window.localStorage.setItem(DOCS_WIDTH_STORAGE_KEY, String(lastCommitted))
-        } catch {
-          /* quota */
-        }
-      }
+      docsSplitDragRef.current = { startWidth: clamp(startBase, DOCS_SPLIT_MIN_PX, maxDocs) }
 
       document.body.style.cursor = 'ew-resize'
       document.body.style.userSelect = 'none'
-
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
     },
-    [open],
-  )
+    onMove: ({ dx }) => {
+      const data = docsSplitDragRef.current
+      if (data == null) return
+
+      const r = splitRowRef.current
+      if (!r || r.clientWidth <= 0) return
+      const inW = Math.max(0, r.clientWidth - DOCS_SPLIT_HANDLE_PX)
+      const max = Math.max(DOCS_SPLIT_MIN_PX, inW - DOCS_SPLIT_MAIN_MIN_PX)
+
+      const next = clamp(data.startWidth - dx, DOCS_SPLIT_MIN_PX, max)
+      docsWidthRef.current = next
+      setDocsWidthPx(next)
+    },
+    onEnd: ({ cancelled }) => {
+      docsSplitDragRef.current = null
+      document.body.style.removeProperty('cursor')
+      document.body.style.removeProperty('user-select')
+      if (cancelled) return
+      try {
+        window.localStorage.setItem(DOCS_WIDTH_STORAGE_KEY, String(docsWidthRef.current))
+      } catch {
+        /* quota */
+      }
+    },
+  })
 
   return (
     <div
@@ -187,7 +171,7 @@ export default function WorkspaceDocsSplit({ open, onClose, children }: Workspac
             aria-orientation="vertical"
             title="Drag to resize documentation column"
             data-testid="workspace-docs-split-handle"
-            onMouseDown={handleDocsSplitMouseDown}
+            {...docsSplitDrag}
             style={{
               flexShrink: 0,
               width: DOCS_SPLIT_HANDLE_PX,
@@ -196,6 +180,7 @@ export default function WorkspaceDocsSplit({ open, onClose, children }: Workspac
               background: theme.border.default,
               borderRadius: 2,
               margin: '4px 0',
+              touchAction: 'none',
             }}
           />
           <div

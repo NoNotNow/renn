@@ -314,6 +314,36 @@ describe('runSceneFrame — wheel orbit gating', () => {
     expect(drag.deltaX).toBe(0)
     expect(drag.deltaY).toBe(0)
   })
+
+  it('consumes touch-fed deltas through the same paths (1-finger orbit + 2-finger pinch)', () => {
+    // The touch gesture layer (useTouchCameraGestures) accumulates into the exact
+    // refs mouse/trackpad use: rawMouseDragRef deltas and rawWheelRef.pinchDelta.
+    const setOrbitDelta = vi.fn()
+    const zoomByLog = vi.fn()
+    const ctrl = {
+      getConfig: () => ({ control: 'free', mode: 'follow' }),
+      setForceFreeFlyNavigation: () => {},
+      setFreeFlyInput: () => {},
+      setOrbitDelta,
+      zoomByLog,
+      setEditNavigationOrbitPivot: () => {},
+      update: () => {},
+    } as unknown as CameraController
+    const drag = { deltaX: 8, deltaY: -6 } as never
+    const wheel = makeWheel({ pinchDelta: 25 })
+    const input = makeBaseInput({
+      cameraCtrlRef: { current: ctrl },
+      editNavigationModeRef: { current: true },
+      rawWheelRef: { current: wheel },
+      rawMouseDragRef: { current: drag },
+    })
+    runSceneFrame(input)
+    expect(setOrbitDelta).toHaveBeenCalledWith(8, -6)
+    expect(zoomByLog).toHaveBeenCalledWith(wheelZoomLog(0, 25))
+    // Both accumulators are consumed (reset) after the frame.
+    expect((drag as { deltaX: number }).deltaX).toBe(0)
+    expect(wheel.pinchDelta).toBe(0)
+  })
 })
 
 describe('runSceneFrame — debug forces', () => {

@@ -215,6 +215,8 @@ export function TextureMakerPreviewPane({
           onPointerDown={(e) => viewNav.onViewportPointerDown(e, studioTool)}
           style={{
             cursor: studioTool === 'hand' ? 'grab' : 'default',
+            // JS owns all viewport gestures: hand pan, paint drags, two-finger pinch zoom.
+            touchAction: 'none',
           }}
         >
           <div

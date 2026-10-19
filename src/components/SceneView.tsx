@@ -55,6 +55,7 @@ import {
   isKeyboardEventInEditableContext,
 } from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
+import { useTouchCameraGestures } from '@/input/touchCameraGestures'
 import type { TransformerConfig, TransformerDef, TransformerPipe } from '@/types/transformer'
 import {
   BUILDER_SCENE_CANVAS_HOST_ATTR,
@@ -348,6 +349,13 @@ function SceneViewInner({
   const [hudDrive, setHudDrive] = useState({ speedMs: 0, wheelAngle: 0 })
   const lastHudDriveRef = useRef<{ speedMs: number; wheelAngle: number } | null>(null)
   const gizmoDraggingRef = useRef(false)
+  // Touch camera gestures (1-finger orbit, 2-finger pinch zoom) feed the same refs the
+  // middle-mouse drag / trackpad pinch use; gizmo drags keep precedence.
+  useTouchCameraGestures(containerRef, {
+    orbitDragRef: rawMouseDragRef,
+    wheelRef: rawWheelRef,
+    isBlocked: () => gizmoDraggingRef.current,
+  })
   const disposePickGizmoRef = useRef<(() => void) | null>(null)
   const syncGizmoAttachRef = useRef<(() => void) | null>(null)
   const selectedEntityIdsRef = useRef<string[]>([])

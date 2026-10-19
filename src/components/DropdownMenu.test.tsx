@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import { theme } from '@/config/theme'
 
@@ -53,6 +53,71 @@ describe('DropdownMenu', () => {
     render(<DropdownMenu label="File" items={items} />)
     fireEvent.click(screen.getByRole('button', { name: 'File' }))
     fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+})
+
+describe('DropdownMenu submenus (mouse vs touch)', () => {
+  it('mouse hover opens the submenu (pointerenter with a mouse pointer)', () => {
+    render(<DropdownMenu label="File" items={items} />)
+    fireEvent.click(screen.getByRole('button', { name: 'File' }))
+    fireEvent.pointerEnter(screen.getByRole('menuitem', { name: /More/ }), { pointerType: 'mouse' })
+    expect(screen.getByRole('menuitem', { name: /Nested one/ })).toBeInTheDocument()
+  })
+
+  it('a touch tap opens the submenu: touch hover does not pre-open it', () => {
+    render(<DropdownMenu label="File" items={items} />)
+    fireEvent.click(screen.getByRole('button', { name: 'File' }))
+    const more = screen.getByRole('menuitem', { name: /More/ })
+
+    // Browsers synthesize hover events on tap; a touch hover must not open the submenu
+    // (it would make the following click's toggle close it again).
+    fireEvent.pointerEnter(more, { pointerType: 'touch' })
+    expect(screen.queryByRole('menuitem', { name: /Nested one/ })).not.toBeInTheDocument()
+
+    fireEvent.click(more)
+    expect(screen.getByRole('menuitem', { name: /Nested one/ })).toBeInTheDocument()
+  })
+
+  it('the synthesized mouseleave after a touch tap does not close the opened submenu', () => {
+    vi.useFakeTimers()
+    try {
+      render(<DropdownMenu label="File" items={items} />)
+      fireEvent.click(screen.getByRole('button', { name: 'File' }))
+      const more = screen.getByRole('menuitem', { name: /More/ })
+      fireEvent.click(more)
+      expect(screen.getByRole('menuitem', { name: /Nested one/ })).toBeInTheDocument()
+
+      // Mobile browsers fire mouseover/leave around the tap; leave schedules a 200ms close.
+      fireEvent.mouseLeave(more)
+      act(() => {
+        vi.advanceTimersByTime(300)
+      })
+      expect(screen.getByRole('menuitem', { name: /Nested one/ })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a second tap on the parent toggles the submenu closed; nested items run on tap', () => {
+    const nestedClick = vi.fn()
+    render(
+      <DropdownMenu
+        label="File"
+        items={[{ type: 'submenu', label: 'More', items: [{ type: 'item', label: 'Nested one', onClick: nestedClick }] }]}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'File' }))
+    const more = screen.getByRole('menuitem', { name: /More/ })
+
+    fireEvent.click(more)
+    expect(screen.getByRole('menuitem', { name: /Nested one/ })).toBeInTheDocument()
+    fireEvent.click(more)
+    expect(screen.queryByRole('menuitem', { name: /Nested one/ })).not.toBeInTheDocument()
+
+    fireEvent.click(more)
+    fireEvent.click(screen.getByRole('menuitem', { name: /Nested one/ }))
+    expect(nestedClick).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 })

@@ -1,32 +1,42 @@
-import type { MouseEvent } from 'react'
+import type { MouseEvent, PointerEvent } from 'react'
 import { uiLogger } from '@/utils/uiLogger'
 
 const RESIZE_HANDLE_TITLE = 'Drag to resize, click to collapse'
+
+export interface SidebarResizeHandlePointerProps {
+  onPointerDown: (e: PointerEvent<HTMLButtonElement>) => void
+  onPointerMove: (e: PointerEvent<HTMLButtonElement>) => void
+  onPointerUp: (e: PointerEvent<HTMLButtonElement>) => void
+  onPointerCancel: (e: PointerEvent<HTMLButtonElement>) => void
+  onLostPointerCapture: (e: PointerEvent<HTMLButtonElement>) => void
+}
 
 interface SidebarToggleButtonProps {
   isOpen: boolean
   onToggle: () => void
   side: 'left' | 'right'
   logContext: string
-  /** When set, this button acts as a resize handle; mousedown is captured and toggle is handled by parent on mouseup when no drag. */
-  onResizeHandleMouseDown?: (e: MouseEvent<HTMLButtonElement>) => void
+  /**
+   * When set, this button acts as a resize handle; pointerdown is captured and toggle is handled
+   * by the parent on pointerup when no drag happened.
+   */
+  resizeHandlePointerProps?: SidebarResizeHandlePointerProps
 }
 
-export function SidebarToggleButton({ isOpen, onToggle, side, logContext, onResizeHandleMouseDown }: SidebarToggleButtonProps) {
+export function SidebarToggleButton({
+  isOpen,
+  onToggle,
+  side,
+  logContext,
+  resizeHandlePointerProps,
+}: SidebarToggleButtonProps) {
   const isLeft = side === 'left'
-  const isResizeHandle = onResizeHandleMouseDown != null
+  const isResizeHandle = resizeHandlePointerProps != null
 
   const handleClick = () => {
     if (isResizeHandle) return
     uiLogger.click('Builder', logContext, { isOpen })
     onToggle()
-  }
-
-  const handleMouseDownCapture = (e: MouseEvent<HTMLButtonElement>) => {
-    if (!isResizeHandle) return
-    onResizeHandleMouseDown(e)
-    e.preventDefault()
-    e.stopPropagation()
   }
 
   const handleMouseEnter = (e: MouseEvent<HTMLButtonElement>) => {
@@ -56,7 +66,7 @@ export function SidebarToggleButton({ isOpen, onToggle, side, logContext, onResi
     <button
       type="button"
       onClick={handleClick}
-      onMouseDownCapture={isResizeHandle ? handleMouseDownCapture : undefined}
+      {...(resizeHandlePointerProps ?? {})}
       aria-label={getAriaLabel()}
       title={isResizeHandle ? RESIZE_HANDLE_TITLE : undefined}
       style={{
@@ -84,6 +94,7 @@ export function SidebarToggleButton({ isOpen, onToggle, side, logContext, onResi
         boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
         color: '#e6e9f2',
         pointerEvents: 'auto',
+        ...(isResizeHandle ? { touchAction: 'none' } : null),
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

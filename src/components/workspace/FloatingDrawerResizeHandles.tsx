@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import type { DrawerResizeEdge } from '@/components/workspace/floatingDrawerLayout'
 import { FLOATING_DRAWER_HEADER_HEIGHT_PX } from '@/components/workspace/floatingDrawerLayout'
 
@@ -6,6 +6,20 @@ const resizeHandleBase: CSSProperties = {
   position: 'absolute',
   zIndex: 2,
   background: 'transparent',
+  touchAction: 'none',
+}
+
+/** Touch hit target for edge/corner handles; visual grab area inside the drawer is unchanged. */
+const HANDLE_HIT_PX = 24
+const EDGE_INSIDE_PX = 6
+const CORNER_INSIDE_PX = 12
+
+export interface ResizeHandlePointerProps {
+  onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void
+  onPointerMove: (e: ReactPointerEvent<HTMLElement>) => void
+  onPointerUp: (e: ReactPointerEvent<HTMLElement>) => void
+  onPointerCancel: (e: ReactPointerEvent<HTMLElement>) => void
+  onLostPointerCapture: (e: ReactPointerEvent<HTMLElement>) => void
 }
 
 interface ResizeHandleSpec {
@@ -23,49 +37,97 @@ const HANDLE_SPECS: Record<DrawerResizeEdge, ResizeHandleSpec> = {
     edge: 'left',
     title: 'Resize width from left',
     orientation: 'vertical',
-    style: { top: FLOATING_DRAWER_HEADER_HEIGHT_PX, left: 0, width: 6, bottom: 6, cursor: 'ew-resize' },
+    style: {
+      top: FLOATING_DRAWER_HEADER_HEIGHT_PX,
+      left: -(HANDLE_HIT_PX - EDGE_INSIDE_PX),
+      width: HANDLE_HIT_PX,
+      bottom: EDGE_INSIDE_PX,
+      cursor: 'ew-resize',
+    },
   },
   right: {
     edge: 'right',
     title: 'Resize width from right',
     orientation: 'vertical',
-    style: { top: FLOATING_DRAWER_HEADER_HEIGHT_PX, right: 0, width: 6, bottom: 6, cursor: 'ew-resize' },
+    style: {
+      top: FLOATING_DRAWER_HEADER_HEIGHT_PX,
+      right: -(HANDLE_HIT_PX - EDGE_INSIDE_PX),
+      width: HANDLE_HIT_PX,
+      bottom: EDGE_INSIDE_PX,
+      cursor: 'ew-resize',
+    },
   },
   bottom: {
     edge: 'bottom',
     title: 'Resize height',
     orientation: 'horizontal',
-    style: { left: 6, right: 6, bottom: 0, height: 6, cursor: 'ns-resize' },
+    style: {
+      left: EDGE_INSIDE_PX,
+      right: EDGE_INSIDE_PX,
+      bottom: -(HANDLE_HIT_PX - EDGE_INSIDE_PX),
+      height: HANDLE_HIT_PX,
+      cursor: 'ns-resize',
+    },
   },
   top: {
     edge: 'top',
     title: 'Resize height from top',
     orientation: 'horizontal',
-    style: { left: 6, right: 6, top: 0, height: 6, cursor: 'ns-resize' },
+    style: {
+      left: EDGE_INSIDE_PX,
+      right: EDGE_INSIDE_PX,
+      top: -(HANDLE_HIT_PX - EDGE_INSIDE_PX),
+      height: HANDLE_HIT_PX,
+      cursor: 'ns-resize',
+    },
   },
   'left-corner': {
     edge: 'left-corner',
     title: 'Resize width and height from left',
     orientation: 'vertical',
-    style: { left: 0, bottom: 0, width: 12, height: 12, cursor: 'nesw-resize' },
+    style: {
+      left: -(HANDLE_HIT_PX - CORNER_INSIDE_PX),
+      bottom: -(HANDLE_HIT_PX - CORNER_INSIDE_PX),
+      width: HANDLE_HIT_PX,
+      height: HANDLE_HIT_PX,
+      cursor: 'nesw-resize',
+    },
   },
   corner: {
     edge: 'corner',
     title: 'Resize width and height from right',
     orientation: 'vertical',
-    style: { right: 0, bottom: 0, width: 12, height: 12, cursor: 'nwse-resize' },
+    style: {
+      right: -(HANDLE_HIT_PX - CORNER_INSIDE_PX),
+      bottom: -(HANDLE_HIT_PX - CORNER_INSIDE_PX),
+      width: HANDLE_HIT_PX,
+      height: HANDLE_HIT_PX,
+      cursor: 'nwse-resize',
+    },
   },
   'top-corner': {
     edge: 'top-corner',
     title: 'Resize width and height from top right',
     orientation: 'vertical',
-    style: { right: 0, top: 0, width: 12, height: 12, cursor: 'nwse-resize' },
+    style: {
+      right: -(HANDLE_HIT_PX - CORNER_INSIDE_PX),
+      top: -(HANDLE_HIT_PX - CORNER_INSIDE_PX),
+      width: HANDLE_HIT_PX,
+      height: HANDLE_HIT_PX,
+      cursor: 'nwse-resize',
+    },
   },
   'top-left-corner': {
     edge: 'top-left-corner',
     title: 'Resize width and height from top left',
     orientation: 'vertical',
-    style: { left: 0, top: 0, width: 12, height: 12, cursor: 'nesw-resize' },
+    style: {
+      left: -(HANDLE_HIT_PX - CORNER_INSIDE_PX),
+      top: -(HANDLE_HIT_PX - CORNER_INSIDE_PX),
+      width: HANDLE_HIT_PX,
+      height: HANDLE_HIT_PX,
+      cursor: 'nesw-resize',
+    },
   },
 }
 
@@ -73,13 +135,13 @@ export interface FloatingDrawerResizeHandlesProps {
   headerHeightPx?: number
   /** Which edges/corners get a handle; defaults to the drawer set (left/right/bottom + bottom corners). */
   edges?: readonly DrawerResizeEdge[]
-  onResizeMouseDown: (edge: DrawerResizeEdge) => (e: ReactMouseEvent) => void
+  onResizeHandleProps: (edge: DrawerResizeEdge) => ResizeHandlePointerProps
 }
 
 export default function FloatingDrawerResizeHandles({
   headerHeightPx,
   edges = DEFAULT_EDGES,
-  onResizeMouseDown,
+  onResizeHandleProps,
 }: FloatingDrawerResizeHandlesProps) {
   return (
     <>
@@ -96,7 +158,7 @@ export default function FloatingDrawerResizeHandles({
             aria-orientation={spec.orientation}
             data-testid={`resize-handle-${edge}`}
             title={spec.title}
-            onMouseDown={onResizeMouseDown(edge)}
+            {...onResizeHandleProps(edge)}
             style={{ ...resizeHandleBase, ...style }}
           />
         )
