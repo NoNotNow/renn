@@ -52,6 +52,11 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 | 29     | Hex `BuilderHeader`/`SoundPanel`; pipe-nav dead exports; workspace tab/strip loose ends                                                                       |
 | 30     | God-file slices: TextureMaker shell, collider builder, registry culling, SceneView helpers, ProjectContext MRU, Builder pose-sync + explorer selection/groups |
 | 31     | Builder workspace hook; ProjectContext persisted assets + last-project MRU pure module                                                                        |
+| 32     | Builder entity world actions (`useBuilderEntityWorldActions`)                                                                                                  |
+| 33     | Registry visual pose + TextureMaker types                                                                                                                      |
+| 34     | Registry mesh/shape/material sync (`renderItemRegistryMeshSync.ts`)                                                                                            |
+| 35     | Code-review findings: training-set seam + exporter dedup                                                                                                       |
+| 36     | Loose ends from the last five commits (kturn exports, policy-evolution doc section)                                                                            |
 
 ---
 
@@ -98,6 +103,24 @@ Living backlog for stabilization passes. **Do not redo completed work** — scan
 
 ### Tests
 - `renderItemRegistryVisualPose.test.ts` (3).
+
+---
+
+## Phase 36 — Loose ends from the last five commits (completed, 2026-10-19)
+
+**Performance:** none (export trim, docs).
+
+### Changes
+- `src/policyEvolution/kturnChains.ts`: de-exported `OFF_KTURN_M` / `KTURN_HULL_MARGIN` (zero consumers outside the module; `hullClearAt` / `maneuverSearch` stay exported — the test file is their consumer).
+- `agent-context/feature-policy-evolution.md`: appended the 2026-10-18/19 section — detour fitness shaping (commit 6cb9b399, `--detour-shaping`, `detourShaping.ts`; resolves the PARKED plan) and the kturn maneuver kinds `pocket`/`tee`/`hall` + maneuver search (commit 9be0033d, Rangieren R2). Previously only in `test-results/` design records.
+- Verified: touch-readiness wrap-up (`lostpointercapture` in `usePointerDrag`) IS committed in 63d0aff1 — no lost work; touchCameraGestures / detourShaping / kturnChains all have production importers; `obstacleKinds.test.ts` tests `chains`/`courses`/`detourShaping` (no dead module).
+
+### Deferred
+- `obstacleKinds.test.ts` filename describes the detour kinds but imports `chains`/`courses`/`detourShaping` — rename candidate only if the detour area is touched again.
+- Touch-readiness queue (copy-menu, pipe-nav touch reorder, 2-finger pan) lives in `test-results/touch-readiness/STATUS.md`, untouched here.
+
+### Tests
+- Full `npx vitest run`: 385 files / 3537 passed / 58 skipped / 0 failed; `npx tsc --noEmit -p tsconfig.app.json` clean.
 
 ---
 

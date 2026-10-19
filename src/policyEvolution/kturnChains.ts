@@ -21,9 +21,9 @@ import type { Chain } from './chains'
  */
 
 /** offcourse tolerance of a kturn chain (matches the reversal kinds; the maneuver swings stay near their legs) */
-export const OFF_KTURN_M = 8
+const OFF_KTURN_M = 8
 /** the hull keeps this polyGap (m) to every box at every sampled arc pose */
-export const KTURN_HULL_MARGIN = 0.5
+const KTURN_HULL_MARGIN = 0.5
 
 /** steering curvatures of the arc primitives (1/m; ~10-20 m radius + straight — the car's turning circle) */
 const CURVATURES = [-0.1, -0.05, 0, 0.05, 0.1] as const

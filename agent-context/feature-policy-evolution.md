@@ -422,3 +422,19 @@ lineage) is widened to H=32 with the old core FROZEN, the new units evolved on h
   cycle with an ANTI-CHEESE AUDIT (clearing but stalling / farming lateral distance must not score), gate tests and
   re-exports, trained WITH the T2 JSON watchdog. H=48 only as a secondary consideration, and only from a recovered base.
   No further geometry changes without a user call.
+
+## Detour fitness shaping + the kturn maneuver kinds (2026-10-18/19)
+- **Detour fitness shaping (commit 6cb9b399) — the PARKED plan above, implemented**: `src/policyEvolution/detourShaping.ts`
+  pays lateral progress toward the next wall's OPENING as a per-gate HIGH-WATER bonus (`metrics.shapingBonus`, norm
+  currency, episode-static bound). OPT-IN only: run-level `--detour-shaping` (creation-only, persisted like csa;
+  `--no-detour-shaping` clears it on resume; off = bit-identical). Anti-cheese (audit list in the module header):
+  wrong-side swings pay 0, oscillation / overshoot / re-crossing cannot exceed the high-water, gates close permanently
+  once passed, at most one open phase, a slit is not an opening. Design + critic record:
+  `test-results/policy-evolution/fitness-shaping/DESIGN.md`, `CRITIC.md`.
+- **The kturn maneuver kinds (commit 9be0033d, Rangieren plan chunk R2)**: `pocket` / `tee` / `hall`
+  (`KTURN_KINDS`, `courses.ts`) — small tight worlds whose chains are MULTI-MOVE turning sequences (1-/3-/5-Zug with
+  reverse phases) laid by the maneuver search (`src/policyEvolution/kturnChains.ts`); the chain IS the plan, the net
+  learns the execution. Clearance is checked on the TRUE 4x8 hull at every sampled arc pose (0.5 m polyGap to every
+  box); anti-cheese: arcs >= 4 m, visited set kills oscillation, FLIP_COST prices cusps. Trainable +
+  informational in every eval (like blocks), OUT of the ship band (decision 2026-10-19, pinned in
+  `wfCandidateWorlds.test.ts`). Design + critic: `test-results/policy-evolution/rangieren/DESIGN-R2.md`, `CRITIC-R2.md`.
