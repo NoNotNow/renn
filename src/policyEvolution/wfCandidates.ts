@@ -1,10 +1,12 @@
 /**
  * Widen-freeze candidate manifest + world naming (app-safe, no node imports): the trained widen-freeze
  * candidates (public/policy-evolution/wf-candidates.json — R40 recovery ship H=40, pipeline-A final H=32, warm
- * baseline H=24, later stretches) drive the exported holdout worlds `wf_<kind>_<n>` (one per kind x holdout setup of the eval
- * band) and the candidate chips of the training dialogs (export-maze-candidates.ts merges them into
- * candidates.json). The worlds are reachable through the Widen-freeze tab of the merged training dialog only
- * (File -> "Training…" -> tab "Widen-freeze") — never through the generic Example Worlds menu.
+ * baseline H=24, later stretches AND every candidate of the later cycles; user decision 2026-10-19: EVERY
+ * candidate written to test-results/policy-evolution/ gets an entry here) drive the exported holdout worlds
+ * `wf_<kind>_<n>` (one per kind x holdout setup of the eval band) and the model dropdown of the training
+ * dialogs (export-maze-candidates.ts merges them into candidates.json). The worlds are reachable through
+ * the Widen-freeze tab of the merged training dialog only (File -> "Training…" -> tab "Widen-freeze")
+ * — never through the generic Example Worlds menu.
  *
  * The node-side world builder + exporter: wfCandidateWorlds.ts / tools/renn-mcp/export-wf-candidate-example-worlds.ts.
  */

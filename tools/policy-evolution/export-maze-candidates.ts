@@ -125,16 +125,16 @@ async function main(): Promise<void> {
     })
   }
 
-  // widen-freeze candidates (public/policy-evolution/wf-candidates.json): the trained pipeline-A final, the warm
-  // baseline and later stretches — entries whose genome file does not exist yet (a stretch still training) are
-  // skipped here too, so re-running this script is all it takes once the stretch wrote its candidate file
+  // widen-freeze candidates (public/policy-evolution/wf-candidates.json): EVERY manifest entry becomes a
+  // dropdown model — entries whose genome file does not exist yet (a stretch still training) are skipped here
+  // too, so re-running this script is all it takes once the stretch wrote its candidate file
   for (const wf of readWfCandidates()) {
     candidates.push({
       id: wf.id,
       label: wf.chipLabel ?? wf.label,
       gen: wf.gen,
       genome: wf.genome,
-      detail: `widen-freeze candidate · ${wf.detail ?? wf.label}`,
+      detail: wf.detail ?? wf.label,
     })
   }
 

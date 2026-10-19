@@ -7,9 +7,9 @@
  * markers above, reverse legs purple) — the same shape as the policy_v3_* worlds (buildPolicyChainsExampleWorld),
  * so what the user watches matches the reported per-kind numbers.
  *
- * The OTHER candidates (warm baseline, later stretches) drive the SAME worlds through the training dialogs'
- * candidate chips (export-maze-candidates.ts merges the manifest into candidates.json; the Builder swaps
- * params.w at load time, any hidden size). The worlds are reachable through the Widen-freeze Worlds dialog
+ * The OTHER candidates (warm baseline, later stretches, every cycle candidate) drive the SAME worlds through
+ * the training dialogs' model dropdown (export-maze-candidates.ts merges the manifest into candidates.json; the
+ * Builder swaps params.w at load time, any hidden size). The worlds are reachable through the Widen-freeze Worlds dialog
  * only — the generic Example Worlds menu excludes them (wfCandidates.isWfCandidateWorldId).
  *
  * Node side only (reads the manifest + genome files from disk; the app-side naming/meta types live in
