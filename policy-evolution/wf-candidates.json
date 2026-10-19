@@ -54,7 +54,259 @@
       "gen": 400,
       "hidden": 40,
       "bakeWorlds": true,
-      "detail": "recovery ship candidate after the detour cycle (2026-10-15, rounds 6-7): fresh H=40 widen-freeze from S4, ~900 gens of detour pursuit (blockade unlearned at every geometry, blocks partial \u2014 both dropped from the chip band, WF_CHIP_KINDS = the clean 13-kind set; dialog rows stay), selection-blind drift (sigma-boost 2.25x + a blind T2) recovered from the wf-of2a-g200 base via 400 full-band re-polish gens under the T2 JSON watchdog \u2014 holdout mean 92.6% over the 13 chip kinds vs S4 90.9% on the SAME harder loosened courses: gates/grid/bay/corridor/field 100%, crux 98%, slalom 97%, dense 95%, rslalom 92%, maze 91%, crowd 88%, free 72%, deadend 71% (the known weakness: chain C, the two-bay double-reversal, offcourse at 111-136 m \u2014 all 7 deadend failures are that chain; blocks partial 8%, 17->12->8->8 through the recovery). A guarded deadend+free focus chunk was tried before ship and REJECTED on the band (deadend fixed 88% > S4 83, free 81, but the unexercised kinds drifted to a 63.9% mean \u2014 the focus-mode signature); the deadend-fix genome is preserved at wf-of2r-de-g523.candidate.json for a future deadend-focus + full-band-release pump. The detour kinds stay parked for the fitness-shaping revisit."
+      "detail": "recovery ship candidate after the detour cycle (2026-10-15, rounds 6-7): fresh H=40 widen-freeze from S4, ~900 gens of detour pursuit (blockade unlearned at every geometry, blocks partial — both dropped from the chip band, WF_CHIP_KINDS = the clean 13-kind set; dialog rows stay), selection-blind drift (sigma-boost 2.25x + a blind T2) recovered from the wf-of2a-g200 base via 400 full-band re-polish gens under the T2 JSON watchdog — holdout mean 92.6% over the 13 chip kinds vs S4 90.9% on the SAME harder loosened courses: gates/grid/bay/corridor/field 100%, crux 98%, slalom 97%, dense 95%, rslalom 92%, maze 91%, crowd 88%, free 72%, deadend 71% (the known weakness: chain C, the two-bay double-reversal, offcourse at 111-136 m — all 7 deadend failures are that chain; blocks partial 8%, 17->12->8->8 through the recovery). A guarded deadend+free focus chunk was tried before ship and REJECTED on the band (deadend fixed 88% > S4 83, free 81, but the unexercised kinds drifted to a 63.9% mean — the focus-mode signature); the deadend-fix genome is preserved at wf-of2r-de-g523.candidate.json for a future deadend-focus + full-band-release pump. The detour kinds stay parked for the fitness-shaping revisit."
+    },
+    {
+      "id": "wf_a",
+      "label": "Pipeline-A phase A",
+      "chipLabel": "A g25",
+      "genome": "test-results/policy-evolution/widen-freeze/wf-A.candidate.json",
+      "gen": 25,
+      "hidden": 32,
+      "detail": "widen-freeze pipeline-A phase candidate (wf-A.json epochBest gen 25, H=32) — pipeline chunk A of the widen-freeze pipeline"
+    },
+    {
+      "id": "wf_b",
+      "label": "Pipeline-A phase B",
+      "chipLabel": "B g25",
+      "genome": "test-results/policy-evolution/widen-freeze/wf-B.candidate.json",
+      "gen": 25,
+      "hidden": 32,
+      "detail": "widen-freeze pipeline-A phase candidate (wf-B.json epochBest gen 25, H=32) — pipeline chunk B of the widen-freeze pipeline"
+    },
+    {
+      "id": "wf_c",
+      "label": "Pipeline-A phase C",
+      "chipLabel": "C g25",
+      "genome": "test-results/policy-evolution/widen-freeze/wf-C.candidate.json",
+      "gen": 25,
+      "hidden": 32,
+      "detail": "widen-freeze pipeline-A phase candidate (wf-C.json epochBest gen 25, H=32) — pipeline chunk C of the widen-freeze pipeline"
+    },
+    {
+      "id": "wf32_stretch3a",
+      "label": "WF32 stretch3 focus-mid",
+      "chipLabel": "S3a",
+      "genome": "test-results/policy-evolution/widen-freeze/wf-stretch3a.candidate.json",
+      "gen": 400,
+      "hidden": 32,
+      "detail": "stretch-3 FOCUS-mid candidate (wf-stretch3a.json, maze/gates/rslalom focus) — the focus half of stretch 3 before the release that produced S3"
+    },
+    {
+      "id": "wf32_stretch4a",
+      "label": "WF32 stretch4 focus-mid",
+      "chipLabel": "S4a",
+      "genome": "test-results/policy-evolution/widen-freeze/wf-stretch4a.candidate.json",
+      "gen": 400,
+      "hidden": 32,
+      "detail": "stretch-4 FOCUS-mid candidate (wf-stretch4a.json, bay/deadend/crux focus) — the focus half of stretch 4 before the release that produced S4"
+    },
+    {
+      "id": "wf_of2a_g100",
+      "label": "Obstacle-fluency run A gen 100",
+      "chipLabel": "OF2A g100",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2a-g100.candidate.json",
+      "gen": 100,
+      "hidden": 40,
+      "detail": "obstacle-fluency run A candidate (wf-of2a.json gen 100, H=40) — early full-band run on the 13-kind chip band"
+    },
+    {
+      "id": "wf_of2a_g200",
+      "label": "Obstacle-fluency run A gen 200",
+      "chipLabel": "OF2A g200",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2a-g200.candidate.json",
+      "gen": 200,
+      "hidden": 40,
+      "detail": "obstacle-fluency run A candidate (wf-of2a.json gen 200, H=40) — the pre-detour base the recovery (wf40_recovery) started from"
+    },
+    {
+      "id": "wf_of2a_df_g500",
+      "label": "Obstacle-fluency detour-focus gen 500",
+      "chipLabel": "OF2A df g500",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2a-df-g500.candidate.json",
+      "gen": 500,
+      "hidden": 40,
+      "detail": "detour-focus candidate (wf-of2a.json gen 500) — blockade/blocks pursuit, focus mode"
+    },
+    {
+      "id": "wf_of2a_df_g600",
+      "label": "Obstacle-fluency detour-focus gen 600",
+      "chipLabel": "OF2A df g600",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2a-df-g600.candidate.json",
+      "gen": 600,
+      "hidden": 40,
+      "detail": "detour-focus candidate (wf-of2a.json gen 600) — blockade/blocks pursuit, focus mode"
+    },
+    {
+      "id": "wf_of2a_df_g700",
+      "label": "Obstacle-fluency detour-focus gen 700",
+      "chipLabel": "OF2A df g700",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2a-df-g700.candidate.json",
+      "gen": 700,
+      "hidden": 40,
+      "detail": "detour-focus candidate (wf-of2a.json gen 700) — blockade/blocks pursuit, focus mode"
+    },
+    {
+      "id": "wf_of2a_df_g800",
+      "label": "Obstacle-fluency detour-focus gen 800",
+      "chipLabel": "OF2A df g800",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2a-df-g800.candidate.json",
+      "gen": 800,
+      "hidden": 40,
+      "detail": "detour-focus candidate (wf-of2a.json gen 800) — the end of ~900 gens of blockade pursuit (T1 round-5 fired, blockade never learned); the detour kinds left the chip band after this cycle"
+    },
+    {
+      "id": "wf_of2r_g123",
+      "label": "Recovery re-polish gen 123",
+      "chipLabel": "OF2R g123",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2r-g123.candidate.json",
+      "gen": 100,
+      "hidden": 40,
+      "detail": "recovery re-polish checkpoint (wf-of2r.json gen 100) — full-band recovery of the drifted base toward R40"
+    },
+    {
+      "id": "wf_of2r_g223",
+      "label": "Recovery re-polish gen 223",
+      "chipLabel": "OF2R g223",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2r-g223.candidate.json",
+      "gen": 200,
+      "hidden": 40,
+      "detail": "recovery re-polish checkpoint (wf-of2r.json gen 200) — full-band recovery of the drifted base toward R40"
+    },
+    {
+      "id": "wf_of2r_g323",
+      "label": "Recovery re-polish gen 323",
+      "chipLabel": "OF2R g323",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2r-g323.candidate.json",
+      "gen": 300,
+      "hidden": 40,
+      "detail": "recovery re-polish checkpoint (wf-of2r.json gen 300) — full-band recovery of the drifted base toward R40"
+    },
+    {
+      "id": "wf_of2r_de_g523",
+      "label": "Deadend-fix genome (conserved)",
+      "chipLabel": "DE-fix g523",
+      "genome": "test-results/policy-evolution/obstacle-fluency/wf-of2r-de-g523.candidate.json",
+      "gen": 500,
+      "hidden": 40,
+      "detail": "the conserved deadend-fix genome (deadend+free focus from R40, epochBest gen 500): deadend 87.5%, free 81.2% — but the unexercised band drifted to 63.9% (the focus-mode signature). NOT a ship candidate; the seed of the Rangieren R1 pump (frozen fallback, never touched)"
+    },
+    {
+      "id": "wf_fs2_g100",
+      "label": "Fitness-shaping focus gen 100",
+      "chipLabel": "FS2 g100",
+      "genome": "test-results/policy-evolution/fitness-shaping/wf-fs2-g100.candidate.json",
+      "gen": 100,
+      "hidden": 48,
+      "detail": "fitness-shaping cycle (2026-10-18): wf-fs1.json blockade+blocks focus with detour shaping, epochBest gen 100 — the fs1 drift kill fired on this run"
+    },
+    {
+      "id": "wf_fs2_g250",
+      "label": "Fitness-shaping focus gen 250",
+      "chipLabel": "FS2 g250",
+      "genome": "test-results/policy-evolution/fitness-shaping/wf-fs2-g250.candidate.json",
+      "gen": 250,
+      "hidden": 48,
+      "detail": "fitness-shaping cycle: wf-fs2.json widen-freeze focus with shaping, epochBest gen 250 — blocks 17% (the first regime that ever moved a detour kind)"
+    },
+    {
+      "id": "wf_fs2_g400",
+      "label": "Fitness-shaping focus gen 400",
+      "chipLabel": "FS2 g400",
+      "genome": "test-results/policy-evolution/fitness-shaping/wf-fs2-g400.candidate.json",
+      "gen": 400,
+      "hidden": 48,
+      "detail": "fitness-shaping cycle: widen-freeze focus gen 400 — blocks 25%, meanProg 0.518, but fresh-unit leakage (band 65.9%); blockade stayed exactly at baseline. NO SHIP (the ship decision is the user's)"
+    },
+    {
+      "id": "wf_fs2_g500",
+      "label": "Fitness-shaping release gen 500",
+      "chipLabel": "FS2 g500",
+      "genome": "test-results/policy-evolution/fitness-shaping/wf-fs2-g500.candidate.json",
+      "gen": 500,
+      "hidden": 48,
+      "detail": "fitness-shaping cycle: 100 unfrozen release gens from the g400 focus — blocks 13%, band 89.8%, blockade unmoved. NO SHIP (the ship decision is the user's)"
+    },
+    {
+      "id": "wf_ra1_focus_g89",
+      "label": "Rangieren R1 deadend-focus (epochBest g75)",
+      "chipLabel": "R1 F g89",
+      "genome": "test-results/policy-evolution/rangieren/wf-ra1-focus-g89.candidate.json",
+      "gen": 75,
+      "hidden": 40,
+      "detail": "Rangieren R1 focus phase (warm from the DE-fix genome): deadend EXTENDED to 96% (23/24), free 91%, bay/corridor 100% — but the unexercised kinds drifted (band 70.9%, gates 44, dense 33, rslalom 25). T2 watchdog fired at gen 89 (slalom regression) = the designed exit; epochBest gen 75"
+    },
+    {
+      "id": "wf_ra1_rel_g40",
+      "label": "Rangieren R1 release chunk g40 (epochBest g25)",
+      "chipLabel": "R1 R g40",
+      "genome": "test-results/policy-evolution/rangieren/wf-ra1-rel-g40.candidate.json",
+      "gen": 25,
+      "hidden": 40,
+      "detail": "Rangieren R1 full-band release, chunk 1 (run gen 40, epochBest gen 25): band 75.6%, deadend 71% — deadend dips under lex pressure on the worse kinds"
+    },
+    {
+      "id": "wf_ra1_rel_g80",
+      "label": "Rangieren R1 release chunk g80 (epochBest g75)",
+      "chipLabel": "R1 R g80",
+      "genome": "test-results/policy-evolution/rangieren/wf-ra1-rel-g80.candidate.json",
+      "gen": 75,
+      "hidden": 40,
+      "detail": "Rangieren R1 full-band release, chunk 2 (run gen 80, epochBest gen 75): band 80.4%, deadend 79%"
+    },
+    {
+      "id": "wf_ra1_rel_g120",
+      "label": "Rangieren R1 release chunk g120 (epochBest g100)",
+      "chipLabel": "R1 R g120",
+      "genome": "test-results/policy-evolution/rangieren/wf-ra1-rel-g120.candidate.json",
+      "gen": 100,
+      "hidden": 40,
+      "detail": "Rangieren R1 full-band release, chunk 3 (run gen 120, epochBest gen 100): band 87.6%, deadend 71%"
+    },
+    {
+      "id": "wf_ra1_rel_g160",
+      "label": "Rangieren R1 release chunk g160 (epochBest g150)",
+      "chipLabel": "R1 R g160",
+      "genome": "test-results/policy-evolution/rangieren/wf-ra1-rel-g160.candidate.json",
+      "gen": 150,
+      "hidden": 40,
+      "detail": "Rangieren R1 full-band release, chunk 4 (run gen 160, epochBest gen 150): band 90.5%, deadend 79%"
+    },
+    {
+      "id": "wf_ra1_rel_g200",
+      "label": "Rangieren R1 release chunk g200 (epochBest g200)",
+      "chipLabel": "R1 R g200",
+      "genome": "test-results/policy-evolution/rangieren/wf-ra1-rel-g200.candidate.json",
+      "gen": 200,
+      "hidden": 40,
+      "detail": "Rangieren R1 full-band release, chunk 5 (run gen 200, epochBest gen 200): band 93.5% — first chunk over the 92.6% wf40_recovery target; deadend 83%"
+    },
+    {
+      "id": "wf_ra1_rel_g240",
+      "label": "Rangieren R1 release chunk g240 (epochBest g225) — BEST",
+      "chipLabel": "R1 R g240",
+      "genome": "test-results/policy-evolution/rangieren/wf-ra1-rel-g240.candidate.json",
+      "gen": 225,
+      "hidden": 40,
+      "detail": "BEST Rangieren R1 candidate (verdict: the pump WORKS): deadend 88% (21/24 chains vs 71% / 17/24 of wf40_recovery — +17pp, far outside noise) AND band 92.9% vs 92.6% (band is a tie within noise). free 100%, gates/grid 100, field 96; trades dense 76 (vs 95) and rslalom 79 (vs 92). 3/24 deadend chains still fail (2 offcourse, 1 stall — identity unextracted, R2 leftover). The warm-start seed for the R3/R4 pump; NO SHIP yet (ship is step 4 of the Rangieren plan)"
+    },
+    {
+      "id": "wf_ra1_rel_g280",
+      "label": "Rangieren R1 release chunk g280 (epochBest g275)",
+      "chipLabel": "R1 R g280",
+      "genome": "test-results/policy-evolution/rangieren/wf-ra1-rel-g280.candidate.json",
+      "gen": 275,
+      "hidden": 40,
+      "detail": "Rangieren R1 full-band release, chunk 7 (run gen 280, epochBest gen 275): Pareto oscillation begins — deadend 92% but band 88.8%"
+    },
+    {
+      "id": "wf_ra1_rel_g320",
+      "label": "Rangieren R1 release chunk g320 (epochBest g300)",
+      "chipLabel": "R1 R g320",
+      "genome": "test-results/policy-evolution/rangieren/wf-ra1-rel-g320.candidate.json",
+      "gen": 300,
+      "hidden": 40,
+      "detail": "Rangieren R1 full-band release, chunk 8 (run gen 320, epochBest gen 300): band 89.9%, deadend 79% — the plateau rule fired (2 chunks no band gain) and stopped the release"
     }
   ]
 }
