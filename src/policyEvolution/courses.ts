@@ -25,7 +25,7 @@ import { cellCentre, generateMaze } from '@/avEvolution/maze/mazeGen'
  *    PAIRS crossing the line, the seeded opening MID-PLAZA (2026-10-15 T1 course change: the swing must stay in the learnable
  *    band, ~14-21 m, not the side walls' 34-42 m), alternating sides; `blocks`: big jittered blocks with one ON the line.
  */
-export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid' | 'crux' | 'rslalom' | 'deadend' | 'gates' | 'dense' | 'blockade' | 'blocks'
+export type CourseKind = 'field' | 'slalom' | 'maze' | 'crowd' | 'free' | 'bay' | 'corridor' | 'grid' | 'crux' | 'rslalom' | 'deadend' | 'gates' | 'dense' | 'blockade' | 'blocks' | 'pocket' | 'tee' | 'hall'
 
 /** The v1 kinds (default sets of the v1 tools). `crowd` is a v2 chain setup kind, see CHAIN_KINDS. */
 export const COURSE_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze']
@@ -34,8 +34,16 @@ export const CHAIN_KINDS: readonly CourseKind[] = ['field', 'slalom', 'maze', 'c
 /** v3 setup kinds: `free` (big closed arena, direction chains with reversals), `bay` (dead-end bays), `corridor` (too narrow to U-turn); see spec-command-chains.md, section v3. */
 export const REVERSAL_KINDS: readonly CourseKind[] = ['bay', 'corridor', 'rslalom', 'deadend']
 export const V3_NEW_KINDS: readonly CourseKind[] = ['free', ...REVERSAL_KINDS]
-/** all v3 kinds in report order: the new free-track / reversal kinds, the v2 obstacle kinds, the widen-freeze forward-avoidance kinds, the obstacle-fluency detour kinds, the grid serpentine and the crux worlds */
-export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'gates', 'dense', 'blockade', 'blocks', 'grid', 'crux']
+/**
+ * The kturn maneuver kinds (Rangieren plan, 2026-10-19): small tight worlds whose chains are MULTI-MOVE turning
+ * sequences (1-/3-/5-Zug with reverse phases) laid by the maneuver search (kturnChains.ts) — the plan is the
+ * CHAIN, the net learns the execution. Trainable + informational in every eval (like blocks), OUT of the ship
+ * band (conscious decision 2026-10-19, pinned in wfCandidateWorlds.test.ts).
+ */
+export const KTURN_KINDS: readonly CourseKind[] = ['pocket', 'tee', 'hall']
+export const isKturnKind = (k: CourseKind) => KTURN_KINDS.includes(k)
+/** all v3 kinds in report order: the new free-track / reversal kinds, the v2 obstacle kinds, the widen-freeze forward-avoidance kinds, the obstacle-fluency detour kinds, the grid serpentine, the crux worlds and the kturn maneuver kinds */
+export const V3_KINDS: readonly CourseKind[] = [...V3_NEW_KINDS, ...CHAIN_KINDS, 'gates', 'dense', 'blockade', 'blocks', 'grid', 'crux', ...KTURN_KINDS]
 export const isV3NewKind = (k: CourseKind) => V3_NEW_KINDS.includes(k)
 
 /**
@@ -95,7 +103,7 @@ export interface Course {
 export const COURSE_LENGTH = 400
 export const COURSE_START: V2 = [0, 0]
 
-export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967, grid: 86028121, crux: 86028157, rslalom: 314606891, deadend: 357172253, gates: 401948389, dense: 447262247, blockade: 520395019, blocks: 568483669 }
+export const KIND_SALT: Record<CourseKind, number> = { field: 7919, slalom: 104729, maze: 1299709, crowd: 15485863, free: 32452843, bay: 49979687, corridor: 67867967, grid: 86028121, crux: 86028157, rslalom: 314606891, deadend: 357172253, gates: 401948389, dense: 447262247, blockade: 520395019, blocks: 568483669, pocket: 669537217, tee: 680531237, hall: 691827941 }
 
 /**
  * Layout rng of the widen-freeze kinds (`rslalom`, `deadend`, `gates`, `dense`): re-seeded by the start VARIANT, so the
@@ -533,6 +541,152 @@ export function deadendWorld(seed: number, variant: number): DeadendWorld {
 }
 
 /**
+ * The kturn maneuver worlds (Rangieren plan, 2026-10-19): the car starts at the origin facing -Z and the goal
+ * lies BEHIND or to the SIDE, so the chain (laid by the maneuver search, kturnChains.ts) is a multi-move turning
+ * sequence with reverse phases — 1-/3-/5-Zug depending on the goal. `ends` are the target points (one chain per
+ * end); the search guarantees hull-cleared moves over the REAL 4x8 footprint, so the geometry ranges only need
+ * to keep the worlds tight, not drivable by hand-laid legs.
+ */
+export interface KturnWorld {
+  boxes: CourseBox[]
+  layout: Record<string, number>
+  /** target points, one chain per end (the maneuver search decides the moves) */
+  ends: V2[]
+  /** the canonical start (the Course keeps it at the origin; jitterStart varies it per variant) */
+  start: V2
+  startYawDeg: number
+}
+
+/**
+ * `pocket` (kturn): a maze dead-end pocket 14-17 m wide and 22-28 m deep — too narrow for the ~10 m turning
+ * circle's 20 m U-sweep, so every re-orientation inside is a real multi-move K. The car starts deep inside,
+ * 10 m off the back wall, facing it. The target ends: the two BACK CORNERS of the pocket (the tight in-place
+ * manoeuvres — the walls block both the long forward arc and the long reverse swing) and the straight-out
+ * point across the mouth's room (the 1-Zug pure reverse). Bearing varies per end, so the move count does too.
+ */
+export function pocketWorld(seed: number, variant: number): KturnWorld {
+  const rng = variantRng('pocket', seed, variant)
+  const pw = range(rng, 14, 17)
+  const pd = range(rng, 22, 28)
+  const md = pd - 10
+  const rd = range(rng, 20, 26)
+  const hx = pw / 2 + range(rng, 8, 12)
+  const t = 2
+  const boxes: CourseBox[] = []
+  boxes.push({ at: [0, -10 - t / 2], size: [pw + 2 * t, t], yawDeg: 0 })
+  for (const side of [-1, 1]) boxes.push({ at: [side * (pw / 2 + t / 2), (md - 10) / 2], size: [t, pd + 2 * t], yawDeg: 0 })
+  for (const side of [-1, 1]) boxes.push({ at: [side * (hx + t / 2), md + (rd + t) / 2], size: [t, rd + 2 * t], yawDeg: 0 })
+  boxes.push({ at: [0, md + rd + t / 2], size: [2 * hx + 2 * t, t], yawDeg: 0 })
+  for (const side of [-1, 1]) {
+    const x0 = side < 0 ? -hx - t : pw / 2 + t
+    const x1 = side < 0 ? -pw / 2 - t : hx + t
+    boxes.push({ at: [(x0 + x1) / 2, md - t / 2], size: [x1 - x0, t], yawDeg: 0 })
+  }
+  return {
+    boxes,
+    layout: { pw, pd, md, rd, hx },
+    ends: [
+      [-(pw / 2 - 3), -6],
+      [pw / 2 - 3, -6],
+      [0, md + rd - 8],
+    ],
+    start: [0, 0],
+    startYawDeg: 0,
+  }
+}
+
+/**
+ * `tee` (kturn): a T-intersection — a 12-14 m stem (rear wall 16-22 m behind the start) meeting a tight
+ * 12.5-14 m cross arm 14-20 m ahead: the arm is of the proven "cannot U-turn" width class, so the swing into
+ * the arm ends left / right of the junction is a K, not a single arc. The straight-ahead end (arm centre
+ * line) is the 1-Zug baseline: pure forward.
+ */
+export function teeWorld(seed: number, variant: number): KturnWorld {
+  const rng = variantRng('tee', seed, variant)
+  const cw = range(rng, 12, 14)
+  const rear = range(rng, 16, 22)
+  const ahead = range(rng, 14, 20)
+  const aw = range(rng, 12.5, 14)
+  const ahx = range(rng, 18, 24)
+  const t = 2
+  const boxes: CourseBox[] = []
+  boxes.push({ at: [0, rear + t / 2], size: [cw, t], yawDeg: 0 })
+  const zInner = -ahead + aw / 2
+  for (const side of [-1, 1]) boxes.push({ at: [side * (cw / 2 + t / 2), (rear + zInner) / 2], size: [t, rear - zInner + 2 * t], yawDeg: 0 })
+  boxes.push({ at: [0, -ahead - aw / 2 - t / 2], size: [2 * ahx + 2 * t, t], yawDeg: 0 })
+  for (const side of [-1, 1]) boxes.push({ at: [side * (ahx + t / 2), -ahead], size: [t, aw + 2 * t], yawDeg: 0 })
+  return {
+    boxes,
+    layout: { cw, rear, ahead, aw, ahx },
+    ends: [
+      [0, -ahead],
+      [-(ahx - 5), -ahead],
+      [ahx - 5, -ahead],
+    ],
+    start: [0, 0],
+    startYawDeg: 0,
+  }
+}
+
+/**
+ * `hall` (kturn): a wide dead-end hall (24-34 m — a single U-arc WOULD fit) whose back wall carries two
+ * PARKING BAYS (9-11 m wide, 10-14 m deep, left and right of the start): the goals are the bay tips. The bay
+ * walls forbid the single continuous swing, so reaching a tip is a multi-move alignment (drive in part-way,
+ * reverse to straighten, forward to the tip) — the Sackgassenhalle rangieren. The third end is the straight
+ * reverse out of the hall's mouth (the 1-Zug baseline).
+ */
+export function hallWorld(seed: number, variant: number): KturnWorld {
+  const rng = variantRng('hall', seed, variant)
+  const hw = range(rng, 24, 34)
+  const hl = range(rng, 28, 38)
+  const md = hl - 10
+  const rd = range(rng, 18, 24)
+  const hx = hw / 2 + range(rng, 6, 10)
+  const bayW = range(rng, 9, 11)
+  const bayD = range(rng, 10, 14)
+  const bxA = -range(rng, hw / 4, hw / 3)
+  const bxB = range(rng, hw / 4, hw / 3)
+  const t = 2
+  const boxes: CourseBox[] = []
+  // back wall in the three segments between the hall walls and the two bay mouths
+  const seg = (x0: number, x1: number) => boxes.push({ at: [(x0 + x1) / 2, -10 - t / 2], size: [x1 - x0, t], yawDeg: 0 })
+  seg(-hw - t, bxA - bayW / 2)
+  seg(bxA + bayW / 2, bxB - bayW / 2)
+  seg(bxB + bayW / 2, hw + t)
+  // the two bays: side walls from the back wall plane to the bay's back wall
+  const mkBay = (bx: number) => {
+    for (const side of [-1, 1]) boxes.push({ at: [bx + side * (bayW / 2 + t / 2), -10 - t - bayD / 2], size: [t, bayD], yawDeg: 0 })
+    boxes.push({ at: [bx, -10 - t - bayD - t / 2], size: [bayW + 2 * t, t], yawDeg: 0 })
+    return [bx, -10 - t - bayD + 3] as V2
+  }
+  const tipA = mkBay(bxA)
+  const tipB = mkBay(bxB)
+  for (const s of [-1, 1]) boxes.push({ at: [s * (hw / 2 + t / 2), (md - 10) / 2], size: [t, hl + 2 * t], yawDeg: 0 })
+  for (const s of [-1, 1]) boxes.push({ at: [s * (hx + t / 2), md + (rd + t) / 2], size: [t, rd + 2 * t], yawDeg: 0 })
+  boxes.push({ at: [0, md + rd + t / 2], size: [2 * hx + 2 * t, t], yawDeg: 0 })
+  for (const s of [-1, 1]) {
+    const x0 = s < 0 ? -hx - t : hw / 2 + t
+    const x1 = s < 0 ? -hw / 2 - t : hx + t
+    boxes.push({ at: [(x0 + x1) / 2, md - t / 2], size: [x1 - x0, t], yawDeg: 0 })
+  }
+  return {
+    boxes,
+    layout: { hw, hl, md, rd, hx, bayW, bayD, bxA, bxB },
+    ends: [tipA, tipB, [0, md + rd - 8]],
+    start: [0, 0],
+    startYawDeg: 0,
+  }
+}
+
+/** kturn world of a setup kind (the chain generator calls the world functions directly, like deadendWorld). */
+export function kturnWorld(kind: CourseKind, seed: number, variant: number): KturnWorld {
+  if (kind === 'pocket') return pocketWorld(seed, variant)
+  if (kind === 'tee') return teeWorld(seed, variant)
+  if (kind === 'hall') return hallWorld(seed, variant)
+  throw new Error(`kturnWorld: ${kind} is not a kturn kind`)
+}
+
+/**
  * `gates` (v3 forward obstacle-avoidance setup kind): a closed corridor (26-32 m) whose alternating wall stubs leave
  * exactly ONE opening of 9.5-12 m per gate — the openings alternate sides, so forward progress means a slalom through
  * tight gates, and the raised touch penalties price every stub contact. NO extra obstacles: a single opening per gate
@@ -717,6 +871,12 @@ function rslalomCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'w
 /** `deadend` as a Course (the chain generator calls `deadendWorld` directly). */
 function deadendCourse(seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
   const w = deadendWorld(seed, variant)
+  return { boxes: w.boxes, waypoints: [], layout: w.layout }
+}
+
+/** The kturn kinds as Courses (the maneuver generator calls the world functions directly, like deadend). */
+function kturnCourse(kind: CourseKind, seed: number, variant: number): Pick<Course, 'boxes' | 'waypoints' | 'layout'> {
+  const w = kturnWorld(kind, seed, variant)
   return { boxes: w.boxes, waypoints: [], layout: w.layout }
 }
 
@@ -995,6 +1155,11 @@ const START_JITTER: Record<CourseKind, { x: number; z: number; yawDeg: number }>
   // blocked line (the walls / block 0 cover the whole middle band the line runs in)
   blockade: { x: 4, z: 0, yawDeg: 12 },
   blocks: { x: 4, z: 0, yawDeg: 12 },
+  // kturn maneuver kinds: the pocket (14-17 m) and the tee stem (12-14 m) are tight, the hall is wide but the
+  // start sits 10 m off the back wall — the jitter stays small so the maneuver search keeps its room
+  pocket: { x: 1.5, z: 1.5, yawDeg: 8 },
+  tee: { x: 1, z: 1.5, yawDeg: 8 },
+  hall: { x: 2, z: 1.5, yawDeg: 8 },
 }
 
 /** Seeded random start pose for variant >= 1; keeps the car clear of every wall / box (falls back to the canonical start). */
@@ -1046,7 +1211,9 @@ export function buildCourse(kind: CourseKind, seed: number, variant = 0, difficu
                               ? blocksCourse(seed, variant)
                               : kind === 'crux'
                                 ? cruxCourse(rng, cruxClass(seed), cruxEmb(seed), cruxDir(seed))
-                                : mazeCourse(seed, rng, adv)
+                                : isKturnKind(kind)
+                                  ? kturnCourse(kind, seed, variant)
+                                  : mazeCourse(seed, rng, adv)
   let length = 0
   let prev: V2 = COURSE_START
   for (const w of body.waypoints) {

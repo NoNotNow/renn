@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 import { warmCruxGate } from './cruxChains'
 import { chainsForSetup, holdoutV3Episodes } from './chains'
-import { V3_KINDS, type CourseKind } from './courses'
+import { KTURN_KINDS, V3_KINDS, type CourseKind } from './courses'
 import { POLICY_CAR_ID } from './episode'
 import { hiddenOfLength, N_IN_V3 } from './policy'
 import {
@@ -56,9 +56,13 @@ describe('wf candidate manifest', () => {
     expect(WF_CANDIDATE_KINDS).toContain('blocks')
     expect(WF_CHIP_KINDS).not.toContain('blockade')
     expect(WF_CHIP_KINDS).not.toContain('blocks')
-    // the chip band covers every v3 kind except the two detour kinds (training + eval + ship claims)
-    expect([...WF_CHIP_KINDS].sort()).toEqual([...V3_KINDS].filter((k) => k !== 'blockade' && k !== 'blocks').sort())
-    expect(WF_CHIP_KINDS).toHaveLength(V3_KINDS.length - 2)
+    // the kturn maneuver kinds (pocket / tee / hall, 2026-10-19) are ALSO out of the chip band — trainable +
+    // informational like the detour kinds, never in a ship decision (conscious decision 2026-10-19: the ship
+    // band stays the clean 13-kind set so every ship comparison stays apples-to-apples with wf40_recovery)
+    for (const k of KTURN_KINDS) expect(WF_CHIP_KINDS).not.toContain(k)
+    // the chip band covers every v3 kind except the two detour kinds and the kturn kinds (training + eval + ship claims)
+    expect([...WF_CHIP_KINDS].sort()).toEqual([...V3_KINDS].filter((k) => k !== 'blockade' && k !== 'blocks' && !KTURN_KINDS.includes(k)).sort())
+    expect(WF_CHIP_KINDS).toHaveLength(V3_KINDS.length - 2 - KTURN_KINDS.length)
   })
 
   it('resolves every entry whose genome file exists; genomes are v3-shaped; stretch candidates are skipped while training', () => {

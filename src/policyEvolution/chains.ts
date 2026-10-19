@@ -1,6 +1,7 @@
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import { createRng, type Rng } from '@/avEvolution/core/rng'
-import { adversarialStyle, ADV_SEED, ADV_VARIANT, ADVERSARIAL_KINDS, buildSetupCourse, CHAIN_KINDS, COURSE_LENGTH, COURSE_START, courseKey, cruxClass, cruxEmb, isV3NewKind, parseCourseKey, V3_KINDS, type Course, type CourseKind } from './courses'
+import { adversarialStyle, ADV_SEED, ADV_VARIANT, ADVERSARIAL_KINDS, buildSetupCourse, CHAIN_KINDS, COURSE_LENGTH, COURSE_START, courseKey, cruxClass, cruxEmb, isKturnKind, isV3NewKind, parseCourseKey, V3_KINDS, type Course, type CourseKind } from './courses'
+import { generateKturnChains } from './kturnChains'
 import { generateCruxChains } from './cruxChains'
 import { generateV3Chains } from './v3Chains'
 
@@ -56,6 +57,12 @@ export const CLEARANCE: Record<CourseKind, { margins: number[]; min: number }> =
   // crux: the chains are laid by hand from the course's own route (cruxChains.ts, no grid planner); the margins record the
   // comfort the jittered chain variants keep from the walls, min is the exact clearance every accepted variant must hold
   crux: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
+  // kturn maneuver kinds (pocket / tee / hall): the maneuver search (kturnChains.ts) lays the chains and clearance-checks
+  // the TRUE 4x8 hull at 0.5 m margin along every sampled arc — these planner margins are never consulted (hand-laid kinds),
+  // they record the same comfort as the other hand-laid kinds for any generic consumer
+  pocket: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
+  tee: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
+  hall: { margins: [2.5], min: CAR_HALF_WIDTH + 0.5 },
 }
 /** smallest clearance any chain keeps (all kinds) */
 export const MIN_CLEARANCE = CAR_HALF_WIDTH + 0.25
@@ -969,6 +976,13 @@ export function chainsForSetup(setupKey: string): Chain[] {
   // blockade / blocks: the planner acceptance gates SOLVABILITY, the guidance chain is the DIRECT line (see DIRECT_LINE_KINDS)
   if (isDirectLineKind(kind)) {
     chains = directLineChains(setupKey)
+    chainCache.set(setupKey, chains)
+    return chains
+  }
+  // kturn maneuver kinds: the multi-move turning chains come from the maneuver search (kturnChains.ts),
+  // hull-clearance-checked on the true 4x8 footprint — no grid planner, no hand-laid legs
+  if (isKturnKind(kind)) {
+    chains = generateKturnChains(setupKey)
     chainCache.set(setupKey, chains)
     return chains
   }
