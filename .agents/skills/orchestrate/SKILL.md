@@ -26,6 +26,19 @@ L1 never implements directly unless the change is trivial (one file, <20 lines).
 
 Skip orchestration for single-file fixes, questions, or work that fits one context window.
 
+## Harness modes
+
+The subagent layer differs by harness. **Probe it before relying on it.**
+
+| Harness | Spawn | Model select | L2 spawns L3 | Long-turn safety |
+|---|---|---|---|---|
+| Claude Code / Cursor (Task tool) | Task tool, `run_in_background` | yes | yes | safe |
+| Mistral Vibe | `tools.subagent.spawn` / `wait` / `sendMessage` / `list` (discover via `search_tool_functions`) | no | no — L1 spawns every subagent | **killed after 720 s without output** |
+
+**Canary probe (always, before the first real spawn):** spawn a subagent whose only instruction is *"Reply READY."* and wait ~60 s. A dead canary means the channel is degraded: for the whole session, drive every L2 in **micro-turns** (one small step per `sendMessage` turn, artifacts written to disk every turn, first artifact within the first minutes) and run the **critic as its own L1-level subagent** instead of an L2-internal pass. A live canary means full-length spawns work — still keep any single L2 turn under ~10 minutes of silent work.
+
+**Process guard (long training runs, all harnesses):** background processes can be reaped silently, and `caffeinate -is` guards sleep, not reaping. Run training in ~300 s foreground windows wrapped in `caffeinate -is`, stop cleanly at window end (state saves every gen), resume via the run file, and keep STATUS.md current so any death recovers from disk.
+
 ## AFK runs and mid-run user messages (default)
 
 Orchestrated work is often **long-running**. Treat it as one session until **STATUS: done** (or **handoff-written**), unless the user explicitly says **stop** or **cancel**.
@@ -58,6 +71,10 @@ Follow-ups are safest **after** `STATUS: done`. Mid-run notes still work via app
 
 ## L1 workflow (coordinator — you)
 
+### 0. Probe the subagent channel (see Harness modes)
+
+Run the canary spawn before the baseline. A dead canary switches the session to micro-turn driving — do not burn full-length spawns to rediscover it.
+
 ### 1. Establish baseline
 
 Run in parallel before spawning anyone:
@@ -84,9 +101,13 @@ Collect and pass forward:
 
 ### 3. Spawn L2
 
-Use the Task tool with `model: composer-2.5-fast` (or the model the user specified). Fill in [ORCHESTRATOR-PROMPT.md](ORCHESTRATOR-PROMPT.md). One L2 per coherent chunk (e.g. "fix handoff defects", "implement candidate 1"). Do not pack unrelated chunks into one L2.
+Use the Task tool with `model: composer-2.5-fast` (or the model the user specified); on Mistral Vibe use `tools.subagent.spawn` with the same prompt (see Harness modes). Fill in [ORCHESTRATOR-PROMPT.md](ORCHESTRATOR-PROMPT.md). One L2 per coherent chunk (e.g. "fix handoff defects", "implement candidate 1"). Do not pack unrelated chunks into one L2.
 
-**`run_in_background`:** default **`true`** for AFK / multi-worker / “do as much as one run” requests; **`false`** when the user wants a single foreground result before continuing.
+**`run_in_background`:** default **`true`** for AFK / multi-worker / “do as much as one run” requests; **`false`** when the user wants a single foreground result before continuing. (Mistral Vibe spawns are always non-blocking; waiting is `subagent.wait` — poll disk artifacts between timeouts.)
+
+**Micro-turn driving (degraded channel):** spawn the L2 with ONE small step as its first turn, then feed it one queue item per `sendMessage` turn, keeping each turn short. Every turn must land its artifact on disk (design note, test file, commit) before ending.
+
+**Progress beacon:** while an L2 runs, surface interim state to the user at every wait timeout — `git log`, STATUS.md, the todo list. One silent wait cycle reads as "stuck"; two are a bug in your own loop.
 
 ### 4. Verify L2 output — never trust reports blindly
 
@@ -123,7 +144,7 @@ See [ORCHESTRATOR-PROMPT.md](ORCHESTRATOR-PROMPT.md) for the spawn template. Cor
 
 - **Diagnose before mutate** on behaviour changes — call `/diagnosing-bugs` or `/tdd` as appropriate
 - **Design before restructure** — call `/codebase-design` when the seam is not obvious
-- **Spawn L3 on disjoint file sets only** — see worker rules below
+- **Spawn L3 on disjoint file sets only** — see worker rules below. Where the harness gives L2 no spawn tool (Mistral Vibe), L2 implements directly on the same owned-files discipline, and L1 spawns the critic as its own subagent
 - **Verify every L3 claim** — run tests, read diff, red-check new tests
 - **Run vitest + tsc after each task**, not only at the end
 - **Write handoff** to `$TMPDIR/handoff-<topic>-<timestamp>.md` via `/handoff` when context fills or scope exceeds one session
@@ -195,6 +216,8 @@ L2 also returns:
 - **Resuming a full-context L2** — spawn fresh from handoff instead
 - **L1 implementing large diffs** — burns the coordinator's context for work L3 should do
 - **Skipping red-check on new tests** — vacuous tests passed review until revert-and-fail was run
+- **Full-length spawns on a dead channel** — four ~15-minute corpses were the cost of skipping the canary probe (2026-10-19); one dead canary = switch to micro-turns
+- **Silent L1 wait loops** — a wait cycle that reports nothing between timeouts reads as stuck to the user; emit a progress beacon every timeout
 
 ## Examples
 

@@ -80,6 +80,8 @@ model: composer-2.5-fast
 run_in_background: true   # default for AFK / multi-worker; false if user wants foreground-only
 ```
 
+Mistral Vibe harness: `tools.subagent.spawn` takes only `agentName` + `message` (no model select, no background flag — spawns are always non-blocking, `subagent.wait` polls). L2 cannot spawn L3 there — L2 implements directly on owned-files discipline, and the critic is spawned by L1. The 720 s silence kill applies: keep every turn short, land artifacts on disk first. Probe the channel with a canary spawn before the first real one (see SKILL.md → Harness modes).
+
 ## Chunking guidance for L1
 
 | Work type | L2 chunk size |
