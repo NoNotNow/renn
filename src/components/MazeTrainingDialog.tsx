@@ -245,30 +245,156 @@ function candidateMenuEntry(candidate: MazeCandidate): CandidateMenuEntry {
   }
 }
 
-/** Grouped sections of the model picker, each with a short explainer line. */
-const CANDIDATE_MENU_GROUPS: ReadonlyArray<{ key: string; title: string; explainer: string }> = [
+/** Width of the model picker popover (clamped to the viewport by `useAnchoredPopover`). */
+const CANDIDATE_MENU_WIDTH_PX = 288
+/** Responsive height cap of the model picker popover: scrolls inside beyond it. */
+const CANDIDATE_MENU_MAX_HEIGHT = 'min(420px, 60vh)'
+
+const MENU_ICON_STYLE = { width: 12, height: 12, flexShrink: 0 } as const
+
+/** One tab icon per menu group (feather-style inline SVG, same pattern as `TabIcons`). */
+const CANDIDATE_MENU_ICONS = {
+  /** Deployed: a box — the candidate baked into the exported files. */
+  deployed: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={MENU_ICON_STYLE}
+    >
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  ),
+  /** Islands: a target — the island populations around their centers. */
+  islands: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={MENU_ICON_STYLE}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  ),
+  /** Milestones: a flag — the fitness best and the shipped policy. */
+  milestones: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={MENU_ICON_STYLE}
+    >
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" y1="22" x2="4" y2="15" />
+    </svg>
+  ),
+  /** Widen-freeze ships: a paper plane — the shipped widen-freeze models. */
+  'wf-ships': (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={MENU_ICON_STYLE}
+    >
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  ),
+  /** Run checkpoints: a clock — the checkpoints along the training runs. */
+  'wf-runs': (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={MENU_ICON_STYLE}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  ),
+  /** Other candidates: an ellipsis. */
+  other: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={MENU_ICON_STYLE}
+    >
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </svg>
+  ),
+} as const
+
+/** One tabbed section of the model picker menu (short tab label, full title, explainer, entries). */
+interface CandidateMenuSection {
+  key: string
+  /** Short tab label of the section. */
+  tab: string
+  /** Full group title in the section panel. */
+  title: string
+  explainer: string
+  entries: CandidateMenuEntry[]
+}
+
+/** Tabbed sections of the model picker, each with a short explainer line. */
+const CANDIDATE_MENU_SECTIONS: ReadonlyArray<Omit<CandidateMenuSection, 'entries'>> = [
+  {
+    key: 'deployed',
+    tab: 'Deployed',
+    title: 'Deployed',
+    explainer: 'The candidate baked into the exported worlds.',
+  },
   {
     key: 'islands',
+    tab: 'Islands',
     title: 'Island centers',
     explainer: 'Live centers of the running island training.',
   },
   {
     key: 'milestones',
+    tab: 'Milestones',
     title: 'Milestones',
     explainer: 'The best genome by training fitness and the shipped policy.',
   },
   {
     key: 'wf-ships',
+    tab: 'Ships',
     title: 'Widen-freeze ships',
     explainer: 'Shipped widen-freeze models and their warm baselines.',
   },
   {
     key: 'wf-runs',
+    tab: 'Runs',
     title: 'Run checkpoints',
     explainer: 'Checkpoints from the training pipelines and experiment runs.',
   },
   {
     key: 'other',
+    tab: 'Other',
     title: 'Other candidates',
     explainer: 'Further exported candidates.',
   },
@@ -282,11 +408,6 @@ function candidateGroupKey(id: string): string {
   if (id.startsWith('wf')) return 'wf-runs'
   return 'other'
 }
-
-/** Width of the model picker popover (clamped to the viewport by `useAnchoredPopover`). */
-const CANDIDATE_MENU_WIDTH_PX = 288
-/** Responsive height cap of the model picker popover: scrolls inside beyond it. */
-const CANDIDATE_MENU_MAX_HEIGHT = 'min(420px, 60vh)'
 
 /**
  * Row health dot under the SELECTED candidate's headless scores — same weakest-link ratio as the deployed-side
@@ -493,20 +614,27 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
     [candidatesFile, candidateId],
   )
 
-  // Model picker menu: the trigger button in the candidates row opens this grouped popover
+  // Model picker menu: the trigger button in the candidates row opens this tabbed popover
   // (AnchoredPopover: portaled to body, outside-click + Escape dismiss, viewport-clamped).
   const [candidateMenuOpen, setCandidateMenuOpen] = useState(false)
   const candidateTriggerRef = useRef<HTMLButtonElement>(null)
+  /** Manually picked tab (null = follow the selected candidate's group; reset on every open). */
+  const [candidateMenuTab, setCandidateMenuTab] = useState<string | null>(null)
   const candidateMenuSections = useMemo(() => {
     if (!candidatesFile) return []
-    const buckets = new Map<string, CandidateMenuEntry[]>(CANDIDATE_MENU_GROUPS.map((g) => [g.key, []]))
+    const buckets = new Map<string, CandidateMenuEntry[]>(CANDIDATE_MENU_SECTIONS.map((g) => [g.key, []]))
     for (const candidate of candidatesFile.candidates) {
       buckets.get(candidateGroupKey(candidate.id))?.push(candidateMenuEntry(candidate))
     }
-    return CANDIDATE_MENU_GROUPS.map((group) => ({ ...group, entries: buckets.get(group.key) ?? [] })).filter(
-      (group) => group.entries.length > 0,
-    )
+    return CANDIDATE_MENU_SECTIONS.map((section) => ({
+      ...section,
+      entries: section.key === 'deployed' ? [DEPLOYED_MENU_ENTRY] : (buckets.get(section.key) ?? []),
+    })).filter((section) => section.entries.length > 0)
   }, [candidatesFile])
+  /** Active tab: an explicit pick wins; otherwise the selected candidate's group (deployed default). */
+  const candidateMenuActiveTab = candidateMenuTab ?? (selectedCandidate ? candidateGroupKey(selectedCandidate.id) : 'deployed')
+  const activeCandidateMenuSection =
+    candidateMenuSections.find((section) => section.key === candidateMenuActiveTab) ?? candidateMenuSections[0]
 
   const handleCardClick = useCallback((id: string) => {
     setSelectedId(id)
@@ -682,7 +810,10 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                 aria-haspopup="dialog"
                 aria-expanded={candidateMenuOpen}
                 title="Candidate models: the picker swaps the driving net of the loaded world (the exported file keeps the deployed best). The per-run rows describe the DEPLOYED candidate; the row averages follow the selected model."
-                onClick={() => setCandidateMenuOpen((open) => !open)}
+                onClick={() => {
+                  setCandidateMenuTab(null)
+                  setCandidateMenuOpen((open) => !open)
+                }}
                 style={{
                   background: theme.bg.surface,
                   border: `1px solid ${selectedCandidate ? theme.accent : theme.border.default}`,
@@ -716,62 +847,140 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                 panelWidth={CANDIDATE_MENU_WIDTH_PX}
                 style={{ maxHeight: CANDIDATE_MENU_MAX_HEIGHT, overflowY: 'auto', padding: 4 }}
               >
-                {[{ key: 'deployed', title: 'Deployed', explainer: 'The candidate baked into the exported worlds.', entries: [DEPLOYED_MENU_ENTRY] }, ...candidateMenuSections].map(
-                  (section, index) => (
-                    <div
-                      key={section.key}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 2,
-                        padding: '6px 4px 8px',
-                        borderTop: index > 0 ? `1px solid ${theme.border.default}` : undefined,
-                      }}
-                    >
-                      <span style={{ fontSize: 11, fontWeight: 600, color: theme.text.primary }}>{section.title}</span>
-                      <span style={{ fontSize: 10, color: theme.text.muted, marginBottom: 2 }}>{section.explainer}</span>
-                      {section.entries.map((entry) => {
-                        const active = entry.id === (selectedCandidate?.id ?? '')
-                        return (
-                          <button
-                            key={entry.id}
-                            type="button"
-                            data-testid={`${trainingSet.testid}-training-candidate-option-${entry.id || 'deployed'}`}
-                            title={entry.title}
-                            aria-pressed={active}
-                            onClick={() => {
-                              handleCandidateSelect(entry.id)
-                              setCandidateMenuOpen(false)
-                            }}
+                {/* header row: the group tabs grow left, the close button sits right */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 4,
+                    padding: '4px 4px 6px',
+                    borderBottom: `1px solid ${theme.border.default}`,
+                  }}
+                >
+                  <div
+                    role="tablist"
+                    aria-label="Candidate model groups"
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 2, flex: 1, minWidth: 0 }}
+                  >
+                    {candidateMenuSections.map((section) => {
+                      const active = section.key === candidateMenuActiveTab
+                      return (
+                        <button
+                          key={section.key}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          data-testid={`${trainingSet.testid}-training-candidates-tab-${section.key}`}
+                          title={section.title}
+                          onClick={() => setCandidateMenuTab(section.key)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            background: active ? theme.bg.surface : 'transparent',
+                            border: `1px solid ${active ? theme.accent : 'transparent'}`,
+                            borderRadius: 4,
+                            color: active ? theme.accent : theme.text.muted,
+                            fontSize: 10,
+                            lineHeight: 1.2,
+                            padding: '3px 6px',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {CANDIDATE_MENU_ICONS[section.key as keyof typeof CANDIDATE_MENU_ICONS]}
+                          <span>{section.tab}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    data-testid={`${trainingSet.testid}-training-candidates-menu-close`}
+                    aria-label="Close model menu"
+                    onClick={() => setCandidateMenuOpen(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: theme.text.muted,
+                      fontSize: 14,
+                      lineHeight: 1,
+                      width: 20,
+                      height: 20,
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = theme.bg.surface
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                {/* active section: full title + explainer + its entries only */}
+                {activeCandidateMenuSection ? (
+                  <div
+                    role="tabpanel"
+                    style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 4px 8px' }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 600, color: theme.text.primary }}>
+                      {activeCandidateMenuSection.title}
+                    </span>
+                    <span style={{ fontSize: 10, color: theme.text.muted, marginBottom: 2 }}>
+                      {activeCandidateMenuSection.explainer}
+                    </span>
+                    {activeCandidateMenuSection.entries.map((entry) => {
+                      const active = entry.id === (selectedCandidate?.id ?? '')
+                      return (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          data-testid={`${trainingSet.testid}-training-candidate-option-${entry.id || 'deployed'}`}
+                          title={entry.title}
+                          aria-pressed={active}
+                          onClick={() => handleCandidateSelect(entry.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '4px 6px',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            background: active ? theme.bg.surface : 'transparent',
+                            border: `1px solid ${active ? theme.accent : 'transparent'}`,
+                            color: active ? theme.accent : theme.text.secondary,
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          <span
                             style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '4px 6px',
-                              borderRadius: 4,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                              background: active ? theme.bg.surface : 'transparent',
-                              border: `1px solid ${active ? theme.accent : 'transparent'}`,
-                              color: active ? theme.accent : theme.text.secondary,
-                              fontSize: 11,
-                              lineHeight: 1.2,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontWeight: active ? 600 : 400,
                             }}
                           >
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: active ? 600 : 400 }}>
-                              {entry.label}
+                            {entry.label}
+                          </span>
+                          {entry.genBadge != null ? (
+                            <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text.muted, whiteSpace: 'nowrap' }}>
+                              {entry.genBadge}
                             </span>
-                            {entry.genBadge != null ? (
-                              <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text.muted, whiteSpace: 'nowrap' }}>
-                                {entry.genBadge}
-                              </span>
-                            ) : null}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ),
-                )}
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
               </AnchoredPopover>
             </>
           ) : null}
