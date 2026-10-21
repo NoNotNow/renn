@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MazeTrainingDialog, { routeTileThumbHeightPx } from './MazeTrainingDialog'
 import { CRUX_TRAINING_SET, TRAINING_SETS, WF_TRAINING_SET } from './trainingSets'
@@ -375,18 +375,27 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByText('Live centers of the running island training.')).toBeInTheDocument()
     expect(screen.getByTestId('maze-training-candidate-option-island-0')).toBeInTheDocument()
     expect(screen.queryByTestId('maze-training-candidate-option-deployed')).not.toBeInTheDocument()
-    // the Runs tab sub-categorizes its checkpoints by run family (headers in family order)
+    // the Runs tab sub-categorizes its checkpoints by run family: one sub-tab per family under the
+    // group tabs — only the ACTIVE family's entries render, the families do not stack
     await user.click(screen.getByTestId('maze-training-candidates-tab-wf-runs'))
-    const subgroupIds = screen
-      .getAllByTestId(/^maze-training-candidates-subgroup-/)
-      .map((el) => el.dataset.testid?.replace('maze-training-candidates-subgroup-', ''))
-    expect(subgroupIds).toEqual(['of2a', 'of2a-df', 'shaping', 'rangieren'])
+    const subtabIds = screen
+      .getAllByTestId(/^maze-training-candidates-subtab-/)
+      .map((el) => el.dataset.testid?.replace('maze-training-candidates-subtab-', ''))
+    expect(subtabIds).toEqual(['of2a', 'of2a-df', 'shaping', 'rangieren'])
+    // default: the first family is active; the other families' entries stay out of the document
+    const of2a = screen.getByTestId('maze-training-candidates-subgroup-of2a')
+    expect(of2a).toContainElement(screen.getByTestId('maze-training-candidate-option-wf_of2a_g100'))
+    expect(screen.queryByTestId('maze-training-candidates-subgroup-rangieren')).not.toBeInTheDocument()
+    // a sub-tab click swaps to that family's entries (the previous family's block disappears)
+    await user.click(screen.getByTestId('maze-training-candidates-subtab-of2a-df'))
+    const detour = screen.getByTestId('maze-training-candidates-subgroup-of2a-df')
+    expect(detour).toContainElement(screen.getByTestId('maze-training-candidate-option-wf_of2a_df_g600'))
+    expect(detour).toHaveTextContent('Blockade and blocks pursuit.')
+    expect(screen.queryByTestId('maze-training-candidates-subgroup-of2a')).not.toBeInTheDocument()
+    await user.click(screen.getByTestId('maze-training-candidates-subtab-rangieren'))
     const rangieren = screen.getByTestId('maze-training-candidates-subgroup-rangieren')
     expect(rangieren).toContainElement(screen.getByTestId('maze-training-candidate-option-wf_ra1_rel_g40'))
     expect(rangieren).toHaveTextContent('Rangieren shunting focus and release chunks.')
-    expect(screen.getByTestId('maze-training-candidates-subgroup-of2a-df')).toContainElement(
-      screen.getByTestId('maze-training-candidate-option-wf_of2a_df_g600'),
-    )
     await user.click(screen.getByTestId('maze-training-candidates-tab-wf-ships'))
     expect(screen.getByTestId('maze-training-candidate-option-wf32_final')).toBeInTheDocument()
     await user.click(screen.getByTestId('maze-training-candidates-tab-other'))
@@ -429,6 +438,34 @@ describe('MazeTrainingDialog', () => {
     const header = screen.getByTestId('maze-training-panel-header')
     expect(header).not.toContainElement(screen.getByTestId('maze-training-candidates'))
     expect(header).not.toContainElement(screen.getByTestId('maze-training-header-totals'))
+  })
+
+  it('the picker menu keeps its tab bar fixed above the scrolling entries and resizes from its corner', async () => {
+    const user = userEvent.setup()
+    const candidates = [makeCandidate('island-0', 'I1'), makeCandidate('best', 'Best')]
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
+    await user.click(await screen.findByTestId('maze-training-candidates'))
+    const menu = screen.getByTestId('maze-training-candidates-menu')
+    // the panel itself does not scroll (its entries body does); the group tab bar sits OUTSIDE the
+    // scrolling tabpanel, so it stays put while the entries scroll
+    expect(menu.style.overflowY).toBe('')
+    expect(screen.getByTestId('maze-training-candidates-tab-islands').closest('[role="tabpanel"]')).toBeNull()
+    // the bottom-right corner drag sets an explicit size (floors at 288×160, clamped to the viewport)
+    const handle = screen.getByTestId('maze-training-candidates-menu-resize')
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 1, pointerType: 'mouse', clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(handle, { pointerId: 1, pointerType: 'mouse', clientX: 500, clientY: 400 })
+    fireEvent.pointerUp(handle, { pointerId: 1, pointerType: 'mouse' })
+    expect(menu.style.width).toBe('400px')
+    expect(menu.style.height).toBe('300px')
+    // the drag itself never closed the menu (the handle is inside the panel)
+    expect(screen.getByTestId('maze-training-candidates-menu')).toBeInTheDocument()
+    // a shrinking drag floors at the minimum size (jsdom rect is 0×0, so the deltas hit the floors)
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 2, pointerType: 'mouse', clientX: 500, clientY: 400 })
+    fireEvent.pointerMove(handle, { pointerId: 2, pointerType: 'mouse', clientX: 420, clientY: 350 })
+    fireEvent.pointerUp(handle, { pointerId: 2, pointerType: 'mouse' })
+    expect(menu.style.width).toBe('288px')
+    expect(menu.style.height).toBe('160px')
   })
 
   it('the picker selection survives across mounts (the candidate slot persists per set)', async () => {

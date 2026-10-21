@@ -19,6 +19,7 @@ import {
   subscribeTransformerWatch,
   type TransformerWatchEntry,
 } from '@/runtime/transformerWatchBridge'
+import { useCornerBrResize, type CornerBrSize } from '@/hooks/useCornerBrResize'
 
 const BASE_URL = import.meta.env.BASE_URL || '/'
 
@@ -249,6 +250,10 @@ function candidateMenuEntry(candidate: MazeCandidate): CandidateMenuEntry {
 const CANDIDATE_MENU_WIDTH_PX = 288
 /** Responsive height cap of the model picker popover: scrolls inside beyond it. */
 const CANDIDATE_MENU_MAX_HEIGHT = 'min(420px, 60vh)'
+/** Resize floor of the model picker popover (bottom-right corner drag). */
+const CANDIDATE_MENU_MIN_HEIGHT_PX = 160
+/** Viewport margin the corner resize keeps on the right/bottom edge. */
+const CANDIDATE_MENU_RESIZE_VIEWPORT_MARGIN_PX = 10
 
 const MENU_ICON_STYLE = { width: 12, height: 12, flexShrink: 0 } as const
 
@@ -684,6 +689,38 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
   const candidateTriggerRef = useRef<HTMLButtonElement>(null)
   /** Manually picked tab (null = follow the selected candidate's group; reset on every open). */
   const [candidateMenuTab, setCandidateMenuTab] = useState<string | null>(null)
+  /** Manually picked run-family sub-tab of the Runs tab (null = follow the selection / first family). */
+  const [candidateRunsSubTab, setCandidateRunsSubTab] = useState<string | null>(null)
+  /**
+   * Corner-resized popover size (null = the default width with the responsive `maxHeight` cap).
+   * The panel re-anchors through `panelWidth`, so the viewport clamp keeps working at any size;
+   * the on-change clamp keeps the dragged corner inside the viewport.
+   */
+  const [candidateMenuSize, setCandidateMenuSize] = useState<CornerBrSize | null>(null)
+  const candidateMenuTestid = `${trainingSet.testid}-training-candidates-menu`
+  const resolveCandidateMenuRect = useCallback(() => {
+    if (typeof document === 'undefined') return null
+    return document
+      .querySelector(`[data-testid="${candidateMenuTestid}"]`)
+      ?.getBoundingClientRect() ?? null
+  }, [candidateMenuTestid])
+  const candidateMenuResizeHandleProps = useCornerBrResize({
+    enabled: candidateMenuOpen,
+    minWidth: CANDIDATE_MENU_WIDTH_PX,
+    minHeight: CANDIDATE_MENU_MIN_HEIGHT_PX,
+    size: candidateMenuSize ?? { width: CANDIDATE_MENU_WIDTH_PX, height: 420 },
+    onSizeChange: (next) => {
+      const rect = resolveCandidateMenuRect()
+      const maxW = rect ? window.innerWidth - CANDIDATE_MENU_RESIZE_VIEWPORT_MARGIN_PX - rect.left : window.innerWidth
+      const maxH = rect ? window.innerHeight - CANDIDATE_MENU_RESIZE_VIEWPORT_MARGIN_PX - rect.top : window.innerHeight
+      setCandidateMenuSize({
+        width: Math.min(next.width, maxW),
+        height: Math.min(next.height, maxH),
+      })
+    },
+    resolveStartSize: () =>
+      resolveCandidateMenuRect() ?? { width: CANDIDATE_MENU_WIDTH_PX, height: 300 },
+  })
   const candidateMenuSections = useMemo(() => {
     if (!candidatesFile) return []
     const buckets = new Map<string, CandidateMenuEntry[]>(CANDIDATE_MENU_SECTIONS.map((g) => [g.key, []]))
@@ -707,6 +744,20 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
   const candidateMenuActiveTab = candidateMenuTab ?? (selectedCandidate ? candidateGroupKey(selectedCandidate.id) : 'deployed')
   const activeCandidateMenuSection =
     candidateMenuSections.find((section) => section.key === candidateMenuActiveTab) ?? candidateMenuSections[0]
+  /**
+   * Active run family of the Runs tab: an explicit sub-tab pick wins; otherwise the selected candidate's
+   * family (when it is a run checkpoint); the first family is the fallback. Only its entries render.
+   */
+  const activeCandidateRunSubGroup = activeCandidateMenuSection?.subGroups
+    ? (activeCandidateMenuSection.subGroups.find(
+        (sub) =>
+          sub.key ===
+          (candidateRunsSubTab ??
+            (selectedCandidate && candidateGroupKey(selectedCandidate.id) === 'wf-runs'
+              ? candidateRunSubGroupKey(selectedCandidate.id)
+              : null)),
+      ) ?? activeCandidateMenuSection.subGroups[0])
+    : null
 
   const handleCardClick = useCallback((id: string) => {
     setSelectedId(id)
@@ -884,6 +935,7 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                 title="Candidate models: the picker swaps the driving net of the loaded world (the exported file keeps the deployed best). The per-run rows describe the DEPLOYED candidate; the row averages follow the selected model."
                 onClick={() => {
                   setCandidateMenuTab(null)
+                  setCandidateRunsSubTab(null)
                   setCandidateMenuOpen((open) => !open)
                 }}
                 style={{
@@ -915,20 +967,36 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                 anchorRef={candidateTriggerRef}
                 onClose={() => setCandidateMenuOpen(false)}
                 ariaLabel="Candidate models"
-                testId={`${trainingSet.testid}-training-candidates-menu`}
-                panelWidth={CANDIDATE_MENU_WIDTH_PX}
-                style={{ maxHeight: CANDIDATE_MENU_MAX_HEIGHT, overflowY: 'auto', padding: 4 }}
+                testId={candidateMenuTestid}
+                panelWidth={candidateMenuSize?.width ?? CANDIDATE_MENU_WIDTH_PX}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  maxHeight: candidateMenuSize ? undefined : CANDIDATE_MENU_MAX_HEIGHT,
+                  ...(candidateMenuSize
+                    ? { width: candidateMenuSize.width, height: candidateMenuSize.height }
+                    : {}),
+                }}
               >
-                {/* header row: the group tabs grow left, the close button sits right */}
+                {/* fixed header: the group tab row (plus the Runs family sub-tabs below) stays put
+                    while the entries scroll; the close button sits right of the tab bar */}
                 <div
                   style={{
                     display: 'flex',
-                    alignItems: 'flex-start',
+                    flexDirection: 'column',
                     gap: 4,
+                    flexShrink: 0,
                     padding: '4px 4px 6px',
                     borderBottom: `1px solid ${theme.border.default}`,
                   }}
                 >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 4,
+                    }}
+                  >
                   <div
                     role="tablist"
                     aria-label="Candidate model groups"
@@ -995,25 +1063,62 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                   >
                     ×
                   </button>
+                  </div>
+                  {/* Runs family sub-tabs: one pill per run family under the group tabs — only the
+                      active family's entries render below, the families do not stack */}
+                  {activeCandidateMenuSection?.subGroups ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                      {activeCandidateMenuSection.subGroups.map((sub) => {
+                        const active = activeCandidateRunSubGroup?.key === sub.key
+                        return (
+                          <button
+                            key={sub.key}
+                            type="button"
+                            aria-pressed={active}
+                            data-testid={`${trainingSet.testid}-training-candidates-subtab-${sub.key}`}
+                            title={sub.explainer}
+                            onClick={() => setCandidateRunsSubTab(sub.key)}
+                            style={{
+                              background: active ? theme.bg.surface : 'transparent',
+                              border: `1px solid ${active ? theme.accent : 'transparent'}`,
+                              borderRadius: 4,
+                              color: active ? theme.accent : theme.text.muted,
+                              fontSize: 10,
+                              lineHeight: 1.2,
+                              padding: '2px 6px',
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {sub.title}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : null}
                 </div>
-                {/* active section: full title + explainer + its entries only (the Runs tab sub-categorizes) */}
-                {activeCandidateMenuSection ? (
-                  <div
-                    role="tabpanel"
-                    style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 4px 8px' }}
-                  >
-                    <span style={{ fontSize: 11, fontWeight: 600, color: theme.text.primary }}>
-                      {activeCandidateMenuSection.title}
-                    </span>
-                    <span style={{ fontSize: 10, color: theme.text.muted, marginBottom: 2 }}>
-                      {activeCandidateMenuSection.explainer}
-                    </span>
-                    {(activeCandidateMenuSection.subGroups ?? [{ key: 'all', title: '', explainer: '', entries: activeCandidateMenuSection.entries }]).map(
-                      (block, blockIndex) => (
+                {/* scrollable body: the active section's title + explainer + its entries (the group
+                    tab row and the Runs sub-tabs stay fixed above while this area scrolls) */}
+                <div style={{ overflowY: 'auto', minHeight: 0, flex: 1 }}>
+                  {activeCandidateMenuSection ? (
+                    <div
+                      role="tabpanel"
+                      style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '6px 4px 8px' }}
+                    >
+                      <span style={{ fontSize: 11, fontWeight: 600, color: theme.text.primary }}>
+                        {activeCandidateMenuSection.title}
+                      </span>
+                      <span style={{ fontSize: 10, color: theme.text.muted, marginBottom: 2 }}>
+                        {activeCandidateMenuSection.explainer}
+                      </span>
+                      {(activeCandidateRunSubGroup
+                        ? [activeCandidateRunSubGroup]
+                        : [{ key: 'all', title: '', explainer: '', entries: activeCandidateMenuSection.entries }]
+                      ).map((block) => (
                         <div
                           key={block.key}
                           data-testid={
-                            blockIndex > 0 || activeCandidateMenuSection.subGroups
+                            activeCandidateRunSubGroup
                               ? `${trainingSet.testid}-training-candidates-subgroup-${block.key}`
                               : undefined
                           }
@@ -1021,15 +1126,10 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                             display: 'flex',
                             flexDirection: 'column',
                             gap: 2,
-                            marginTop:
-                              activeCandidateMenuSection.subGroups && blockIndex > 0
-                                ? 8
-                                : activeCandidateMenuSection.subGroups
-                                  ? 4
-                                  : 0,
+                            marginTop: activeCandidateRunSubGroup ? 4 : 0,
                           }}
                         >
-                          {activeCandidateMenuSection.subGroups ? (
+                          {activeCandidateRunSubGroup ? (
                             <>
                               <span style={{ fontSize: 10, fontWeight: 600, color: theme.text.secondary }}>
                                 {block.title}
@@ -1081,10 +1181,26 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                             )
                           })}
                         </div>
-                      ),
-                    )}
-                  </div>
-                ) : null}
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                {/* bottom-right corner resize handle (useCornerBrResize: pointer + capture, min
+                    288×160, clamped to the viewport; the anchor keeps re-clamping the left edge) */}
+                <div
+                  aria-hidden={true}
+                  {...candidateMenuResizeHandleProps}
+                  data-testid={`${trainingSet.testid}-training-candidates-menu-resize`}
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    bottom: 0,
+                    width: 18,
+                    height: 18,
+                    cursor: 'nwse-resize',
+                    touchAction: 'none',
+                  }}
+                />
               </AnchoredPopover>
             </>
           ) : null}

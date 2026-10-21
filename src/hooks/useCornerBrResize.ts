@@ -38,7 +38,7 @@ export function useCornerBrResize({
         startW: start.width,
         startH: start.height,
       }
-      e.currentTarget.setPointerCapture(e.pointerId)
+      e.currentTarget.setPointerCapture?.(e.pointerId)
     },
     [enabled, resolveStartSize, size],
   )
@@ -57,7 +57,7 @@ export function useCornerBrResize({
   const onPointerUp = useCallback((e: ReactPointerEvent<HTMLElement>) => {
     if (!resizeDragRef.current) return
     resizeDragRef.current = null
-    e.currentTarget.releasePointerCapture(e.pointerId)
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
   }, [])
 
   return {
