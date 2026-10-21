@@ -352,6 +352,9 @@ describe('MazeTrainingDialog', () => {
     const user = userEvent.setup()
     const candidates = [
       makeCandidate('wf_ra1_rel_g40', 'R1 R g40'),
+      makeCandidate('wf_fs2_g250', 'FS2 g250'),
+      makeCandidate('wf_of2a_df_g600', 'OF2A df g600'),
+      makeCandidate('wf_of2a_g100', 'OF2A g100'),
       makeCandidate('mystery', 'M'),
       makeCandidate('island-0', 'I1'),
       makeCandidate('wf32_final', 'WF32'),
@@ -372,8 +375,18 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByText('Live centers of the running island training.')).toBeInTheDocument()
     expect(screen.getByTestId('maze-training-candidate-option-island-0')).toBeInTheDocument()
     expect(screen.queryByTestId('maze-training-candidate-option-deployed')).not.toBeInTheDocument()
+    // the Runs tab sub-categorizes its checkpoints by run family (headers in family order)
     await user.click(screen.getByTestId('maze-training-candidates-tab-wf-runs'))
-    expect(screen.getByTestId('maze-training-candidate-option-wf_ra1_rel_g40')).toBeInTheDocument()
+    const subgroupIds = screen
+      .getAllByTestId(/^maze-training-candidates-subgroup-/)
+      .map((el) => el.dataset.testid?.replace('maze-training-candidates-subgroup-', ''))
+    expect(subgroupIds).toEqual(['of2a', 'of2a-df', 'shaping', 'rangieren'])
+    const rangieren = screen.getByTestId('maze-training-candidates-subgroup-rangieren')
+    expect(rangieren).toContainElement(screen.getByTestId('maze-training-candidate-option-wf_ra1_rel_g40'))
+    expect(rangieren).toHaveTextContent('Rangieren shunting focus and release chunks.')
+    expect(screen.getByTestId('maze-training-candidates-subgroup-of2a-df')).toContainElement(
+      screen.getByTestId('maze-training-candidate-option-wf_of2a_df_g600'),
+    )
     await user.click(screen.getByTestId('maze-training-candidates-tab-wf-ships'))
     expect(screen.getByTestId('maze-training-candidate-option-wf32_final')).toBeInTheDocument()
     await user.click(screen.getByTestId('maze-training-candidates-tab-other'))

@@ -358,6 +358,8 @@ interface CandidateMenuSection {
   title: string
   explainer: string
   entries: CandidateMenuEntry[]
+  /** Run-family sub-categories (Runs tab only); entries render under their own headers. */
+  subGroups?: Array<{ key: string; title: string; explainer: string; entries: CandidateMenuEntry[] }>
 }
 
 /** Tabbed sections of the model picker, each with a short explainer line. */
@@ -407,6 +409,68 @@ function candidateGroupKey(id: string): string {
   if (/^wf\d+_(final|base|recovery)$/.test(id)) return 'wf-ships'
   if (id.startsWith('wf')) return 'wf-runs'
   return 'other'
+}
+
+/** Run-family sub-categories of the Run checkpoints tab (ordered; ids match `candidateRunSubGroupKey`). */
+const RUN_SUBGROUPS: ReadonlyArray<{ key: string; title: string; explainer: string }> = [
+  {
+    key: 'pipeline',
+    title: 'Pipeline chunks',
+    explainer: 'Phase chunks of the widen-freeze pipeline.',
+  },
+  {
+    key: 'stretches',
+    title: 'Stretches',
+    explainer: 'Focused band-slice pushes.',
+  },
+  {
+    key: 'of2a',
+    title: 'Obstacle fluency',
+    explainer: 'Full-band run A checkpoints.',
+  },
+  {
+    key: 'of2a-df',
+    title: 'Detour focus',
+    explainer: 'Blockade and blocks pursuit.',
+  },
+  {
+    key: 'de-fix',
+    title: 'Deadend fix',
+    explainer: 'The conserved deadend-fix genome.',
+  },
+  {
+    key: 'recovery',
+    title: 'Recovery re-polish',
+    explainer: 'Full-band recovery chunks toward R40.',
+  },
+  {
+    key: 'shaping',
+    title: 'Fitness shaping',
+    explainer: 'Focus/release shaping cycle.',
+  },
+  {
+    key: 'rangieren',
+    title: 'Rangieren',
+    explainer: 'Rangieren shunting focus and release chunks.',
+  },
+  {
+    key: 'runs-rest',
+    title: 'Further checkpoints',
+    explainer: 'Run checkpoints without a known family.',
+  },
+]
+
+/** Run family of one run-checkpoint candidate id (falls back to the neutral rest bucket). */
+function candidateRunSubGroupKey(id: string): string {
+  if (/^wf_[a-z]$/.test(id)) return 'pipeline'
+  if (id.startsWith('wf32_stretch')) return 'stretches'
+  if (id.startsWith('wf_of2a_df_')) return 'of2a-df'
+  if (id.startsWith('wf_of2a_')) return 'of2a'
+  if (id.startsWith('wf_of2r_de_')) return 'de-fix'
+  if (id.startsWith('wf_of2r_')) return 'recovery'
+  if (id.startsWith('wf_fs2_')) return 'shaping'
+  if (id.startsWith('wf_ra1_')) return 'rangieren'
+  return 'runs-rest'
 }
 
 /**
@@ -626,10 +690,18 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
     for (const candidate of candidatesFile.candidates) {
       buckets.get(candidateGroupKey(candidate.id))?.push(candidateMenuEntry(candidate))
     }
-    return CANDIDATE_MENU_SECTIONS.map((section) => ({
-      ...section,
-      entries: section.key === 'deployed' ? [DEPLOYED_MENU_ENTRY] : (buckets.get(section.key) ?? []),
-    })).filter((section) => section.entries.length > 0)
+    return CANDIDATE_MENU_SECTIONS.map((section) => {
+      const entries = section.key === 'deployed' ? [DEPLOYED_MENU_ENTRY] : (buckets.get(section.key) ?? [])
+      // the Runs tab sub-categorizes its entries by run family (each family its own header block)
+      const subGroups =
+        section.key === 'wf-runs' && entries.length > 0
+          ? RUN_SUBGROUPS.map((sub) => ({
+              ...sub,
+              entries: entries.filter((entry) => candidateRunSubGroupKey(entry.id) === sub.key),
+            })).filter((sub) => sub.entries.length > 0)
+          : undefined
+      return { ...section, entries, ...(subGroups ? { subGroups } : {}) }
+    }).filter((section) => section.entries.length > 0)
   }, [candidatesFile])
   /** Active tab: an explicit pick wins; otherwise the selected candidate's group (deployed default). */
   const candidateMenuActiveTab = candidateMenuTab ?? (selectedCandidate ? candidateGroupKey(selectedCandidate.id) : 'deployed')
@@ -924,7 +996,7 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                     ×
                   </button>
                 </div>
-                {/* active section: full title + explainer + its entries only */}
+                {/* active section: full title + explainer + its entries only (the Runs tab sub-categorizes) */}
                 {activeCandidateMenuSection ? (
                   <div
                     role="tabpanel"
@@ -936,49 +1008,81 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                     <span style={{ fontSize: 10, color: theme.text.muted, marginBottom: 2 }}>
                       {activeCandidateMenuSection.explainer}
                     </span>
-                    {activeCandidateMenuSection.entries.map((entry) => {
-                      const active = entry.id === (selectedCandidate?.id ?? '')
-                      return (
-                        <button
-                          key={entry.id}
-                          type="button"
-                          data-testid={`${trainingSet.testid}-training-candidate-option-${entry.id || 'deployed'}`}
-                          title={entry.title}
-                          aria-pressed={active}
-                          onClick={() => handleCandidateSelect(entry.id)}
+                    {(activeCandidateMenuSection.subGroups ?? [{ key: 'all', title: '', explainer: '', entries: activeCandidateMenuSection.entries }]).map(
+                      (block, blockIndex) => (
+                        <div
+                          key={block.key}
+                          data-testid={
+                            blockIndex > 0 || activeCandidateMenuSection.subGroups
+                              ? `${trainingSet.testid}-training-candidates-subgroup-${block.key}`
+                              : undefined
+                          }
                           style={{
                             display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '4px 6px',
-                            borderRadius: 4,
-                            cursor: 'pointer',
-                            textAlign: 'left',
-                            background: active ? theme.bg.surface : 'transparent',
-                            border: `1px solid ${active ? theme.accent : 'transparent'}`,
-                            color: active ? theme.accent : theme.text.secondary,
-                            fontSize: 11,
-                            lineHeight: 1.2,
+                            flexDirection: 'column',
+                            gap: 2,
+                            marginTop:
+                              activeCandidateMenuSection.subGroups && blockIndex > 0
+                                ? 8
+                                : activeCandidateMenuSection.subGroups
+                                  ? 4
+                                  : 0,
                           }}
                         >
-                          <span
-                            style={{
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              fontWeight: active ? 600 : 400,
-                            }}
-                          >
-                            {entry.label}
-                          </span>
-                          {entry.genBadge != null ? (
-                            <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text.muted, whiteSpace: 'nowrap' }}>
-                              {entry.genBadge}
-                            </span>
+                          {activeCandidateMenuSection.subGroups ? (
+                            <>
+                              <span style={{ fontSize: 10, fontWeight: 600, color: theme.text.secondary }}>
+                                {block.title}
+                              </span>
+                              <span style={{ fontSize: 10, color: theme.text.muted }}>{block.explainer}</span>
+                            </>
                           ) : null}
-                        </button>
-                      )
-                    })}
+                          {block.entries.map((entry) => {
+                            const active = entry.id === (selectedCandidate?.id ?? '')
+                            return (
+                              <button
+                                key={entry.id}
+                                type="button"
+                                data-testid={`${trainingSet.testid}-training-candidate-option-${entry.id || 'deployed'}`}
+                                title={entry.title}
+                                aria-pressed={active}
+                                onClick={() => handleCandidateSelect(entry.id)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  padding: '4px 6px',
+                                  borderRadius: 4,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                  background: active ? theme.bg.surface : 'transparent',
+                                  border: `1px solid ${active ? theme.accent : 'transparent'}`,
+                                  color: active ? theme.accent : theme.text.secondary,
+                                  fontSize: 11,
+                                  lineHeight: 1.2,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    fontWeight: active ? 600 : 400,
+                                  }}
+                                >
+                                  {entry.label}
+                                </span>
+                                {entry.genBadge != null ? (
+                                  <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text.muted, whiteSpace: 'nowrap' }}>
+                                    {entry.genBadge}
+                                  </span>
+                                ) : null}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      ),
+                    )}
                   </div>
                 ) : null}
               </AnchoredPopover>
