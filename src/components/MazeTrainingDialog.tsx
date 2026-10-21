@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { theme } from '@/config/theme'
 import { MAZE_TRAINING_SET, type TrainingMeta, type TrainingSet } from './trainingSets'
+import AnchoredPopover from './AnchoredPopover'
 import {
   fetchMazeCandidates,
   type MazeCandidate,
@@ -212,6 +213,80 @@ function candidateWorstRoute(routes: Array<number | null>): number | null {
   const measured = routes.filter((s): s is number => s != null)
   return measured.length > 0 ? Math.min(...measured) : null
 }
+
+/** One selectable row of the model picker menu (the deployed candidate is a synthesized entry with id ''). */
+interface CandidateMenuEntry {
+  /** '' = the deployed candidate baked into the exports. */
+  id: string
+  label: string
+  /** Provenance tooltip line (detail + gen + scored gen). */
+  title: string
+  /** Small right-aligned gen badge (e.g. "g6000"); null hides the badge. */
+  genBadge: string | null
+}
+
+/** The always-first menu entry: the deployed candidate baked into the exported worlds. */
+const DEPLOYED_MENU_ENTRY: CandidateMenuEntry = {
+  id: '',
+  label: 'Deployed (export)',
+  title: 'Drive with the candidate baked into the exported world files (the on-disk best).',
+  genBadge: null,
+}
+
+/** Menu entry of one exported candidate (label + provenance tooltip + gen badge). */
+function candidateMenuEntry(candidate: MazeCandidate): CandidateMenuEntry {
+  return {
+    id: candidate.id,
+    label: candidate.label,
+    title: `${candidate.detail}${candidate.gen != null ? ` · gen ${candidate.gen}` : ''}${
+      candidate.scoredGen != null ? ` · scored gen ${candidate.scoredGen}` : ''
+    }`,
+    genBadge: candidate.gen != null ? `g${candidate.gen}` : null,
+  }
+}
+
+/** Grouped sections of the model picker, each with a short explainer line. */
+const CANDIDATE_MENU_GROUPS: ReadonlyArray<{ key: string; title: string; explainer: string }> = [
+  {
+    key: 'islands',
+    title: 'Island centers',
+    explainer: 'Live centers of the running island training.',
+  },
+  {
+    key: 'milestones',
+    title: 'Milestones',
+    explainer: 'The best genome by training fitness and the shipped policy.',
+  },
+  {
+    key: 'wf-ships',
+    title: 'Widen-freeze ships',
+    explainer: 'Shipped widen-freeze models and their warm baselines.',
+  },
+  {
+    key: 'wf-runs',
+    title: 'Run checkpoints',
+    explainer: 'Checkpoints from the training pipelines and experiment runs.',
+  },
+  {
+    key: 'other',
+    title: 'Other candidates',
+    explainer: 'Further exported candidates.',
+  },
+]
+
+/** Group of one candidate id by shape (islands, milestones, widen-freeze ships, run checkpoints, other). */
+function candidateGroupKey(id: string): string {
+  if (id.startsWith('island-')) return 'islands'
+  if (id === 'best' || id === 'shipped') return 'milestones'
+  if (/^wf\d+_(final|base|recovery)$/.test(id)) return 'wf-ships'
+  if (id.startsWith('wf')) return 'wf-runs'
+  return 'other'
+}
+
+/** Width of the model picker popover (clamped to the viewport by `useAnchoredPopover`). */
+const CANDIDATE_MENU_WIDTH_PX = 288
+/** Responsive height cap of the model picker popover: scrolls inside beyond it. */
+const CANDIDATE_MENU_MAX_HEIGHT = 'min(420px, 60vh)'
 
 /**
  * Row health dot under the SELECTED candidate's headless scores — same weakest-link ratio as the deployed-side
@@ -418,6 +493,21 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
     [candidatesFile, candidateId],
   )
 
+  // Model picker menu: the trigger button in the candidates row opens this grouped popover
+  // (AnchoredPopover: portaled to body, outside-click + Escape dismiss, viewport-clamped).
+  const [candidateMenuOpen, setCandidateMenuOpen] = useState(false)
+  const candidateTriggerRef = useRef<HTMLButtonElement>(null)
+  const candidateMenuSections = useMemo(() => {
+    if (!candidatesFile) return []
+    const buckets = new Map<string, CandidateMenuEntry[]>(CANDIDATE_MENU_GROUPS.map((g) => [g.key, []]))
+    for (const candidate of candidatesFile.candidates) {
+      buckets.get(candidateGroupKey(candidate.id))?.push(candidateMenuEntry(candidate))
+    }
+    return CANDIDATE_MENU_GROUPS.map((group) => ({ ...group, entries: buckets.get(group.key) ?? [] })).filter(
+      (group) => group.entries.length > 0,
+    )
+  }, [candidatesFile])
+
   const handleCardClick = useCallback((id: string) => {
     setSelectedId(id)
     setExpandedRowId((prev) => (prev === id ? null : id))
@@ -434,7 +524,7 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
   )
 
   /**
-   * Dropdown change selects the candidate model (the empty first option returns to the deployed candidate).
+   * Menu pick selects the candidate model (the deployed entry returns to the baked-in candidate).
    * While a run is live, the change re-loads that world+route with the new model right away; otherwise the
    * selection applies to the next tile click.
    */
@@ -565,8 +655,9 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
         </div>
       ) : null}
 
-      {/* model dropdown + Ø figures: their OWN row under the header — one select lists every exported
-          candidate (the deployed export is the first option); hidden entirely when there is nothing to show */}
+      {/* model picker + Ø figures: their OWN row under the header — the trigger opens a grouped popover menu
+          listing every exported candidate (the deployed export is its own first group); hidden entirely when
+          there is nothing to show */}
       {showCandidatesRow ? (
         <div
           data-testid={`${trainingSet.testid}-training-candidates-row`}
@@ -582,40 +673,107 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
           }}
         >
           {hasCandidates ? (
-            <select
-              data-testid={`${trainingSet.testid}-training-candidates`}
-              aria-label="Candidate model"
-              title="Candidate models: the dropdown swaps the driving net of the loaded world (the exported file keeps the deployed best). The per-run rows describe the DEPLOYED candidate; the row averages follow the selected model."
-              value={selectedCandidate?.id ?? ''}
-              onChange={(e) => handleCandidateSelect(e.target.value)}
-              style={{
-                background: theme.bg.surface,
-                border: `1px solid ${selectedCandidate ? theme.accent : theme.border.default}`,
-                color: selectedCandidate ? theme.accent : theme.text.secondary,
-                fontSize: 11,
-                lineHeight: 1.2,
-                padding: '2px 4px',
-                borderRadius: 4,
-                cursor: 'pointer',
-                maxWidth: 160,
-                minWidth: 0,
-                flexShrink: 1,
-              }}
-            >
-              <option value="" data-testid={`${trainingSet.testid}-training-candidate-option-deployed`}>
-                Deployed (export)
-              </option>
-              {candidatesFile.candidates.map((candidate) => (
-                <option
-                  key={candidate.id}
-                  value={candidate.id}
-                  data-testid={`${trainingSet.testid}-training-candidate-option-${candidate.id}`}
-                  title={`${candidate.detail}${candidate.gen != null ? ` · gen ${candidate.gen}` : ''}${candidate.scoredGen != null ? ` · scored gen ${candidate.scoredGen}` : ''}`}
-                >
-                  {candidate.label}
-                </option>
-              ))}
-            </select>
+            <>
+              <button
+                ref={candidateTriggerRef}
+                type="button"
+                data-testid={`${trainingSet.testid}-training-candidates`}
+                aria-label="Candidate model"
+                aria-haspopup="dialog"
+                aria-expanded={candidateMenuOpen}
+                title="Candidate models: the picker swaps the driving net of the loaded world (the exported file keeps the deployed best). The per-run rows describe the DEPLOYED candidate; the row averages follow the selected model."
+                onClick={() => setCandidateMenuOpen((open) => !open)}
+                style={{
+                  background: theme.bg.surface,
+                  border: `1px solid ${selectedCandidate ? theme.accent : theme.border.default}`,
+                  color: selectedCandidate ? theme.accent : theme.text.secondary,
+                  fontSize: 11,
+                  lineHeight: 1.2,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  maxWidth: 180,
+                  minWidth: 0,
+                  flexShrink: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedCandidate ? selectedCandidate.label : DEPLOYED_MENU_ENTRY.label}
+                </span>
+                <span aria-hidden={true} style={{ fontSize: 8, color: theme.text.muted, flexShrink: 0 }}>
+                  {candidateMenuOpen ? '▲' : '▼'}
+                </span>
+              </button>
+              <AnchoredPopover
+                open={candidateMenuOpen}
+                anchorRef={candidateTriggerRef}
+                onClose={() => setCandidateMenuOpen(false)}
+                ariaLabel="Candidate models"
+                testId={`${trainingSet.testid}-training-candidates-menu`}
+                panelWidth={CANDIDATE_MENU_WIDTH_PX}
+                style={{ maxHeight: CANDIDATE_MENU_MAX_HEIGHT, overflowY: 'auto', padding: 4 }}
+              >
+                {[{ key: 'deployed', title: 'Deployed', explainer: 'The candidate baked into the exported worlds.', entries: [DEPLOYED_MENU_ENTRY] }, ...candidateMenuSections].map(
+                  (section, index) => (
+                    <div
+                      key={section.key}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2,
+                        padding: '6px 4px 8px',
+                        borderTop: index > 0 ? `1px solid ${theme.border.default}` : undefined,
+                      }}
+                    >
+                      <span style={{ fontSize: 11, fontWeight: 600, color: theme.text.primary }}>{section.title}</span>
+                      <span style={{ fontSize: 10, color: theme.text.muted, marginBottom: 2 }}>{section.explainer}</span>
+                      {section.entries.map((entry) => {
+                        const active = entry.id === (selectedCandidate?.id ?? '')
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            data-testid={`${trainingSet.testid}-training-candidate-option-${entry.id || 'deployed'}`}
+                            title={entry.title}
+                            aria-pressed={active}
+                            onClick={() => {
+                              handleCandidateSelect(entry.id)
+                              setCandidateMenuOpen(false)
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '4px 6px',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              background: active ? theme.bg.surface : 'transparent',
+                              border: `1px solid ${active ? theme.accent : 'transparent'}`,
+                              color: active ? theme.accent : theme.text.secondary,
+                              fontSize: 11,
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: active ? 600 : 400 }}>
+                              {entry.label}
+                            </span>
+                            {entry.genBadge != null ? (
+                              <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text.muted, whiteSpace: 'nowrap' }}>
+                                {entry.genBadge}
+                              </span>
+                            ) : null}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ),
+                )}
+              </AnchoredPopover>
+            </>
           ) : null}
           {showHeaderStats ? (
             <>

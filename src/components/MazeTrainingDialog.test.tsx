@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MazeTrainingDialog, { routeTileThumbHeightPx } from './MazeTrainingDialog'
 import { CRUX_TRAINING_SET, TRAINING_SETS, WF_TRAINING_SET } from './trainingSets'
@@ -289,65 +289,121 @@ describe('MazeTrainingDialog', () => {
     expect(screen.getByTestId('maze-training-row-maze_train_3')).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('renders the candidate dropdown from candidates.json; a selection persists and the next tile start carries it', async () => {
+  it('renders the grouped model picker from candidates.json; a pick persists and the next tile start carries it', async () => {
     const user = userEvent.setup()
     const candidates = [makeCandidate('island-0', 'I1'), makeCandidate('island-1', 'I2'), makeCandidate('island-2', 'I3'), makeCandidate('best', 'Best'), makeCandidate('shipped', 'Shipped')]
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     const onPlay = vi.fn()
     render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
-    // the dropdown lives in its own row under the header
-    const select = await screen.findByTestId('maze-training-candidates')
+    // the picker trigger lives in its own row under the header; the menu is closed by default
+    const trigger = await screen.findByTestId('maze-training-candidates')
+    expect(trigger).toHaveTextContent('Deployed (export)')
+    expect(screen.queryByTestId('maze-training-candidates-menu')).not.toBeInTheDocument()
+    // opening the trigger shows every candidate with its label
+    await user.click(trigger)
     for (const c of candidates) {
       expect(screen.getByTestId(`maze-training-candidate-option-${c.id}`)).toHaveTextContent(c.label)
     }
-    // nothing selected: the dropdown sits on the deployed option
-    expect(select).toHaveValue('')
-    // selecting a candidate persists the choice
-    await user.selectOptions(select, 'island-0')
-    expect(select).toHaveValue('island-0')
-    expect(select).toHaveStyle({ borderColor: theme.accent })
+    // nothing selected: the deployed entry is the pressed one
+    expect(screen.getByTestId('maze-training-candidate-option-deployed')).toHaveAttribute('aria-pressed', 'true')
+    // picking a candidate closes the menu, persists the choice and accents the trigger
+    await user.click(screen.getByTestId('maze-training-candidate-option-island-0'))
+    expect(screen.queryByTestId('maze-training-candidates-menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveTextContent('I1')
+    expect(trigger).toHaveStyle({ borderColor: theme.accent })
     expect(window.localStorage.getItem('mazeTrainingPanelCandidate')).toBe(JSON.stringify('island-0'))
     // the next tile start carries the selected candidate
     await user.click(screen.getByTestId('maze-training-row-maze_train_3'))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-1'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 1, expect.objectContaining({ id: 'island-0' }))
-    // the deployed option returns to the baked-in candidate (null) and persists that too
-    await user.selectOptions(select, '')
-    expect(select).toHaveValue('')
-    expect(select).not.toHaveStyle({ borderColor: theme.accent })
+    // the deployed entry returns to the baked-in candidate (null) and persists that too
+    await user.click(trigger)
+    await user.click(screen.getByTestId('maze-training-candidate-option-deployed'))
+    expect(trigger).toHaveTextContent('Deployed (export)')
+    expect(trigger).not.toHaveStyle({ borderColor: theme.accent })
     expect(window.localStorage.getItem('mazeTrainingPanelCandidate')).toBe(JSON.stringify(null))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-2'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 2, null)
   })
 
-  it('the model dropdown + Ø figures render in their OWN row under the header', async () => {
+  it('groups the menu entries with a short explainer each; Escape closes, so does a trigger re-click', async () => {
+    const user = userEvent.setup()
+    const candidates = [
+      makeCandidate('wf_ra1_rel_g40', 'R1 R g40'),
+      makeCandidate('mystery', 'M'),
+      makeCandidate('island-0', 'I1'),
+      makeCandidate('wf32_final', 'WF32'),
+      makeCandidate('best', 'Best'),
+    ]
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
+    await user.click(await screen.findByTestId('maze-training-candidates'))
+    const menu = screen.getByTestId('maze-training-candidates-menu')
+    // every group header + its explainer renders
+    expect(within(menu).getByText('Island centers')).toBeInTheDocument()
+    expect(within(menu).getByText('Live centers of the running island training.')).toBeInTheDocument()
+    expect(within(menu).getByText('Milestones')).toBeInTheDocument()
+    expect(within(menu).getByText('Widen-freeze ships')).toBeInTheDocument()
+    expect(within(menu).getByText('Run checkpoints')).toBeInTheDocument()
+    expect(within(menu).getByText('Other candidates')).toBeInTheDocument()
+    // the entry order follows the groups (deployed first), not the candidates.json file order
+    const optionIds = Array.from(menu.querySelectorAll('[data-testid]')).map(
+      (el) => (el as HTMLElement).dataset.testid,
+    )
+    expect(optionIds).toEqual([
+      'maze-training-candidate-option-deployed',
+      'maze-training-candidate-option-island-0',
+      'maze-training-candidate-option-best',
+      'maze-training-candidate-option-wf32_final',
+      'maze-training-candidate-option-wf_ra1_rel_g40',
+      'maze-training-candidate-option-mystery',
+    ])
+    // Escape closes the menu
+    await user.keyboard('{Escape}')
+    expect(screen.queryByTestId('maze-training-candidates-menu')).not.toBeInTheDocument()
+    // re-clicking the open trigger toggles it closed again
+    await user.click(screen.getByTestId('maze-training-candidates'))
+    expect(screen.getByTestId('maze-training-candidates-menu')).toBeInTheDocument()
+    await user.click(screen.getByTestId('maze-training-candidates'))
+    expect(screen.queryByTestId('maze-training-candidates-menu')).not.toBeInTheDocument()
+  })
+
+  it('the model picker + Ø figures render in their OWN row under the header; the menu is portaled to body', async () => {
+    const user = userEvent.setup()
     const candidates = [makeCandidate('island-0', 'I1'), makeCandidate('best', 'Best')]
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     await screen.findAllByText('Best: 10 pts')
-    // the row sits under the header, carrying the dropdown AND the Ø figures
+    // the row sits under the header, carrying the picker trigger AND the Ø figures
     const row = screen.getByTestId('maze-training-candidates-row')
     expect(row).toContainElement(screen.getByTestId('maze-training-candidates'))
-    expect(row).toContainElement(screen.getByTestId('maze-training-candidate-option-island-0'))
     expect(row).toContainElement(screen.getByTestId('maze-training-header-totals'))
     expect(row).toContainElement(screen.getByTestId('maze-training-header-health'))
     expect(screen.getByTestId('maze-training-header-totals')).toHaveTextContent('Ø Best: 10 pts · Ø Worst: 140 pts')
-    // the title line itself is slim: no dropdown, no Ø figures in the header
+    // the grouped menu is portaled to document.body (NOT inside the row) and closes on an outside click
+    await user.click(screen.getByTestId('maze-training-candidates'))
+    const menu = screen.getByTestId('maze-training-candidates-menu')
+    expect(menu).toContainElement(screen.getByTestId('maze-training-candidate-option-island-0'))
+    expect(row).not.toContainElement(screen.getByTestId('maze-training-candidate-option-island-0'))
+    await user.click(document.body)
+    expect(screen.queryByTestId('maze-training-candidates-menu')).not.toBeInTheDocument()
+    // the title line itself is slim: no picker, no Ø figures in the header
     const header = screen.getByTestId('maze-training-panel-header')
     expect(header).not.toContainElement(screen.getByTestId('maze-training-candidates'))
     expect(header).not.toContainElement(screen.getByTestId('maze-training-header-totals'))
   })
 
-  it('the dropdown selection survives across mounts (the candidate slot persists per set)', async () => {
+  it('the picker selection survives across mounts (the candidate slot persists per set)', async () => {
     const user = userEvent.setup()
     const candidates = [makeCandidate('best', 'Best')]
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     const { unmount } = render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
-    await user.selectOptions(await screen.findByTestId('maze-training-candidates'), 'best')
+    await user.click(await screen.findByTestId('maze-training-candidates'))
+    await user.click(screen.getByTestId('maze-training-candidate-option-best'))
     unmount()
     render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
     // the remounted section restores the selected model from its own persisted slot
-    expect(await screen.findByTestId('maze-training-candidates')).toHaveValue('best')
+    expect(await screen.findByTestId('maze-training-candidates')).toHaveTextContent('Best')
   })
 
   it('the health dots follow the selected candidate (its headless scores), not the deployed meta', async () => {
@@ -366,17 +422,20 @@ describe('MazeTrainingDialog', () => {
     expect(headerDot().style.background).toBe(green)
     expect(rowDots()).toHaveLength(MAZE_TRAINING_WORLDS.length)
     for (const dot of rowDots()) expect(dot.style.background).toBe(green)
-    // selecting island-0 switches every dot to ITS scores: worst 10 ÷ best 100 -> hsl(12)
-    await user.selectOptions(screen.getByTestId('maze-training-candidates'), 'island-0')
+    // picking island-0 switches every dot to ITS scores: worst 10 ÷ best 100 -> hsl(12)
+    await user.click(screen.getByTestId('maze-training-candidates'))
+    await user.click(screen.getByTestId('maze-training-candidate-option-island-0'))
     const islandHue = normalizedBackground('hsl(12, 75%, 45%)')
     expect(headerDot().style.background).toBe(islandHue)
     for (const dot of rowDots()) expect(dot.style.background).toBe(islandHue)
     // a candidate without shipped scores (older deploy) -> gray everywhere, NOT the deployed colors
-    await user.selectOptions(screen.getByTestId('maze-training-candidates'), 'island-1')
+    await user.click(screen.getByTestId('maze-training-candidates'))
+    await user.click(screen.getByTestId('maze-training-candidate-option-island-1'))
     expect(headerDot().style.background).toBe(normalizedBackground(theme.text.muted))
     for (const dot of rowDots()) expect(dot.style.background).toBe(normalizedBackground(theme.text.muted))
-    // the deployed option returns to the deployed candidate's colors
-    await user.selectOptions(screen.getByTestId('maze-training-candidates'), '')
+    // the deployed entry returns to the deployed candidate's colors
+    await user.click(screen.getByTestId('maze-training-candidates'))
+    await user.click(screen.getByTestId('maze-training-candidate-option-deployed'))
     expect(headerDot().style.background).toBe(green)
     for (const dot of rowDots()) expect(dot.style.background).toBe(green)
   })
@@ -403,16 +462,18 @@ describe('MazeTrainingDialog', () => {
     // means, rounded to integers, no decimal places anywhere in the line
     expect(totals()).toHaveTextContent('Ø Best: 151 pts · Ø Worst: 150 pts')
     expect(totals().textContent).not.toContain('.')
-    // selecting a candidate RECOMPUTES the title line from that candidate's scores
-    await user.selectOptions(screen.getByTestId('maze-training-candidates'), 'island-0')
+    // picking a candidate RECOMPUTES the title line from that candidate's scores
+    await user.click(screen.getByTestId('maze-training-candidates'))
+    await user.click(screen.getByTestId('maze-training-candidate-option-island-0'))
     expect(totals()).toHaveTextContent('Ø Best: 90 pts · Ø Worst: 10 pts')
     expect(totals().textContent).not.toContain('.')
-    // the deployed option returns the deployed candidate's averages
-    await user.selectOptions(screen.getByTestId('maze-training-candidates'), '')
+    // the deployed entry returns the deployed candidate's averages
+    await user.click(screen.getByTestId('maze-training-candidates'))
+    await user.click(screen.getByTestId('maze-training-candidate-option-deployed'))
     expect(totals()).toHaveTextContent('Ø Best: 151 pts · Ø Worst: 150 pts')
   })
 
-  it('a dropdown change re-loads the live run with the new candidate when a run is driving', async () => {
+  it('a picker change re-loads the live run with the new candidate when a run is driving', async () => {
     const user = userEvent.setup()
     const candidates = [makeCandidate('island-1', 'I2'), makeCandidate('best', 'Best')]
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
@@ -420,15 +481,18 @@ describe('MazeTrainingDialog', () => {
     render(
       <MazeTrainingDialog onPlayExampleWorld={onPlay} liveRun={{ worldId: 'maze_train_2', routeIndex: 1 }} />,
     )
-    const select = await screen.findByTestId('maze-training-candidates')
-    await user.selectOptions(select, 'best')
+    const trigger = await screen.findByTestId('maze-training-candidates')
+    await user.click(trigger)
+    await user.click(screen.getByTestId('maze-training-candidate-option-best'))
     expect(onPlay).toHaveBeenCalledTimes(1)
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_2', 1, expect.objectContaining({ id: 'best' }))
     // switching to the other candidate re-loads the same live run with it
-    await user.selectOptions(select, 'island-1')
+    await user.click(trigger)
+    await user.click(screen.getByTestId('maze-training-candidate-option-island-1'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_2', 1, expect.objectContaining({ id: 'island-1' }))
-    // the deployed option re-loads with the deployed candidate
-    await user.selectOptions(select, '')
+    // the deployed entry re-loads with the deployed candidate
+    await user.click(trigger)
+    await user.click(screen.getByTestId('maze-training-candidate-option-deployed'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_2', 1, null)
   })
 
@@ -440,8 +504,8 @@ describe('MazeTrainingDialog', () => {
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), candidates)
     const onPlay = vi.fn()
     const { unmount } = render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
-    // the dropdown restores the persisted selection from its own slot
-    expect(await screen.findByTestId('maze-training-candidates')).toHaveValue('island-2')
+    // the picker restores the persisted selection from its own slot
+    expect(await screen.findByTestId('maze-training-candidates')).toHaveTextContent('I3')
     await user.click(screen.getByTestId('maze-training-row-maze_train_1'))
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_1-0'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_1', 0, expect.objectContaining({ id: 'island-2' }))
@@ -450,7 +514,7 @@ describe('MazeTrainingDialog', () => {
     unmount()
     stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), [makeCandidate('best', 'Best')])
     render(<MazeTrainingDialog onPlayExampleWorld={onPlay} />)
-    expect(await screen.findByTestId('maze-training-candidates')).toHaveValue('')
+    expect(await screen.findByTestId('maze-training-candidates')).toHaveTextContent('Deployed (export)')
   })
 
   it('renders no candidate chips when candidates.json is missing (older deploy)', async () => {
@@ -834,7 +898,7 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     )
     await screen.findAllByText('Best: 5 pts')
     // the merged section restores the per-set candidate slot (no shared collapse slot anymore)
-    expect(screen.getByTestId('maze-training-candidates')).toHaveValue('best')
+    expect(screen.getByTestId('maze-training-candidates')).toHaveTextContent('Best')
     expect(window.localStorage.getItem('trainingPanelCandidatesCollapsed')).toBeNull()
   })
 
