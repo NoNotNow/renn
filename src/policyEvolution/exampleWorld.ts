@@ -6,6 +6,9 @@ import { readFileSync } from 'node:fs'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import { genomeLengthV3, hiddenOfLength, N_IN_V2, N_IN_V3, padV2Genome } from './policy'
 import { cmdConfigFor } from './episode'
+import { hiddenOfSchlau } from './schlauPolicy'
+import type { SchlauKind } from './schlauCourses'
+import { buildSchlauTrainingWorld, placeholderSchlauGenome } from './schlauTraining'
 import shipped from './shippedPolicy.json'
 import shippedV2 from './shippedPolicyV2.json'
 
@@ -206,5 +209,70 @@ export function buildPolicyChainsExampleWorld(spec: PolicyChainsExampleWorld, ge
     entities.push({ id: 'placeholder_note', name: 'UNTRAINED PLACEHOLDER: random net, not the trained v3 policy', bodyType: 'static', shape: { type: 'box', width: 1, height: 0.2, depth: 1 }, position: [0, MARKER_Y + 5, 0], rotation: [0, 0, 0], material: { color: [0.5, 0.5, 0.5], opacity: 0.3 } })
   }
   return worldOf(entities, transformers, firstCar, spec.camera)
+}
+
+// --- schlau: the second, goal-directed policy (start -> goal only, no chains) ------------------------------------------------
+
+/**
+ * A schlau stage genome (26 inputs, len = 29 H + 2): schlau shapes pass through. The length formula COLLIDES with
+ * v3 (also 26 inputs) but the layout differs (360 deg rays + movement memory + goal vector vs the v2 inputs + the
+ * two touch flags) — a v3 genome is NOT a schlau genome, so there is no padding here: anything else fails loudly.
+ */
+export function ensureSchlauGenome(genome: number[]): number[] {
+  if (hiddenOfSchlau(genome.length)) return genome
+  throw new Error(`schlau genome of ${genome.length} numbers fits no hidden size (len = 29 H + 2) — schlau and v3 genomes share the length formula but NOT the layout`)
+}
+
+const SHIPPED_SCHLAU_URL = new URL('./shippedPolicySchlau.json', import.meta.url)
+
+/** Shipped schlau genome, or undefined before training produced `shippedPolicySchlau.json` (read at call time so the exporter works before and after a ship). */
+export function shippedGenomeSchlau(): number[] | undefined {
+  // RENN_SCHLAU_GENOME_FILE: trial a candidate (a schlau run's latest-best.json or a run file) WITHOUT touching the
+  // shipped policy. Accepts { genome: number[] } (latest-best.json) or { best: { genome } } (run files).
+  // A set-but-broken override fails loudly — never silently fall back to the shipped genome.
+  const override = process.env.RENN_SCHLAU_GENOME_FILE
+  if (override) {
+    const parsed = JSON.parse(readFileSync(override, 'utf8')) as { genome?: number[]; best?: { genome?: number[] } }
+    const genome = parsed.genome ?? parsed.best?.genome
+    if (!genome || genome.length === 0) throw new Error(`RENN_SCHLAU_GENOME_FILE ${override} has no genome`)
+    return ensureSchlauGenome(genome)
+  }
+  // vitest rewrites import.meta.url, so also try the repo path from the working directory (tests and tools run from the repo root)
+  for (const file of [SHIPPED_SCHLAU_URL, 'src/policyEvolution/shippedPolicySchlau.json']) {
+    try {
+      return ensureSchlauGenome((JSON.parse(readFileSync(file, 'utf8')) as { genome: number[] }).genome)
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('fits no hidden size')) throw e
+      // try the next location
+    }
+  }
+  return undefined
+}
+
+/** One schlau example world spec (File -> Example Worlds): a start -> goal task the schlau car drives itself. */
+export interface SchlauExampleWorldSpec {
+  id: string
+  name: string
+  kind: SchlauKind
+  seed: number
+}
+
+/**
+ * The schlau example worlds: drivable OUTSIDE the training dialog (the global File -> Example Worlds menu; the six
+ * schlau TRAINING worlds schlau_1..6 stay excluded there, like the maze/crux training worlds). Holdout-ish seeds,
+ * not the training band 3001-3006.
+ */
+export const SCHLAU_EXAMPLE_WORLDS: SchlauExampleWorldSpec[] = [
+  { id: 'schlau_open', name: 'Schlau open', kind: 'goal_open', seed: 2001 },
+  { id: 'schlau_box', name: 'Schlau box', kind: 'goal_box', seed: 2002 },
+]
+
+/**
+ * The schlau example world of one spec: the training world of the same task (one start -> goal task, score stage,
+ * camera follow) with the shipped schlau genome — or the untrained placeholder until one is shipped (re-run the
+ * exporter after every ship).
+ */
+export function buildSchlauExampleWorld(spec: SchlauExampleWorldSpec, genome: number[] = shippedGenomeSchlau() ?? placeholderSchlauGenome()): RennWorld {
+  return buildSchlauTrainingWorld(spec, genome)
 }
 

@@ -37,6 +37,7 @@
     "av:evolve": "tsx tools/av-evolution/run.ts",
     "policy:evolve": "tsx tools/policy-evolution/run.ts",
     "policy:islands": "tsx tools/policy-evolution/run-islands.ts",
+    "policy:schlau": "tsx tools/policy-evolution/run-schlau.ts",
     "av:evolve:compare": "tsx tools/av-evolution/compare.ts",
     "av:pre": "vitest run src/test/scenarios/av- src/test/scenarios/hunt-game"
   },

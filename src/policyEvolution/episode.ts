@@ -26,7 +26,8 @@ import { policyDriveStage, policyInputStage, policyV1Stage, policyV2Stage, POLIC
 
 export const POLICY_CAR_ID = 'policy_car_body'
 export const CAR_SIZE: V2 = [4, 8]
-const CAR_START_Y = 0.494
+/** Car start height (the 4 x 8 x 1 hull rests on the ground plane); shared with the schlau pipeline. */
+export const CAR_START_Y = 0.494
 const CONTACT_GAP = 0.1
 export const EPISODE_SECONDS = 60
 /** v3 stand-still stall rule: |speed| below this for STILL_WINDOW_S (manoeuvres must survive: a reversing car is not stalled), and a long progress safety net */
@@ -58,12 +59,12 @@ export const CHAIN_EPISODE_SECONDS = 90
 export const v3EpisodeSeconds = (length: number) => Math.round(Math.min(150, Math.max(45, 25 + length / 3.5)))
 /** relative noise on every ray distance during evolution episodes (example worlds run noise free) */
 export const SENSOR_NOISE = 0.02
-/** a perfect-ish run averages ~10 m/s over the whole route: score / (length x 10) is then ~1 on every course */
-const NORM_SPEED = 10
+/** a perfect-ish run averages ~10 m/s over the whole route: score / (length x 10) is then ~1 on every course; shared with the schlau episode */
+export const NORM_SPEED = 10
 
-/** Vehicle model of the shipped AV car (body + car2 actuator), unchanged. */
-const CAR_BODY = { mass: 2, restitution: 0.1, friction: 0.01, angularDamping: 0.3 }
-const CAR2_PARAMS = { power: 2400, steeringIntensity: 0.1, steeringSpeed: 0.51, lateralGrip: 100, tireGripSlipSpeedThreshold: 2, lateralGripSlipScale: 0.3, jumpImpulse: 200 }
+/** Vehicle model of the shipped AV car (body + car2 actuator), unchanged; shared with the schlau pipeline. */
+export const CAR_BODY = { mass: 2, restitution: 0.1, friction: 0.01, angularDamping: 0.3 }
+export const CAR2_PARAMS = { power: 2400, steeringIntensity: 0.1, steeringSpeed: 0.51, lateralGrip: 100, tireGripSlipSpeedThreshold: 2, lateralGripSlipScale: 0.3, jumpImpulse: 200 }
 
 /** `offcourse`: farther than OFF_COURSE_M from the route polyline (a safety net on top of the walls; counts like a crash) */
 export type EpisodeOutcome = 'crash' | 'offcourse' | 'stall' | 'flip' | 'finish' | 'timeout'

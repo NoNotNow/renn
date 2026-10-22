@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MazeTrainingDialog, { routeTileThumbHeightPx } from './MazeTrainingDialog'
-import { CRUX_TRAINING_SET, TRAINING_SETS, WF_TRAINING_SET } from './trainingSets'
+import { CRUX_TRAINING_SET, trainingSetsOfCar, WF_TRAINING_SET } from './trainingSets'
 import { theme } from '@/config/theme'
 import { MAZE_TRAINING_WORLDS, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
 import { CRUX_TRAINING_WORLDS, cruxTrainingInfo, type CruxTrainingMeta } from '@/policyEvolution/cruxTraining'
@@ -907,7 +907,7 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     render(
       <MazeTrainingDialog
         onPlayExampleWorld={() => {}}
-        tabs={{ sets: TRAINING_SETS, activeKey: 'maze', onSelect }}
+        tabs={{ sets: trainingSetsOfCar('renn'), activeKey: 'maze', onSelect }}
       />,
     )
     const tabs = screen.getByTestId('training-tabs')
@@ -927,6 +927,28 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
 
+  it('renders the car switch (Renn / Schlau) in the header when given; a pick reports the car, the active one does not', async () => {
+    const user = userEvent.setup()
+    stubFetchWithMeta((spec) => makeMeta(spec, 5))
+    const onSelectCar = vi.fn()
+    render(
+      <MazeTrainingDialog
+        onPlayExampleWorld={() => {}}
+        carSwitch={{ activeCar: 'renn', onSelectCar }}
+      />,
+    )
+    // without the tabs prop there is no tab bar (the schlau car shows its single set without tabs)
+    expect(screen.queryByTestId('training-tabs')).toBeNull()
+    expect(screen.getByTestId('training-car-switch-renn')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('training-car-switch-schlau')).toHaveAttribute('aria-pressed', 'false')
+    await user.click(screen.getByTestId('training-car-switch-schlau'))
+    expect(onSelectCar).toHaveBeenCalledTimes(1)
+    expect(onSelectCar).toHaveBeenCalledWith('schlau')
+    // clicking the already-active car reports nothing
+    await user.click(screen.getByTestId('training-car-switch-renn'))
+    expect(onSelectCar).toHaveBeenCalledTimes(1)
+  })
+
   it('regression: the wf training worlds ARE loadable inside the section (active tab, rows and tile plays)', async () => {
     const user = userEvent.setup()
     stubFetchWithWfMeta()
@@ -935,7 +957,7 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     render(
       <MazeTrainingDialog
         trainingSet={WF_TRAINING_SET}
-        tabs={{ sets: TRAINING_SETS, activeKey: 'wf', onSelect: () => {} }}
+        tabs={{ sets: trainingSetsOfCar('renn'), activeKey: 'wf', onSelect: () => {} }}
         onPlayExampleWorld={onPlay}
       />,
     )
@@ -958,7 +980,7 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     render(
       <MazeTrainingDialog
         onPlayExampleWorld={() => {}}
-        tabs={{ sets: TRAINING_SETS, activeKey: 'maze', onSelect: () => {} }}
+        tabs={{ sets: trainingSetsOfCar('renn'), activeKey: 'maze', onSelect: () => {} }}
       />,
     )
     await screen.findAllByText('Best: 5 pts')

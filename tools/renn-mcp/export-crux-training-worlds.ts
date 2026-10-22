@@ -38,7 +38,7 @@ void exportTrainingWorlds({
   setup: (spec) => {
     const { course, chains } = cruxTrainingSetup(spec)
     return {
-      course,
+      boxes: course.boxes,
       context: chains,
       copies: chains.map((chain, i) => ({
         points: chain.points,

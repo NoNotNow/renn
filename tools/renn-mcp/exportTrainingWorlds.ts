@@ -11,7 +11,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { RennWorld } from '../../src/types/world'
 import type { V2 } from '../../src/avEvolution/eval/geometry'
-import type { Course } from '../../src/policyEvolution/courses'
+import type { CourseBox } from '../../src/policyEvolution/courses'
 import { invalidateAgentDevExampleWorldIdCache } from '../../src/agent/agentDevExampleWorlds'
 import { shippedGenomeV3 } from '../../src/policyEvolution/exampleWorld'
 import { trialMazeTrainingCandidate, type MazeTrainingCandidate } from '../../src/policyEvolution/mazeTraining'
@@ -31,17 +31,24 @@ export interface TrainingWorldCopy {
 
 /**
  * The per-set facts of one training-world export. `setup` runs once per spec; its `context` (the maze routes /
- * the crux chains) is handed back to `meta` and `rowOf` so nothing is derived twice.
+ * the crux chains / the schlau geodesic path) is handed back to `meta` and `rowOf` so nothing is derived twice.
+ * `TCandidate` is the meta.json's baked-candidate type (maze/crux: MazeTrainingCandidate; schlau: SchlauTrainingCandidate).
  */
-export interface TrainingWorldsExport<TSpec extends { id: string }, TContext> {
+export interface TrainingWorldsExport<TSpec extends { id: string }, TContext, TCandidate = MazeTrainingCandidate> {
   specs: readonly TSpec[]
   /** log name: `<name> written to public/exampleWorlds/` */
   name: string
   /** optional engine warm-up before the first setup (the crux chain enumeration gates pursuit episodes) */
   warmup?: () => Promise<void>
-  setup: (spec: TSpec) => { course: Course; context: TContext; copies: readonly TrainingWorldCopy[] }
+  setup: (spec: TSpec) => { boxes: readonly CourseBox[]; context: TContext; copies: readonly TrainingWorldCopy[] }
   buildWorld: (spec: TSpec, genome: number[]) => RennWorld
-  /** score-stage transformer id of copy `i` (maze_score_<i> / crux_score_<i>) */
+  /**
+   * The genome baked into the exported worlds + the trial candidate for meta.json. Absent = the shipped v3 policy
+   * (RENN_V3_GENOME_FILE trial included) — the maze/crux default. The schlau set passes its own: the schlau genomes
+   * are NOT v3-shaped (same 29 H + 2 length, different layout — see schlauPolicy.ts).
+   */
+  genome?: () => { genome: number[]; trialCandidate?: TCandidate }
+  /** score-stage transformer id of copy `i` (maze_score_<i> / crux_score_<i> / schlau_score_<i>) */
   scoreStageId: (copy: number) => string
   score: { carId: (i: number) => string; goalPrefix: string; goalReachM: number; watchLabel: string }
   /** meta.json body of one world (the driver adds tileSvg) */
@@ -49,18 +56,15 @@ export interface TrainingWorldsExport<TSpec extends { id: string }, TContext> {
     spec: TSpec,
     context: TContext,
     bestScore: number | null,
-    trialCandidate: MazeTrainingCandidate | undefined,
+    trialCandidate: TCandidate | undefined,
   ) => Record<string, unknown>
   /** --score table header + one row per measured copy */
   rowsHeader: string
   rowOf: (spec: TSpec, context: TContext, copy: number, result: TrainingScoreRunResult) => string
 }
 
-export async function exportTrainingWorlds<TSpec extends { id: string }, TContext>(
-  exp: TrainingWorldsExport<TSpec, TContext>,
-): Promise<void> {
-  const t0 = Date.now()
-  await exp.warmup?.()
+/** The default baked genome of the maze/crux sets: the shipped v3 policy (RENN_V3_GENOME_FILE trials it). */
+function shippedV3BakedGenome(): { genome: number[]; trialCandidate?: MazeTrainingCandidate } {
   const genome = shippedGenomeV3()
   if (!genome) throw new Error('shippedPolicyV3.json not shipped yet (tools/policy-evolution/ship.ts)')
   // when trialing via RENN_V3_GENOME_FILE (shippedGenomeV3 reads the same file), name the candidate in meta.json
@@ -69,10 +73,21 @@ export async function exportTrainingWorlds<TSpec extends { id: string }, TContex
   const trialCandidate: MazeTrainingCandidate | undefined = overridePath
     ? trialMazeTrainingCandidate(JSON.parse(readFileSync(overridePath, 'utf8')) as { best?: { gen?: number }; source?: string }, overridePath)
     : undefined
+  return { genome, trialCandidate }
+}
+
+export async function exportTrainingWorlds<TSpec extends { id: string }, TContext, TCandidate = MazeTrainingCandidate>(
+  exp: TrainingWorldsExport<TSpec, TContext, TCandidate>,
+): Promise<void> {
+  const t0 = Date.now()
+  await exp.warmup?.()
+  const baked = exp.genome ? exp.genome() : shippedV3BakedGenome()
+  const genome = baked.genome
+  const trialCandidate = baked.trialCandidate
   const withScore = process.argv.includes('--score')
   const rows: string[] = [exp.rowsHeader]
   for (const spec of exp.specs) {
-    const { course, context, copies } = exp.setup(spec)
+    const { boxes, context, copies } = exp.setup(spec)
     const world = exp.buildWorld(spec, genome)
     const scoreStages = (world.transformers as Record<string, { params?: { vRef?: number; bonusRate?: number; chains?: number[][][]; walls?: V2[][] } }>)
     const scoreStage0 = scoreStages[exp.scoreStageId(0)]
@@ -106,7 +121,7 @@ export async function exportTrainingWorlds<TSpec extends { id: string }, TContex
     let tileW = 0
     let tileH = 0
     copies.forEach((copy, i) => {
-      const tile = thumbSvg(course.boxes, [{ ox: 0, chain: copy.points, color: copy.color, startColor: copy.startColor }])
+      const tile = thumbSvg(boxes, [{ ox: 0, chain: copy.points, color: copy.color, startColor: copy.startColor }])
       writeFileSync(resolve(outDir, `route_${i}.svg`), tile.svg)
       tileW = tile.w
       tileH = tile.h
@@ -116,7 +131,7 @@ export async function exportTrainingWorlds<TSpec extends { id: string }, TContex
     writeFileSync(resolve(outDir, 'meta.json'), JSON.stringify({ ...exp.meta(spec, context, bestScore, trialCandidate), tileSvg }, null, 2) + '\n')
     writeFileSync(
       resolve(outDir, 'thumb.svg'),
-      thumbSvg(course.boxes, copies.map((copy) => ({ ox: copy.ox, chain: copy.points, color: copy.color, startColor: copy.startColor }))).svg,
+      thumbSvg(boxes, copies.map((copy) => ({ ox: copy.ox, chain: copy.points, color: copy.color, startColor: copy.startColor }))).svg,
     )
   }
   invalidateAgentDevExampleWorldIdCache()

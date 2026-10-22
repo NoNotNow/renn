@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { theme } from '@/config/theme'
-import { MAZE_TRAINING_SET, type TrainingMeta, type TrainingSet } from './trainingSets'
+import { MAZE_TRAINING_SET, TRAINING_CARS, type TrainingCar, type TrainingMeta, type TrainingSet } from './trainingSets'
 import AnchoredPopover from './AnchoredPopover'
 import {
   fetchMazeCandidates,
@@ -52,6 +52,15 @@ export interface MazeTrainingDialogProps {
   onPlayExampleWorld: (worldId: string, routeIndex: number, candidate: MazeCandidate | null) => void
   /** World+route of the ACTIVE set currently loaded and driving in the Builder (drives the live active-vector overlay and live score). */
   liveRun?: TrainingLiveRun | null
+  /**
+   * The car switch of the training section (the header row): the cars the training dialog serves (`renn` = the
+   * v3/WF sets with the tab bar, `schlau` = the schlau set without tabs). The Builder owns the state; the dialog
+   * only renders the two positions and reports a pick.
+   */
+  carSwitch?: {
+    activeCar: TrainingCar
+    onSelectCar: (car: TrainingCar) => void
+  }
 }
 
 interface MazeCardState {
@@ -572,7 +581,7 @@ function persistJson(key: string, value: unknown): void {
   }
 }
 
-export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, tabs, onPlayExampleWorld, liveRun = null }: MazeTrainingDialogProps) {
+export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, tabs, onPlayExampleWorld, liveRun = null, carSwitch }: MazeTrainingDialogProps) {
   // per-set localStorage slot (`mazeTrainingPanelCandidate` for the mazes, `crux...` for the crux, ...):
   // the selected model persists per set (the model dropdown is the same list in every set, but the choice is per set).
   const candidateStorageKey = `${trainingSet.key}${PANEL_CANDIDATE_KEY}`
@@ -663,9 +672,12 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
 
   // Candidate models (island centers / best / shipped) exported next to the worlds; chips render only when the
   // file exists. A persisted selection that the file no longer lists is dropped (stale id after a re-export).
+  // The candidate FILE is per set: the schlau set reads schlau-candidates.json (schlau-shaped genomes), every
+  // other set reads the shared v3 candidates.json.
+  const fetchCandidates = trainingSet.candidates?.fetch ?? fetchMazeCandidates
   useEffect(() => {
     let cancelled = false
-    fetchMazeCandidates(BASE_URL).then((file) => {
+    fetchCandidates(BASE_URL).then((file) => {
       if (!cancelled) {
         setCandidatesFile(file)
         if (file) {
@@ -676,7 +688,7 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [fetchCandidates])
 
   const selectedCandidate = useMemo(
     () => candidatesFile?.candidates.find((c) => c.id === candidateId) ?? null,
@@ -856,6 +868,48 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
         <span style={{ fontSize: 11, color: theme.text.muted, whiteSpace: 'nowrap' }}>
           {trainingSet.worlds.length} runs
         </span>
+        {carSwitch ? (
+          <>
+            <div style={{ flex: 1 }} />
+            {/* the car switch: which car the training section trains/drives (renn = the v3/WF sets, schlau = the schlau set) */}
+            <div
+              data-testid="training-car-switch"
+              role="group"
+              aria-label="Training car"
+              style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}
+            >
+              {TRAINING_CARS.map((car) => {
+                const active = car.key === carSwitch.activeCar
+                return (
+                  <button
+                    key={car.key}
+                    type="button"
+                    aria-pressed={active}
+                    data-testid={`training-car-switch-${car.key}`}
+                    title={`Train / drive the ${car.label} car`}
+                    onClick={() => {
+                      if (!active) carSwitch.onSelectCar(car.key)
+                    }}
+                    style={{
+                      background: active ? theme.bg.surface : 'transparent',
+                      border: `1px solid ${active ? theme.accent : theme.border.default}`,
+                      borderRadius: 4,
+                      color: active ? theme.accent : theme.text.muted,
+                      fontSize: 10,
+                      fontWeight: active ? 600 : 400,
+                      lineHeight: 1.2,
+                      padding: '2px 7px',
+                      cursor: active ? 'default' : 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {car.label}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        ) : null}
       </div>
 
       {/* training section: one tab per training set (the tab content is the set below) */}

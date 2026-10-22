@@ -35,7 +35,7 @@ void exportTrainingWorlds({
   setup: (spec) => {
     const { course, routes, chains } = mazeTrainingRoutes(spec)
     return {
-      course,
+      boxes: course.boxes,
       context: routes,
       copies: routes.map((route, i) => ({
         points: chains[i]!,

@@ -26,7 +26,7 @@ export interface ThumbSvg {
   frames: Array<{ pts: Array<[number, number]> }>
 }
 
-export function thumbSvg(boxes: CourseBox[], frames: ThumbFrame[]): ThumbSvg {
+export function thumbSvg(boxes: readonly CourseBox[], frames: ThumbFrame[]): ThumbSvg {
   let minX = Infinity
   let maxX = -Infinity
   let minZ = Infinity

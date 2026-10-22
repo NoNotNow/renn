@@ -24,6 +24,7 @@ import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPubl
 import { setExampleWorldUrlParam } from '@/utils/exampleWorldUrlParam'
 import { MAZE_TRAINING_WORLDS } from '@/policyEvolution/mazeTraining'
 import { CRUX_TRAINING_WORLDS } from '@/policyEvolution/cruxTraining'
+import { SCHLAU_TRAINING_WORLDS } from '@/policyEvolution/schlauTraining'
 import { isWfCandidateWorldId } from '@/policyEvolution/wfCandidates'
 
 const BUILDER_BASE_URL = import.meta.env.BASE_URL || '/'
@@ -190,11 +191,13 @@ export default function BuilderHeader({
     [onOpenExampleWorld],
   )
 
-  // Pure training worlds (policy_* exports) and the maze / crux training worlds (own dialog) stay out of
-  // the generic Example Worlds submenu. The widen-freeze candidate worlds (wf_*) live in the Widen-freeze
-  // Worlds dialog only (same pattern as the training worlds — never in the global menu).
+  // Pure training worlds (policy_* exports) and the maze / crux / schlau training worlds (own dialog) stay
+  // out of the generic Example Worlds submenu. The widen-freeze candidate worlds (wf_*) live in the
+  // Widen-freeze Worlds dialog only (same pattern as the training worlds — never in the global menu).
+  // (The schlau EXAMPLE worlds — schlau_open / schlau_box, drivable outside the dialog — are NOT training
+  // worlds and stay in the menu.)
   const exampleWorldExcludedIds = useMemo(
-    () => new Set([...MAZE_TRAINING_WORLDS, ...CRUX_TRAINING_WORLDS].map((spec) => spec.id)),
+    () => new Set([...MAZE_TRAINING_WORLDS, ...CRUX_TRAINING_WORLDS, ...SCHLAU_TRAINING_WORLDS].map((spec) => spec.id)),
     [],
   )
   const visibleExampleWorldIds = exampleWorldIds.filter(
