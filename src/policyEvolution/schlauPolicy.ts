@@ -21,7 +21,7 @@
  * genome by its length: run files / candidate manifests must carry `policy: 'schlau'` and schlau genomes must never
  * be shipped into the v3 worlds (the v3 stage would read the move vectors as touch flags and vice versa).
  */
-import { genomeLength, hiddenOfLength, N_RAYS, RAY_RANGE, STAGE_HIDDEN, STAGE_NET, STAGE_RND, TAU_SPEED, V_FWD_MAX, V_REV_MAX } from './policy'
+import { genomeLength, hiddenOfLength, N_RAYS, NOSE_M, RAY_RANGE, STAGE_HIDDEN, STAGE_NET, STAGE_RND, TAU_SPEED, V_FWD_MAX, V_REV_MAX } from './policy'
 
 /** Ray bearings in degrees from the heading (positive = left), evenly spread over the full 360 degrees. */
 export const SCHLAU_RAY_ANGLES_DEG: readonly number[] = Array.from({ length: N_RAYS }, (_, i) => (i * 360) / N_RAYS)
@@ -46,6 +46,13 @@ export const SCHLAU_ACTUATOR_ID = 'schlau_car'
 export const SCHLAU_CAR_BODY_ID = 'schlau_car_body'
 /** drive stage priority: before the car2 actuator (11), like the v3 drive stage (5) */
 export const SCHLAU_STAGE_PRIORITY = 5
+/**
+ * Color of the drawn target line (api.visualizeLine, user decision 2026-10-23 — "the lila vector"): the straight
+ * car NOSE -> goal line the stage draws every frame, THROUGH obstacles (no pathing), at y = 0.35 like the route
+ * lines. It REPLACES the blue carrot (no lookahead vector in the schlau worlds); the route stays green -> orange.
+ * The net INPUT goal vector stays center-anchored (unchanged) — this is the DRAWN line only.
+ */
+export const SCHLAU_GOAL_VECTOR_COLOR = '#aa44ff'
 
 /**
  * Stage code (runs every frame before the car2 actuator). Params: `w` (genome), `goal` ([x, z], world), `gain`
@@ -105,6 +112,10 @@ export const SCHLAU_STAGE_BODY = `function transform(input, dt, params, state, a
   }
   // goal vector (from the car center)
   var g = params.goal || [pos[0], pos[2]]
+  // the LILA target line (user decision 2026-10-23): the straight car NOSE -> goal line, drawn EVERY frame,
+  // THROUGH obstacles (no pathing), at the same y = 0.35 as the route lines. It REPLACES the blue carrot — the
+  // lookahead vector is gone from the schlau worlds; ONE target line, nose-anchored like the score anchor
+  api.visualizeLine([pos[0] + fwd[0] * ${NOSE_M}, 0.35, pos[2] + fwd[2] * ${NOSE_M}], [g[0], 0.35, g[1]], '${SCHLAU_GOAL_VECTOR_COLOR}')
   var gx = g[0] - pos[0], gz = g[1] - pos[2]
   var gd = Math.hypot(gx, gz) || 1
   x[n + 9] = (gx * fwd[0] + gz * fwd[2]) / gd

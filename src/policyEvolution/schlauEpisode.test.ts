@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { createRng } from '@/avEvolution/core/rng'
 import type { V2 } from '@/avEvolution/eval/geometry'
 import { CAR2_PARAMS, CAR_BODY, CAR_START_Y } from './episode'
-import { touchPenaltyNorm } from './es'
 import { freshGenome } from './islands'
 import { NOSE_M } from './policy'
 import { buildSchlauTask, type SchlauTask } from './schlauCourses'
 import { N_IN_SCHLAU, SCHLAU_ACTUATOR_ID, SCHLAU_CAR_BODY_ID, SCHLAU_STAGE_ID, SCHLAU_STAGE_PRIORITY } from './schlauPolicy'
-import { schlauDistanceField } from './schlauScore'
+import {
+  SCHLAU_OBJECT_TOUCH_PENALTY_PER_FRAME,
+  SCHLAU_WALL_TOUCH_PENALTY_PER_FRAME,
+  schlauDistanceField,
+  schlauTouchPenaltyNorm,
+} from './schlauScore'
 import { buildSchlauWorld, runSchlauEpisode, schlauEpisodeSeconds, SCHLAU_GOAL_REACH_M, SCHLAU_OFFCOURSE_M, SCHLAU_STALL_WINDOW_S } from './schlauEpisode'
 
 /** start nose: start + headingDir(yaw) * NOSE_M (0 deg = -Z, positive left) */
@@ -21,6 +25,13 @@ describe('schlau episode', () => {
     expect(SCHLAU_GOAL_REACH_M).toBe(6)
     expect(SCHLAU_OFFCOURSE_M).toBe(25)
     expect(SCHLAU_STALL_WINDOW_S).toBe(10)
+    // the episode's touch penalties track the 2026-10-23 decision (wall 12 -> 30, object 4 -> 15 pts/s): the old
+    // v3 borrow (0.0125 / 0.005 per frame) scaled by the same factors — the schlau episode no longer imports the
+    // v3 constants, maze / crux / v3 stay untouched
+    expect(SCHLAU_WALL_TOUCH_PENALTY_PER_FRAME).toBeCloseTo(0.03125, 12)
+    expect(SCHLAU_OBJECT_TOUCH_PENALTY_PER_FRAME).toBeCloseTo(0.01875, 12)
+    expect(schlauTouchPenaltyNorm(60, 0)).toBeCloseTo(1.875, 12)
+    expect(schlauTouchPenaltyNorm(0, 60)).toBeCloseTo(1.125, 12)
   })
 
   it('schlauEpisodeSeconds clamps 25 + d0 / 3 to 45..150', () => {
@@ -87,7 +98,7 @@ describe('schlau episode', () => {
     expect(m.norm).toBeGreaterThanOrEqual(0)
     expect(m.norm).toBeLessThan(2)
     expect(m.peakNorm).toBeGreaterThanOrEqual(0)
-    expect(m.peakNorm!).toBeGreaterThanOrEqual(m.norm - touchPenaltyNorm(m.touchWallFrames, m.touchObjectFrames))
+    expect(m.peakNorm).toBeGreaterThanOrEqual(m.norm - schlauTouchPenaltyNorm(m.touchWallFrames, m.touchObjectFrames))
   }, 60_000)
 
   it('goal_open scores the full euclidean start->goal distance (no field edge clamp)', async () => {

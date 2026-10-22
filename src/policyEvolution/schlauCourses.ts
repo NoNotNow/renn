@@ -9,18 +9,21 @@
  *  - `goal_box`: a big FENCED box (a "Kasten" — a closed arena, so cheating / driving around is impossible) with seeded
  *    STATIC obstacle boxes inside. Arena half-size 60 m: 4 walls, 2 m thick, centred at +/-61 (inner faces at +/-60).
  *    Start seeded within +/-35 m on both axes, goal at 50-110 m euclidean distance from the start, both at least 10 m
- *    away from the inner walls. Obstacles: 3-8 boxes (4-14 m per axis, random yaw 0-180), rejection-sampled (up to 40
- *    attempts per box): a box is kept only with > 7 m clearance to the start hull (the car hull 4 x 8 m) and to the
+ *    away from the inner walls. Obstacles: the GUARANTEED CROSSING WALL (user decision 2026-10-23: the direct
+ *    start -> goal line MUST cross at least one obstacle — before it only MAY) — a simple wall (12-14 m long, 4 m
+ *    thick) centred ON the direct line, perpendicular to it, rejection-checked like every obstacle — plus 3-8
+ *    sampled boxes (4-14 m per axis, random yaw 0-180, up to 40 attempts per box): a box
+ *    is kept only with > 7 m clearance to the start hull (the car hull 4 x 8 m) and to the
  *    goal AND while the goal stays REACHABLE from the start with car-width clearance (a local BFS on a 1 m grid over
  *    the arena, obstacles inflated by 2.5 m = car half width 2 m + 0.5 m margin; 4-connected flood fill, reachable =
- *    the goal cell reached). The direct start -> goal line MAY cross obstacles — that is the point of the task.
+ *    the goal cell reached). The direct start -> goal line crossing an obstacle is the point of the task.
  * The rng is re-seeded by the VARIANT (`seed * 2654435761 + SCHLAU_KIND_SALT[kind] + variant * 2246822519`), so a
  * per-generation variant rotation re-jitters the whole world itself. Variant >= 1 additionally jitters the start pose
  * by +/-4 m / +/-15 deg (the hull is re-checked against every box; the canonical start is the fallback after 12 unclear
  * attempts). The goal never moves.
  */
 import { createRng, type Rng } from '@/avEvolution/core/rng'
-import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
+import { pointPolyGap, polyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import type { CourseBox } from './courses'
 
 /** The schlau task kinds: `goal_open` (free ground) and `goal_box` (fenced arena with obstacles). */
@@ -78,14 +81,33 @@ const CLEAR_M = 7
 const JITTER_M = 4
 const JITTER_DEG = 15
 const JITTER_ATTEMPTS = 12
-/** obstacle boxes of a `goal_box` task: 3-8, 4-14 m per axis, up to 40 rejection attempts per box */
+/** obstacle boxes of a `goal_box` task: the guaranteed crossing wall + 3-8 sampled, 4-14 m per axis, up to 40 rejection attempts per sampled box */
 const OBSTACLE_MIN = 3
 const OBSTACLE_SPAN = 6
 const BOX_MIN = 4
 const BOX_MAX = 14
 const BOX_ATTEMPTS = 40
+/** the guaranteed crossing wall (user decision 2026-10-23): 12-14 m long, 4 m thick, centred ON the direct start -> goal line, perpendicular to it; up to 40 rejection attempts */
+const CROSS_WALL_MIN = 12
+const CROSS_WALL_MAX = 14
+const CROSS_WALL_T = 4
+const CROSS_WALL_ATTEMPTS = 40
 
 const boxPoly = (b: CourseBox): V2[] => rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])
+
+/**
+ * Does the direct start -> goal segment CROSS the box (enter its rect)? polyGap of the segment and the box poly is
+ * exact for convex polys — 0 (with overlap) means the line passes through (an exact touch reads 0 too and counts).
+ */
+const crossesBox = (b: CourseBox, start: V2, goal: V2): boolean => polyGap([start, goal], boxPoly(b)) === 0
+
+/**
+ * Does the direct start -> goal segment cross at least one of the boxes? The `goal_box` generator GUARANTEES this
+ * (the crossing wall, user decision 2026-10-23); the start-pose jitter of variants >= 1 rejects jitters that lose
+ * the crossing (the canonical start is the fallback).
+ */
+export const schlauLineCrosses = (boxes: readonly CourseBox[], start: V2, goal: V2): boolean =>
+  boxes.some((b) => crossesBox(b, start, goal))
 
 /**
  * Gap (m) between two convex polys: pointPolyGap of every corner, both ways. Equals polyGap while the polys are
@@ -157,7 +179,7 @@ const goalOpenBody = (rng: Rng): SchlauBody => {
   return { boxes: [], start: [0, 0], goal: [dist * Math.cos(a), dist * Math.sin(a)], startYawDeg }
 }
 
-/** `goal_box` body: the fenced arena (4 walls, inner faces at +/-60) with 3-8 rejection-sampled obstacle boxes; start within +/-35 m per axis, goal 50-110 m out, both >= 10 m off the inner walls. */
+/** `goal_box` body: the fenced arena (4 walls, inner faces at +/-60) with the guaranteed crossing wall on the direct start -> goal line plus 3-8 rejection-sampled obstacle boxes; start within +/-35 m per axis, goal 50-110 m out, both >= 10 m off the inner walls. */
 const goalBoxBody = (rng: Rng): SchlauBody => {
   const boxes: CourseBox[] = [
     { at: [0, ARENA_HALF + WALL_T / 2], size: [2 * (ARENA_HALF + WALL_T), WALL_T], yawDeg: 0 },
@@ -186,11 +208,31 @@ const goalBoxBody = (rng: Rng): SchlauBody => {
     const dg = Math.min(80, 0.9 * dc)
     goal = [start[0] + (dg / dc) * (corner[0] - start[0]), start[1] + (dg / dc) * (corner[1] - start[1])]
   }
-  // obstacles: 3-8 boxes (4-14 m per axis, yaw 0-180), rejection-sampled — kept only with > CLEAR_M hull / goal
-  // clearance AND with the goal still reachable (car-width clearance) from the start
+  // the GUARANTEED CROSSING WALL (user decision 2026-10-23): the direct start -> goal line MUST cross at least one
+  // obstacle. A simple wall centred ON the line, perpendicular to it — the car has to drive around one of its ends.
+  // Same acceptance as every obstacle: > CLEAR_M off the start hull and the goal, the goal still reachable.
   const hull = rectPoly(start[0], start[1], (startYawDeg * Math.PI) / 180, CAR_W, CAR_L)
   const blocked = new Uint8Array(GRID_N * GRID_N)
   for (const w of boxes) blockCells(w, blocked)
+  const lineDeg = (Math.atan2(goal[1] - start[1], goal[0] - start[0]) * 180) / Math.PI
+  for (let attempt = 0; attempt < CROSS_WALL_ATTEMPTS; attempt++) {
+    const len = range(rng, CROSS_WALL_MIN, CROSS_WALL_MAX)
+    const f = range(rng, 0.3, 0.7)
+    const at: V2 = [start[0] + (goal[0] - start[0]) * f, start[1] + (goal[1] - start[1]) * f]
+    const yawDeg = (((lineDeg + 90) % 180) + 180) % 180
+    const wall: CourseBox = { at, size: [len, CROSS_WALL_T], yawDeg }
+    const poly = boxPoly(wall)
+    if (cornerGap(hull, poly) <= CLEAR_M) continue
+    if (pointPolyGap(goal[0], goal[1], poly) <= CLEAR_M) continue
+    const trial = blocked.slice()
+    blockCells(wall, trial)
+    if (!goalReachable(trial, start, goal)) continue
+    boxes.push(wall)
+    blockCells(wall, blocked)
+    break
+  }
+  // obstacles: the crossing wall plus 3-8 sampled boxes (4-14 m per axis, yaw 0-180), rejection-sampled — kept
+  // only with > CLEAR_M hull / goal clearance AND with the goal still reachable (car-width clearance) from the start
   const target = OBSTACLE_MIN + Math.floor(rng.next() * OBSTACLE_SPAN)
   for (let i = 0; i < target; i++) {
     for (let attempt = 0; attempt < BOX_ATTEMPTS; attempt++) {
@@ -215,13 +257,17 @@ const goalBoxBody = (rng: Rng): SchlauBody => {
   return { boxes, start, goal, startYawDeg }
 }
 
-/** Seeded start-pose jitter for variant >= 1 (+/-4 m, +/-15 deg); the hull is re-checked against every box, the canonical start is the fallback after 12 unclear attempts. The goal never moves. */
-const jitterStart = (rng: Rng, boxes: readonly CourseBox[], start: V2, startYawDeg: number): { start: V2; startYawDeg: number } => {
+/**
+ * Seeded start-pose jitter for variant >= 1 (+/-4 m, +/-15 deg); the hull is re-checked against every box and — for
+ * `goal_box` — the jitter must keep the direct start -> goal line crossing an obstacle (the generator's guarantee,
+ * user decision 2026-10-23); the canonical start is the fallback after 12 unclear attempts. The goal never moves.
+ */
+const jitterStart = (rng: Rng, boxes: readonly CourseBox[], start: V2, startYawDeg: number, goal: V2): { start: V2; startYawDeg: number } => {
   for (let attempt = 0; attempt < JITTER_ATTEMPTS; attempt++) {
     const at: V2 = [start[0] + range(rng, -JITTER_M, JITTER_M), start[1] + range(rng, -JITTER_M, JITTER_M)]
     const yaw = startYawDeg + range(rng, -JITTER_DEG, JITTER_DEG)
     const hull = rectPoly(at[0], at[1], (yaw * Math.PI) / 180, CAR_W, CAR_L)
-    if (boxes.every((b) => cornerGap(hull, boxPoly(b)) > 0.5)) return { start: at, startYawDeg: yaw }
+    if (boxes.every((b) => cornerGap(hull, boxPoly(b)) > 0.5) && (boxes.length === 0 || schlauLineCrosses(boxes, at, goal))) return { start: at, startYawDeg: yaw }
   }
   return { start, startYawDeg }
 }
@@ -230,7 +276,7 @@ const jitterStart = (rng: Rng, boxes: readonly CourseBox[], start: V2, startYawD
 export function buildSchlauTask(kind: SchlauKind, seed: number, variant = 0): SchlauTask {
   const rng = createRng((seed * 2654435761 + SCHLAU_KIND_SALT[kind] + variant * 2246822519) >>> 0)
   const body = kind === 'goal_open' ? goalOpenBody(rng) : goalBoxBody(rng)
-  const pose = variant >= 1 ? jitterStart(rng, body.boxes, body.start, body.startYawDeg) : { start: body.start, startYawDeg: body.startYawDeg }
+  const pose = variant >= 1 ? jitterStart(rng, body.boxes, body.start, body.startYawDeg, body.goal) : { start: body.start, startYawDeg: body.startYawDeg }
   return {
     key: schlauKey(kind, seed, variant),
     kind,

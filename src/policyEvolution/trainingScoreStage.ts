@@ -7,13 +7,62 @@
  * `MAZE_SCORE_STAGE_CODE` = trainingScoreStageCode('maze', ...) (mazeTraining.ts) and `CRUX_SCORE_STAGE_CODE` =
  * trainingScoreStageCode('crux', ...) (cruxTraining.ts) embed the SAME behaviour; see mazeTraining.ts for the full
  * behavioural contract (finish freeze, LOS gate, penalties, drawing).
+ * The carrot drawing is OPTIONAL: an EMPTY `carrotColor` emits no carrot (the schlau worlds since 2026-10-23 — the
+ * lookahead vector is gone there, ONE nose -> goal target line drawn by the schlau drive stage instead); maze and
+ * crux keep it, byte-identical.
  */
 import { NOSE_M } from './policy'
 import { WALL_LOS_JS } from './wallLos'
 
 /**
+ * The chainPoint helper of the carrot lookahead drawing (the point at arc length s2 of a chain). Emitted ONLY for
+ * a non-empty `carrotColor` (byte-identical for maze / crux); the schlau worlds pass '' — no carrot there (user
+ * decision 2026-10-23: the lookahead vector is gone, ONE nose -> goal target line drawn by the schlau drive stage).
+ */
+const chainPointJs = `    function chainPoint(ch2, cum2, s2) {
+      var i2 = 0
+      while (i2 < ch2.length - 2 && cum2[i2 + 1] < s2) i2++
+      var t2 = (s2 - cum2[i2]) / (cum2[i2 + 1] - cum2[i2] || 1)
+      return [ch2[i2][0] + (ch2[i2 + 1][0] - ch2[i2][0]) * t2, ch2[i2][1] + (ch2[i2 + 1][1] - ch2[i2][1]) * t2]
+    }`
+
+/**
+ * The per-car carrot lookahead drawing (the per-car 8 m arc-ahead line). Emitted ONLY for a non-empty
+ * `carrotColor` (byte-identical for maze / crux); the schlau worlds pass '' — no carrot there (user decision
+ * 2026-10-23: the lookahead vector misled, the schlau drive stage draws the nose -> goal target line instead).
+ */
+const carrotLoopJs = (color: string) => `    for (var k3 = 0; k3 < params.cars.length; k3++) {
+      var fx = px, fz = pz, arc = 0
+      if (k3 === params.idx) {
+        arc = Math.min(state.s + 8, total)
+      } else {
+        var w = api.getWorldPosition(params.cars[k3])
+        if (!w) continue
+        fx = w[0]
+        fz = w[2]
+        var chW = params.chains[k3], cumW = state.cums[k3]
+        var bd = Infinity
+        for (var i3 = 0; i3 < chW.length - 1; i3++) {
+          var ax2 = chW[i3][0], az2 = chW[i3][1]
+          var dx2 = chW[i3 + 1][0] - ax2, dz2 = chW[i3 + 1][1] - az2
+          var l2 = dx2 * dx2 + dz2 * dz2 || 1
+          var t3 = Math.max(0, Math.min(1, ((fx - ax2) * dx2 + (fz - az2) * dz2) / l2))
+          var d2 = Math.hypot(fx - (ax2 + t3 * dx2), fz - (az2 + t3 * dz2))
+          if (d2 < bd) {
+            bd = d2
+            arc = cumW[i3] + t3 * Math.sqrt(l2)
+          }
+        }
+        arc = Math.min(arc + 8, cumW[chW.length - 1])
+      }
+      var tp = chainPoint(params.chains[k3], state.cums[k3], arc)
+      api.visualizeLine([fx, 0.35, fz], [tp[0], 0.35, tp[1]], '${color}')
+    }`
+
+/**
  * The score-stage transformer code. `prefix` only names the watch labels (maze.score / crux.score ...);
- * `goalReachM` is the goal-reach radius that freezes the score at the finish, `carrotColor` the drawn carrot line.
+ * `goalReachM` is the goal-reach radius that freezes the score at the finish, `carrotColor` the drawn carrot line —
+ * an EMPTY string draws no carrot (see the header note).
  */
 export function trainingScoreStageCode(prefix: string, goalReachM: number, carrotColor: string): string {
   return `${WALL_LOS_JS}
@@ -122,45 +171,14 @@ function transform(input, dt, params, state, api) {
         state.cums.push(cumC)
       }
     }
-    function chainPoint(ch2, cum2, s2) {
-      var i2 = 0
-      while (i2 < ch2.length - 2 && cum2[i2 + 1] < s2) i2++
-      var t2 = (s2 - cum2[i2]) / (cum2[i2 + 1] - cum2[i2] || 1)
-      return [ch2[i2][0] + (ch2[i2 + 1][0] - ch2[i2][0]) * t2, ch2[i2][1] + (ch2[i2 + 1][1] - ch2[i2][1]) * t2]
-    }
+${carrotColor ? chainPointJs : ''}
     for (var k2 = 0; k2 < params.chains.length; k2++) {
       var chK = params.chains[k2], colK = params.chainColors[k2] || ['#44ff77', '#ffaa44']
       for (var s3 = 0; s3 < chK.length - 1; s3++) {
         api.visualizeLine([chK[s3][0], 0.35, chK[s3][1]], [chK[s3 + 1][0], 0.35, chK[s3 + 1][1]], hexLerp(colK[0], colK[1], chK.length > 2 ? s3 / (chK.length - 2) : 0))
       }
     }
-    for (var k3 = 0; k3 < params.cars.length; k3++) {
-      var fx = px, fz = pz, arc = 0
-      if (k3 === params.idx) {
-        arc = Math.min(state.s + 8, total)
-      } else {
-        var w = api.getWorldPosition(params.cars[k3])
-        if (!w) continue
-        fx = w[0]
-        fz = w[2]
-        var chW = params.chains[k3], cumW = state.cums[k3]
-        var bd = Infinity
-        for (var i3 = 0; i3 < chW.length - 1; i3++) {
-          var ax2 = chW[i3][0], az2 = chW[i3][1]
-          var dx2 = chW[i3 + 1][0] - ax2, dz2 = chW[i3 + 1][1] - az2
-          var l2 = dx2 * dx2 + dz2 * dz2 || 1
-          var t3 = Math.max(0, Math.min(1, ((fx - ax2) * dx2 + (fz - az2) * dz2) / l2))
-          var d2 = Math.hypot(fx - (ax2 + t3 * dx2), fz - (az2 + t3 * dz2))
-          if (d2 < bd) {
-            bd = d2
-            arc = cumW[i3] + t3 * Math.sqrt(l2)
-          }
-        }
-        arc = Math.min(arc + 8, cumW[chW.length - 1])
-      }
-      var tp = chainPoint(params.chains[k3], state.cums[k3], arc)
-      api.visualizeLine([fx, 0.35, fz], [tp[0], 0.35, tp[1]], '${carrotColor}')
-    }
+${carrotColor ? carrotLoopJs(carrotColor) : ''}
   }
   return {}
 }`

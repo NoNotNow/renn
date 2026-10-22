@@ -4,9 +4,9 @@ import type { RennWorld } from '@/types/world'
 import { polylineLength } from './chains'
 import { CAR_START_Y } from './episode'
 import { NOSE_M } from './policy'
-import type { SchlauTask } from './schlauCourses'
+import { type SchlauTask, schlauLineCrosses } from './schlauCourses'
 import { SCHLAU_INFLATE_M } from './schlauScore'
-import { genomeLengthSchlau, hiddenOfSchlau, SCHLAU_ACTUATOR_ID, SCHLAU_STAGE_ID } from './schlauPolicy'
+import { genomeLengthSchlau, hiddenOfSchlau, SCHLAU_ACTUATOR_ID, SCHLAU_GOAL_VECTOR_COLOR, SCHLAU_STAGE_ID } from './schlauPolicy'
 import {
   applySchlauCandidate,
   buildSchlauTrainingWorld,
@@ -14,6 +14,8 @@ import {
   PLACEHOLDER_SCHLAU_TRAINING_CANDIDATE,
   placeholderSchlauGenome,
   SCHLAU_GOAL_Y,
+  SCHLAU_SCORE,
+  SCHLAU_SCORE_STAGE_CODE,
   SCHLAU_TRAINING_WORLDS,
   schlauCarId,
   schlauGoalId,
@@ -32,13 +34,30 @@ const noseOf = (task: SchlauTask): V2 => {
 const registry = (w: RennWorld) => (w.transformers ?? {}) as Record<string, { params?: Record<string, unknown> }>
 
 describe('SCHLAU_TRAINING_WORLDS: the registry', () => {
-  it('six worlds: ids schlau_1..6, 3x goal_open + 3x goal_box, unique seeds', () => {
+  it('six worlds: ids schlau_1..6, all six goal_box (user decision 2026-10-23), unique seeds', () => {
     expect(SCHLAU_TRAINING_WORLDS.map((s) => s.id)).toEqual(['schlau_1', 'schlau_2', 'schlau_3', 'schlau_4', 'schlau_5', 'schlau_6'])
-    const kinds = SCHLAU_TRAINING_WORLDS.map((s) => s.kind)
-    expect(kinds.filter((k) => k === 'goal_open')).toHaveLength(3)
-    expect(kinds.filter((k) => k === 'goal_box')).toHaveLength(3)
+    expect(SCHLAU_TRAINING_WORLDS.every((s) => s.kind === 'goal_box')).toBe(true)
     expect(new Set(SCHLAU_TRAINING_WORLDS.map((s) => s.seed)).size).toBe(6)
     for (const spec of SCHLAU_TRAINING_WORLDS) expect(spec.name.length).toBeGreaterThan(0)
+  })
+
+  it('SCHLAU_SCORE pins the touch penalties (user decision 2026-10-23: wall 30, object 15 pts/s)', () => {
+    expect(SCHLAU_SCORE.vRef).toBe(20)
+    expect(SCHLAU_SCORE.bonusRate).toBe(5)
+    expect(SCHLAU_SCORE.wallPenaltyPerS).toBe(30)
+    expect(SCHLAU_SCORE.objectPenaltyPerS).toBe(15)
+  })
+
+  it('the schlau score stage draws the route but NO carrot; the schlau.seg watch survives (user decision 2026-10-23)', () => {
+    // the dialog's live overlay reads schlau.seg — independent of the drawn carrot
+    expect(SCHLAU_SCORE_STAGE_CODE).toContain("api.watch('schlau.seg'")
+    // the route drawing stays (green -> orange hexLerp along the geodesic path)
+    expect(SCHLAU_SCORE_STAGE_CODE).toContain('hexLerp')
+    // the carrot lookahead is gone from the schlau worlds: no chainPoint, no 8 m arc-ahead line
+    expect(SCHLAU_SCORE_STAGE_CODE).not.toContain('chainPoint')
+    expect(SCHLAU_SCORE_STAGE_CODE).not.toContain("params.cars[k3]")
+    // the ONE target line is the drive stage's lila nose -> goal line instead
+    expect(SCHLAU_GOAL_VECTOR_COLOR).toBe('#aa44ff')
   })
 })
 
@@ -58,10 +77,10 @@ describe('schlauTrainingSetup: task + geodesic nose -> goal path + wall polys', 
         const poly = rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])
         for (const [x, z] of path) expect(pointPolyGap(x, z, poly)).toBeGreaterThanOrEqual(SCHLAU_INFLATE_M - 0.5)
       }
-      // the open worlds have no boxes: a straight-ish path no longer than the euclidean nose -> goal distance + slack
-      if (task.boxes.length === 0) {
-        expect(polylineLength(path)).toBeLessThanOrEqual(task.distM + 2 * NOSE_M + 2)
-      }
+      // all training worlds are goal_box (user decision 2026-10-23): every task has boxes
+      // and the direct start -> goal line crosses at least one of them (the generator's wall).
+      expect(task.boxes.length).toBeGreaterThanOrEqual(1)
+      expect(schlauLineCrosses(task.boxes, task.start, task.goal)).toBe(true)
     }
   })
 })
@@ -86,10 +105,13 @@ describe('buildSchlauTrainingWorld: one task per world', () => {
       const goal = world.entities.find((e) => e.id === schlauGoalId(0))!
       expect(goal.position).toEqual([task.goal[0], SCHLAU_GOAL_Y, task.goal[1]])
       // the drive stage: the genome, the task's goal, the car2 gain
-      const drive = registry(world)[SCHLAU_STAGE_ID]!
+      const drive = registry(world)[SCHLAU_STAGE_ID] as { params?: Record<string, unknown>; code?: string }
       expect(drive.params?.w).toEqual(genome)
       expect(drive.params?.goal).toEqual([task.goal[0], task.goal[1]])
-      // the score stage: the geodesic path as its chain, the wall polys, the score constants
+      // the drive stage code draws the ONE lila nose -> goal target line (the carrot is gone)
+      expect(String(drive.code)).toContain(`'${SCHLAU_GOAL_VECTOR_COLOR}'`)
+      expect(String(drive.code)).toContain('visualizeLine')
+      // the score stage: the geodesic path as its chain, the wall polys, the score constants (30/15 touch penalties)
       const score = registry(world)[schlauScoreStageId(0)]!
       expect(score.params?.chain).toEqual(path)
       expect(score.params?.chains).toEqual([path])
@@ -97,6 +119,10 @@ describe('buildSchlauTrainingWorld: one task per world', () => {
       expect(score.params?.cars).toEqual([schlauCarId(0)])
       expect(score.params?.idx).toBe(0)
       expect(score.params?.hud).toBe(true)
+      expect(score.params?.vRef).toBe(SCHLAU_SCORE.vRef)
+      expect(score.params?.bonusRate).toBe(SCHLAU_SCORE.bonusRate)
+      expect(score.params?.wallPenaltyPerS).toBe(30)
+      expect(score.params?.objectPenaltyPerS).toBe(15)
       // the camera follows the car
       expect(world.world.camera?.target).toBe(schlauCarId(0))
       expect(world.world.debugTargetLineEntityId).toBe(schlauCarId(0))

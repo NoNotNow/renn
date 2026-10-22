@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import { freshGenome } from './islands'
-import { genomeLengthSchlau, hiddenOfSchlau, MOVE_SEG_M, MOVE_SEGS, N_IN_SCHLAU, POLICY_STAGE_CODE_SCHLAU, policyForwardSchlau, SCHLAU_RAY_ANGLES_DEG } from './schlauPolicy'
-import { N_RAYS } from './policy'
+import { genomeLengthSchlau, hiddenOfSchlau, MOVE_SEG_M, MOVE_SEGS, N_IN_SCHLAU, POLICY_STAGE_CODE_SCHLAU, policyForwardSchlau, SCHLAU_GOAL_VECTOR_COLOR, SCHLAU_RAY_ANGLES_DEG } from './schlauPolicy'
+import { N_RAYS, NOSE_M } from './policy'
 
 const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!
+
+/** api.visualizeLine calls of the last runStage (the stage draws the lila goal vector every frame) */
+const lineCalls: Array<{ from: number[]; to: number[]; color: string }> = []
 
 /** minimal api for the stage: flat ground, identity heading (forward = +z, left = +x), every ray hits at 20 m */
 const api = {
@@ -23,6 +26,9 @@ const api = {
     dot,
   },
   raycast: () => ({ hit: true, distance: 20 }),
+  visualizeLine: (from: number[], to: number[], color: string) => {
+    lineCalls.push({ from, to, color })
+  },
 }
 
 /** fwd = +z, left = +x (identity heading, flat ground) */
@@ -149,5 +155,19 @@ describe('schlau policy layout', () => {
     const [steer, gas] = policyForwardSchlau(g, x)
     expect(state.steer).toBeCloseTo(steer, 9)
     expect(state.gas).toBeCloseTo(gas, 9)
+  })
+
+  it('draws the lila target line every frame: the straight car NOSE -> goal line at y 0.35, through obstacles (user decision 2026-10-23 — it replaces the carrot)', () => {
+    const g = freshGenome(createRng(23), 0.5, N_IN_SCHLAU, 6)
+    lineCalls.length = 0
+    // identity heading: forward = +z, so the nose sits NOSE_M ahead of the center
+    runStage({ w: g, gain: 1200, goal: [12, -30] }, () => ({ position: [3, 0, -NOSE_M], velocity: [0, 0, 5] }), 3)
+    expect(lineCalls).toHaveLength(3)
+    for (const c of lineCalls) {
+      expect(c.from).toEqual([3, 0.35, 0])
+      expect(c.to).toEqual([12, 0.35, -30])
+      expect(c.color).toBe(SCHLAU_GOAL_VECTOR_COLOR)
+      expect(SCHLAU_GOAL_VECTOR_COLOR).toBe('#aa44ff')
+    }
   })
 })

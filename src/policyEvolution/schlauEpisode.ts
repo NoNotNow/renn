@@ -15,10 +15,14 @@ import { headingDir, polyGap, rectPoly, upY, type V2 } from '@/avEvolution/eval/
 import { installDeterminism } from '@/test/avLab/determinism'
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 import type { RennWorld } from '@/types/world'
-import { V3_OBJECT_TOUCH_PENALTY, V3_WALL_TOUCH_PENALTY } from './es'
 import { NOSE_M } from './policy'
 import { buildSchlauTask, parseSchlauKey, type SchlauTask } from './schlauCourses'
-import { schlauDistanceField, type SchlauField } from './schlauScore'
+import {
+  SCHLAU_OBJECT_TOUCH_PENALTY_PER_FRAME,
+  SCHLAU_WALL_TOUCH_PENALTY_PER_FRAME,
+  schlauDistanceField,
+  type SchlauField,
+} from './schlauScore'
 import { hiddenOfSchlau, N_IN_SCHLAU, SCHLAU_ACTUATOR_ID, SCHLAU_CAR_BODY_ID, SCHLAU_STAGE_ID, schlauDriveStage } from './schlauPolicy'
 import {
   CAR2_PARAMS,
@@ -207,14 +211,14 @@ export async function runSchlauEpisode(
       if (wallTouch) {
         // touches are SURVIVED: only a sustained continuous contact still ends the episode (the 'crash' fallback)
         touchWallFrames++
-        touchPenalty += V3_WALL_TOUCH_PENALTY
+        touchPenalty += SCHLAU_WALL_TOUCH_PENALTY_PER_FRAME
         wallTouchT += DEFAULT_DT
       } else {
         wallTouchT = 0
         // object contact: a touching entity that is neither the ground nor a task box (none exist in the schlau worlds)
         if (sim.getTouchingEntityIds(SCHLAU_CAR_BODY_ID).some((id) => id !== 'ground' && !wallIds.has(id))) {
           touchObjectFrames++
-          touchPenalty += V3_OBJECT_TOUCH_PENALTY
+          touchPenalty += SCHLAU_OBJECT_TOUCH_PENALTY_PER_FRAME
         }
       }
       // the HIGH-WATER of the score curve — the progress-based norm minus the touch penalties SO FAR, updated BEFORE

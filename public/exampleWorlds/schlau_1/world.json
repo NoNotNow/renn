@@ -47,7 +47,7 @@
       "priority": 5,
       "enabled": true,
       "name": "Schlau drive",
-      "code": "\nvar ANGLES = [0,0.4487989505128276,0.8975979010256552,1.3463968515384828,1.7951958020513104,2.2439947525641384,2.6927937030769655,3.141592653589793,3.5903916041026207,4.039190554615448,4.487989505128277,4.9367884556411035,5.385587406153931,5.834386356666759]\nvar N_IN = 26, RANGE = 50, VF = 30, VR = 8, TAU = 0.05\nfunction rnd(state) {\n  state.rs = (state.rs + 0x6d2b79f5) >>> 0\n  var t = state.rs\n  t = Math.imul(t ^ (t >>> 15), t | 1)\n  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)\n  return ((t ^ (t >>> 14)) >>> 0) / 4294967296\n}\n\nfunction hiddenOf(w) {\n  var h = (w.length - 2) / (N_IN + 3)\n  return h >= 1 && h === Math.floor(h) ? h : 0\n}\nfunction transform(input, dt, params, state, api) {\n  var w = params.w\n  var noise = params.noise || 0\n  if (state.rs === undefined) state.rs = (params.noiseSeed >>> 0) || 1\n  if (!w || !input.actions) return {}\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  var left = api.vec.normalize(api.vec.cross(up, fwd))\n  var pos = input.position\n  var x = new Array(N_IN)\n  var hl = 4.1, hw = 2.1\n  for (var i = 0; i < ANGLES.length; i++) {\n    var c = Math.cos(ANGLES[i]), s = Math.sin(ANGLES[i])\n    var dir = [fwd[0] * c + left[0] * s, fwd[1] * c + left[1] * s, fwd[2] * c + left[2] * s]\n    var tr = Math.min(Math.abs(c) > 1e-6 ? hl / Math.abs(c) : 1e9, Math.abs(s) > 1e-6 ? hw / Math.abs(s) : 1e9)\n    var o = [pos[0] + dir[0] * tr, pos[1], pos[2] + dir[2] * tr]\n    var r = api.raycast(o, dir, RANGE, { visualize: false })\n    var dist = r.hit ? Math.min(r.distance, RANGE) : RANGE\n    if (noise > 0 && r.hit) {\n      // seeded multiplicative sensor noise (sum of three uniforms ~ unit variance)\n      dist *= 1 + noise * (rnd(state) + rnd(state) + rnd(state) - 1.5) * 2\n      dist = dist < 0 ? 0 : dist > RANGE ? RANGE : dist\n    }\n    x[i] = r.hit ? 1 - dist / RANGE : 0\n  }\n  var n = ANGLES.length\n  var vf = api.vec.dot(input.velocity, fwd)\n  x[n] = vf / 30\n  // movement memory: the displacement over the last traveled 20 m in 4 segments (newest first),\n  // keyed by the traveled arc length s (odometer — reversing counts), car frame, / 20 m\n  var s = (state.s || 0) + Math.hypot(input.velocity[0], input.velocity[2]) * dt\n  state.s = s\n  var mh = state.mh || (state.mh = [[s, pos[0], pos[2]]])\n  mh.push([s, pos[0], pos[2]])\n  while (mh.length > 1 && mh[1][0] <= s - 80) mh.shift()\n  var sampleAt = function (sq) {\n    for (var q = mh.length - 1; q >= 0; q--) if (mh[q][0] <= sq) return mh[q]\n    return mh[0]\n  }\n  for (var k = 0; k < 4; k++) {\n    var a = sampleAt(s - (k + 1) * 20), b = sampleAt(s - k * 20)\n    var dx = b[1] - a[1], dz = b[2] - a[2]\n    x[n + 1 + 2 * k] = (dx * fwd[0] + dz * fwd[2]) / 20\n    x[n + 2 + 2 * k] = (dx * left[0] + dz * left[2]) / 20\n  }\n  // goal vector (from the car center)\n  var g = params.goal || [pos[0], pos[2]]\n  var gx = g[0] - pos[0], gz = g[1] - pos[2]\n  var gd = Math.hypot(gx, gz) || 1\n  x[n + 9] = (gx * fwd[0] + gz * fwd[2]) / gd\n  x[n + 10] = (gx * left[0] + gz * left[2]) / gd\n  x[n + 11] = Math.min(gd / 60, 1)\n  var H = hiddenOf(w)\n  if (!H) return {}\n  var h = new Array(H)\n  for (var j = 0; j < H; j++) {\n    var sum = w[H * N_IN + j]\n    for (var k = 0; k < N_IN; k++) sum += w[j * N_IN + k] * x[k]\n    h[j] = Math.tanh(sum)\n  }\n  var o2 = H * N_IN + H\n  var out = [0, 0]\n  for (var q = 0; q < 2; q++) {\n    var sq = w[o2 + 2 * H + q]\n    for (var m = 0; m < H; m++) sq += w[o2 + q * H + m] * h[m]\n    out[q] = Math.tanh(sq)\n  }\n  state.steer = out[0]\n  state.gas = out[1]\n  // car2 treats exactly 0 as \"no steering command\"\n  input.actions.steering_angle = Math.abs(out[0]) < 1e-4 ? 1e-4 : out[0]\n  var vT = out[1] > 0 ? out[1] * VF : out[1] * VR\n  var u = (vT - api.vec.dot(input.velocity, fwd)) / TAU / (params.gain || 1200)\n  u = u > 1 ? 1 : u < -1 ? -1 : u\n  input.actions.throttle = u > 0 ? u : 0\n  input.actions.brake = u < 0 ? -u : 0\n  return {}\n}\n",
+      "code": "\nvar ANGLES = [0,0.4487989505128276,0.8975979010256552,1.3463968515384828,1.7951958020513104,2.2439947525641384,2.6927937030769655,3.141592653589793,3.5903916041026207,4.039190554615448,4.487989505128277,4.9367884556411035,5.385587406153931,5.834386356666759]\nvar N_IN = 26, RANGE = 50, VF = 30, VR = 8, TAU = 0.05\nfunction rnd(state) {\n  state.rs = (state.rs + 0x6d2b79f5) >>> 0\n  var t = state.rs\n  t = Math.imul(t ^ (t >>> 15), t | 1)\n  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)\n  return ((t ^ (t >>> 14)) >>> 0) / 4294967296\n}\n\nfunction hiddenOf(w) {\n  var h = (w.length - 2) / (N_IN + 3)\n  return h >= 1 && h === Math.floor(h) ? h : 0\n}\nfunction transform(input, dt, params, state, api) {\n  var w = params.w\n  var noise = params.noise || 0\n  if (state.rs === undefined) state.rs = (params.noiseSeed >>> 0) || 1\n  if (!w || !input.actions) return {}\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  var left = api.vec.normalize(api.vec.cross(up, fwd))\n  var pos = input.position\n  var x = new Array(N_IN)\n  var hl = 4.1, hw = 2.1\n  for (var i = 0; i < ANGLES.length; i++) {\n    var c = Math.cos(ANGLES[i]), s = Math.sin(ANGLES[i])\n    var dir = [fwd[0] * c + left[0] * s, fwd[1] * c + left[1] * s, fwd[2] * c + left[2] * s]\n    var tr = Math.min(Math.abs(c) > 1e-6 ? hl / Math.abs(c) : 1e9, Math.abs(s) > 1e-6 ? hw / Math.abs(s) : 1e9)\n    var o = [pos[0] + dir[0] * tr, pos[1], pos[2] + dir[2] * tr]\n    var r = api.raycast(o, dir, RANGE, { visualize: false })\n    var dist = r.hit ? Math.min(r.distance, RANGE) : RANGE\n    if (noise > 0 && r.hit) {\n      // seeded multiplicative sensor noise (sum of three uniforms ~ unit variance)\n      dist *= 1 + noise * (rnd(state) + rnd(state) + rnd(state) - 1.5) * 2\n      dist = dist < 0 ? 0 : dist > RANGE ? RANGE : dist\n    }\n    x[i] = r.hit ? 1 - dist / RANGE : 0\n  }\n  var n = ANGLES.length\n  var vf = api.vec.dot(input.velocity, fwd)\n  x[n] = vf / 30\n  // movement memory: the displacement over the last traveled 20 m in 4 segments (newest first),\n  // keyed by the traveled arc length s (odometer — reversing counts), car frame, / 20 m\n  var s = (state.s || 0) + Math.hypot(input.velocity[0], input.velocity[2]) * dt\n  state.s = s\n  var mh = state.mh || (state.mh = [[s, pos[0], pos[2]]])\n  mh.push([s, pos[0], pos[2]])\n  while (mh.length > 1 && mh[1][0] <= s - 80) mh.shift()\n  var sampleAt = function (sq) {\n    for (var q = mh.length - 1; q >= 0; q--) if (mh[q][0] <= sq) return mh[q]\n    return mh[0]\n  }\n  for (var k = 0; k < 4; k++) {\n    var a = sampleAt(s - (k + 1) * 20), b = sampleAt(s - k * 20)\n    var dx = b[1] - a[1], dz = b[2] - a[2]\n    x[n + 1 + 2 * k] = (dx * fwd[0] + dz * fwd[2]) / 20\n    x[n + 2 + 2 * k] = (dx * left[0] + dz * left[2]) / 20\n  }\n  // goal vector (from the car center)\n  var g = params.goal || [pos[0], pos[2]]\n  // the LILA target line (user decision 2026-10-23): the straight car NOSE -> goal line, drawn EVERY frame,\n  // THROUGH obstacles (no pathing), at the same y = 0.35 as the route lines. It REPLACES the blue carrot — the\n  // lookahead vector is gone from the schlau worlds; ONE target line, nose-anchored like the score anchor\n  api.visualizeLine([pos[0] + fwd[0] * 4.1, 0.35, pos[2] + fwd[2] * 4.1], [g[0], 0.35, g[1]], '#aa44ff')\n  var gx = g[0] - pos[0], gz = g[1] - pos[2]\n  var gd = Math.hypot(gx, gz) || 1\n  x[n + 9] = (gx * fwd[0] + gz * fwd[2]) / gd\n  x[n + 10] = (gx * left[0] + gz * left[2]) / gd\n  x[n + 11] = Math.min(gd / 60, 1)\n  var H = hiddenOf(w)\n  if (!H) return {}\n  var h = new Array(H)\n  for (var j = 0; j < H; j++) {\n    var sum = w[H * N_IN + j]\n    for (var k = 0; k < N_IN; k++) sum += w[j * N_IN + k] * x[k]\n    h[j] = Math.tanh(sum)\n  }\n  var o2 = H * N_IN + H\n  var out = [0, 0]\n  for (var q = 0; q < 2; q++) {\n    var sq = w[o2 + 2 * H + q]\n    for (var m = 0; m < H; m++) sq += w[o2 + q * H + m] * h[m]\n    out[q] = Math.tanh(sq)\n  }\n  state.steer = out[0]\n  state.gas = out[1]\n  // car2 treats exactly 0 as \"no steering command\"\n  input.actions.steering_angle = Math.abs(out[0]) < 1e-4 ? 1e-4 : out[0]\n  var vT = out[1] > 0 ? out[1] * VF : out[1] * VR\n  var u = (vT - api.vec.dot(input.velocity, fwd)) / TAU / (params.gain || 1200)\n  u = u > 1 ? 1 : u < -1 ? -1 : u\n  input.actions.throttle = u > 0 ? u : 0\n  input.actions.brake = u < 0 ? -u : 0\n  return {}\n}\n",
       "params": {
         "w": [
           -0.06611072999532355,
@@ -344,8 +344,8 @@
           0.5
         ],
         "goal": [
-          42.22019591854321,
-          -116.74506864227281
+          -29.199431860034565,
+          47.13935698969473
         ],
         "gain": 1200
       }
@@ -369,127 +369,362 @@
       "priority": 6,
       "enabled": true,
       "name": "Schlau score",
-      "code": "\nfunction losWallsInit(walls) {\n  // cache per wall: the corner poly plus a bounding circle (center + radius) for the early rejection\n  var out = []\n  for (var i = 0; i < walls.length; i++) {\n    var w = walls[i], cx = 0, cz = 0\n    for (var k = 0; k < 4; k++) { cx += w[k][0]; cz += w[k][1] }\n    cx /= 4\n    cz /= 4\n    var r = 0\n    for (var k2 = 0; k2 < 4; k2++) {\n      var d = Math.hypot(w[k2][0] - cx, w[k2][1] - cz)\n      if (d > r) r = d\n    }\n    out.push({ w: w, cx: cx, cz: cz, r: r })\n  }\n  return out\n}\nfunction losBlocked(ws, ax, az, bx, bz) {\n  // true when any wall poly crosses the segment a -> b (the car -> chain-point credit vector)\n  var dx = bx - ax, dz = bz - az\n  var len2 = dx * dx + dz * dz\n  if (len2 === 0) return false\n  for (var i = 0; i < ws.length; i++) {\n    var e = ws[i]\n    // bounding-circle early rejection: the wall cannot cross the segment when its circle does not reach it\n    var t = ((e.cx - ax) * dx + (e.cz - az) * dz) / len2\n    if (t < 0) t = 0\n    if (t > 1) t = 1\n    if (Math.hypot(e.cx - (ax + t * dx), e.cz - (az + t * dz)) > e.r) continue\n    var w = e.w\n    for (var k = 0; k < 4; k++) {\n      var x1 = w[k][0], z1 = w[k][1]\n      var x2 = w[(k + 1) % 4][0], z2 = w[(k + 1) % 4][1]\n      var d1 = (x2 - x1) * (az - z1) - (z2 - z1) * (ax - x1)\n      var d2 = (x2 - x1) * (bz - z1) - (z2 - z1) * (bx - x1)\n      if ((d1 > 0) === (d2 > 0)) continue\n      var d3 = (bx - ax) * (z1 - az) - (bz - az) * (x1 - ax)\n      var d4 = (bx - ax) * (z2 - az) - (bz - az) * (x2 - ax)\n      if ((d3 > 0) === (d4 > 0)) continue\n      return true\n    }\n  }\n  return false\n}\n\nfunction transform(input, dt, params, state, api) {\n  if (state.t === undefined) state.t = 0\n  state.t += dt\n  var env = input.environment\n  var wallT = !!(env && env.isTouchingSide)\n  var objT = !wallT && !!(env && env.isTouchingObject)\n  if (objT) {\n    // any contact without a lateral one and without support below the hull: object contact, not standing on the ground\n    var sup = api.raycast([input.position[0], input.position[1], input.position[2]], [0, -1, 0], 1.2, { visualize: false })\n    if (sup.hit) objT = false\n  }\n  var ch = params.chain\n  var n = ch.length\n  if (!state.cum) {\n    state.cum = [0]\n    for (var q = 1; q < n; q++) state.cum.push(state.cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))\n    state.s = 0\n    state.bonus = 0\n    state.penalty = 0\n    state.seg = 0\n    state.best = 0\n    // line-of-sight gate cache: the own copy's wall rects, preprocessed with bounding circles (empty = ungated)\n    state.los = losWallsInit(params.walls || [])\n  }\n  var total = state.cum[n - 1]\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  // the own-car anchor is the car NOSE (center + fwd * NOSE_M, the same front edge the ray sensing and the v3 command use):\n  // projection, LOS gate, goal reach and the own carrot all lead from the front — NO leading-edge flip here (the maze worlds\n  // have no reversal legs and the score counts forward progress); the other cars stay center-anchored (visualization)\n  var px = input.position[0] + fwd[0] * 4.1, pz = input.position[2] + fwd[2] * 4.1\n  var vRef = params.vRef || 20\n  var v = Math.min(Math.hypot(input.velocity[0], input.velocity[2]), vRef)\n  // finish: within MAZE_GOAL_REACH_M of the chain end the route is cleared (same rule as the exporter early-stop).\n  // Progress jumps to the full chain length (the leg-off margin is never driven), then the score FREEZES: no more\n  // progress, bonus or touch penalties, the carrot parks on the end point — the watch score can only stand still.\n  if (!state.done && Math.hypot(px - ch[n - 1][0], pz - ch[n - 1][1]) < 8) {\n    state.done = true\n    state.s = total\n    state.seg = n - 2\n  }\n  if (!state.done) {\n    var bestD = Infinity, bestS = state.s, bestSeg = state.seg, bestPX = px, bestPZ = pz\n    for (var i = Math.max(0, state.seg - 2); i <= Math.min(n - 2, state.seg + 3); i++) {\n      var ax = ch[i][0], az = ch[i][1]\n      var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az\n      var len2 = dx * dx + dz * dz || 1\n      var t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))\n      var d = Math.hypot(px - (ax + t * dx), pz - (az + t * dz))\n      if (d < bestD) {\n        bestD = d\n        bestS = state.cum[i] + t * Math.sqrt(len2)\n        bestSeg = i\n        bestPX = ax + t * dx\n        bestPZ = az + t * dz\n      }\n    }\n    state.seg = bestSeg\n    // line-of-sight gate: only credit the projection when the car -> projected chain point segment crosses no wall —\n    // the previous credit stands while occluded (the carrot vector, 8 m of arc ahead, can round a corner and cross a\n    // wall: it is a preview, the credit itself is what is gated). Penalties keep running while occluded.\n    var sPrev = state.s\n    if (bestS > state.s && !losBlocked(state.los, px, pz, bestPX, bestPZ)) state.s = bestS\n    // the speed bonus pays the ALONG-CHAIN speed: this frame's CREDITED progress (dS / dt, capped at vRef). Raw\n    // |velocity| paid wrong-way driving, reversing and fast approaches at frozen progress (carrot through the wall,\n    // LOS-gated s) up to bonusRate pts/s — the score rose without any credited metre. Credited dS is 0 in all of\n    // those cases, so only forward progress along the chain earns the bonus.\n    var alongV = dt > 0 ? (state.s - sPrev) / dt : 0\n    if (alongV > vRef) alongV = vRef\n    state.bonus += (alongV / vRef) * dt * (params.bonusRate || 5)\n    state.penalty += dt * (wallT ? (params.wallPenaltyPerS || 12) : objT ? (params.objectPenaltyPerS || 4) : 0)\n  }\n  var score = state.s + state.bonus - state.penalty\n  if (score < 0) score = 0\n  // high-water mark: the run score above still drains on touches, but the shown / snapshotted score is its maximum\n  // over time — a stall against a wall can no longer zero out the points earned on the way. NOT rounded: a continuous\n  // score is the finer signal (sub-point crawling progress, tie-break between candidates with equal integer scores).\n  if (score > state.best) state.best = score\n  if (params.hud) api.setScore(state.best)\n  api.watch('schlau.score', state.best.toFixed(1) + ' pts')\n  api.watch('schlau.prog', state.s.toFixed(1) + ' / ' + total.toFixed(0) + ' m')\n  api.watch('schlau.speed', v.toFixed(1) + ' m/s')\n  api.watch('schlau.seg', String(state.seg))\n  if (params.hud) {\n    function hexChannel(h, k) {\n      return parseInt(h.slice(1 + k * 2, 3 + k * 2), 16)\n    }\n    function hexLerp(a, b, t) {\n      var out = '#'\n      for (var k = 0; k < 3; k++) {\n        var va = hexChannel(a, k), vb = hexChannel(b, k)\n        var vv = Math.round(va + (vb - va) * t)\n        out += (vv < 16 ? '0' : '') + vv.toString(16)\n      }\n      return out\n    }\n    if (!state.cums) {\n      state.cums = []\n      for (var c = 0; c < params.chains.length; c++) {\n        var chC = params.chains[c]\n        var cumC = [0]\n        for (var q2 = 1; q2 < chC.length; q2++) cumC.push(cumC[q2 - 1] + Math.hypot(chC[q2][0] - chC[q2 - 1][0], chC[q2][1] - chC[q2 - 1][1]))\n        state.cums.push(cumC)\n      }\n    }\n    function chainPoint(ch2, cum2, s2) {\n      var i2 = 0\n      while (i2 < ch2.length - 2 && cum2[i2 + 1] < s2) i2++\n      var t2 = (s2 - cum2[i2]) / (cum2[i2 + 1] - cum2[i2] || 1)\n      return [ch2[i2][0] + (ch2[i2 + 1][0] - ch2[i2][0]) * t2, ch2[i2][1] + (ch2[i2 + 1][1] - ch2[i2][1]) * t2]\n    }\n    for (var k2 = 0; k2 < params.chains.length; k2++) {\n      var chK = params.chains[k2], colK = params.chainColors[k2] || ['#44ff77', '#ffaa44']\n      for (var s3 = 0; s3 < chK.length - 1; s3++) {\n        api.visualizeLine([chK[s3][0], 0.35, chK[s3][1]], [chK[s3 + 1][0], 0.35, chK[s3 + 1][1]], hexLerp(colK[0], colK[1], chK.length > 2 ? s3 / (chK.length - 2) : 0))\n      }\n    }\n    for (var k3 = 0; k3 < params.cars.length; k3++) {\n      var fx = px, fz = pz, arc = 0\n      if (k3 === params.idx) {\n        arc = Math.min(state.s + 8, total)\n      } else {\n        var w = api.getWorldPosition(params.cars[k3])\n        if (!w) continue\n        fx = w[0]\n        fz = w[2]\n        var chW = params.chains[k3], cumW = state.cums[k3]\n        var bd = Infinity\n        for (var i3 = 0; i3 < chW.length - 1; i3++) {\n          var ax2 = chW[i3][0], az2 = chW[i3][1]\n          var dx2 = chW[i3 + 1][0] - ax2, dz2 = chW[i3 + 1][1] - az2\n          var l2 = dx2 * dx2 + dz2 * dz2 || 1\n          var t3 = Math.max(0, Math.min(1, ((fx - ax2) * dx2 + (fz - az2) * dz2) / l2))\n          var d2 = Math.hypot(fx - (ax2 + t3 * dx2), fz - (az2 + t3 * dz2))\n          if (d2 < bd) {\n            bd = d2\n            arc = cumW[i3] + t3 * Math.sqrt(l2)\n          }\n        }\n        arc = Math.min(arc + 8, cumW[chW.length - 1])\n      }\n      var tp = chainPoint(params.chains[k3], state.cums[k3], arc)\n      api.visualizeLine([fx, 0.35, fz], [tp[0], 0.35, tp[1]], '#44aaff')\n    }\n  }\n  return {}\n}",
+      "code": "\nfunction losWallsInit(walls) {\n  // cache per wall: the corner poly plus a bounding circle (center + radius) for the early rejection\n  var out = []\n  for (var i = 0; i < walls.length; i++) {\n    var w = walls[i], cx = 0, cz = 0\n    for (var k = 0; k < 4; k++) { cx += w[k][0]; cz += w[k][1] }\n    cx /= 4\n    cz /= 4\n    var r = 0\n    for (var k2 = 0; k2 < 4; k2++) {\n      var d = Math.hypot(w[k2][0] - cx, w[k2][1] - cz)\n      if (d > r) r = d\n    }\n    out.push({ w: w, cx: cx, cz: cz, r: r })\n  }\n  return out\n}\nfunction losBlocked(ws, ax, az, bx, bz) {\n  // true when any wall poly crosses the segment a -> b (the car -> chain-point credit vector)\n  var dx = bx - ax, dz = bz - az\n  var len2 = dx * dx + dz * dz\n  if (len2 === 0) return false\n  for (var i = 0; i < ws.length; i++) {\n    var e = ws[i]\n    // bounding-circle early rejection: the wall cannot cross the segment when its circle does not reach it\n    var t = ((e.cx - ax) * dx + (e.cz - az) * dz) / len2\n    if (t < 0) t = 0\n    if (t > 1) t = 1\n    if (Math.hypot(e.cx - (ax + t * dx), e.cz - (az + t * dz)) > e.r) continue\n    var w = e.w\n    for (var k = 0; k < 4; k++) {\n      var x1 = w[k][0], z1 = w[k][1]\n      var x2 = w[(k + 1) % 4][0], z2 = w[(k + 1) % 4][1]\n      var d1 = (x2 - x1) * (az - z1) - (z2 - z1) * (ax - x1)\n      var d2 = (x2 - x1) * (bz - z1) - (z2 - z1) * (bx - x1)\n      if ((d1 > 0) === (d2 > 0)) continue\n      var d3 = (bx - ax) * (z1 - az) - (bz - az) * (x1 - ax)\n      var d4 = (bx - ax) * (z2 - az) - (bz - az) * (x2 - ax)\n      if ((d3 > 0) === (d4 > 0)) continue\n      return true\n    }\n  }\n  return false\n}\n\nfunction transform(input, dt, params, state, api) {\n  if (state.t === undefined) state.t = 0\n  state.t += dt\n  var env = input.environment\n  var wallT = !!(env && env.isTouchingSide)\n  var objT = !wallT && !!(env && env.isTouchingObject)\n  if (objT) {\n    // any contact without a lateral one and without support below the hull: object contact, not standing on the ground\n    var sup = api.raycast([input.position[0], input.position[1], input.position[2]], [0, -1, 0], 1.2, { visualize: false })\n    if (sup.hit) objT = false\n  }\n  var ch = params.chain\n  var n = ch.length\n  if (!state.cum) {\n    state.cum = [0]\n    for (var q = 1; q < n; q++) state.cum.push(state.cum[q - 1] + Math.hypot(ch[q][0] - ch[q - 1][0], ch[q][1] - ch[q - 1][1]))\n    state.s = 0\n    state.bonus = 0\n    state.penalty = 0\n    state.seg = 0\n    state.best = 0\n    // line-of-sight gate cache: the own copy's wall rects, preprocessed with bounding circles (empty = ungated)\n    state.los = losWallsInit(params.walls || [])\n  }\n  var total = state.cum[n - 1]\n  var up = api.getUpVector(input.rotation)\n  var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))\n  // the own-car anchor is the car NOSE (center + fwd * NOSE_M, the same front edge the ray sensing and the v3 command use):\n  // projection, LOS gate, goal reach and the own carrot all lead from the front — NO leading-edge flip here (the maze worlds\n  // have no reversal legs and the score counts forward progress); the other cars stay center-anchored (visualization)\n  var px = input.position[0] + fwd[0] * 4.1, pz = input.position[2] + fwd[2] * 4.1\n  var vRef = params.vRef || 20\n  var v = Math.min(Math.hypot(input.velocity[0], input.velocity[2]), vRef)\n  // finish: within MAZE_GOAL_REACH_M of the chain end the route is cleared (same rule as the exporter early-stop).\n  // Progress jumps to the full chain length (the leg-off margin is never driven), then the score FREEZES: no more\n  // progress, bonus or touch penalties, the carrot parks on the end point — the watch score can only stand still.\n  if (!state.done && Math.hypot(px - ch[n - 1][0], pz - ch[n - 1][1]) < 8) {\n    state.done = true\n    state.s = total\n    state.seg = n - 2\n  }\n  if (!state.done) {\n    var bestD = Infinity, bestS = state.s, bestSeg = state.seg, bestPX = px, bestPZ = pz\n    for (var i = Math.max(0, state.seg - 2); i <= Math.min(n - 2, state.seg + 3); i++) {\n      var ax = ch[i][0], az = ch[i][1]\n      var dx = ch[i + 1][0] - ax, dz = ch[i + 1][1] - az\n      var len2 = dx * dx + dz * dz || 1\n      var t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2))\n      var d = Math.hypot(px - (ax + t * dx), pz - (az + t * dz))\n      if (d < bestD) {\n        bestD = d\n        bestS = state.cum[i] + t * Math.sqrt(len2)\n        bestSeg = i\n        bestPX = ax + t * dx\n        bestPZ = az + t * dz\n      }\n    }\n    state.seg = bestSeg\n    // line-of-sight gate: only credit the projection when the car -> projected chain point segment crosses no wall —\n    // the previous credit stands while occluded (the carrot vector, 8 m of arc ahead, can round a corner and cross a\n    // wall: it is a preview, the credit itself is what is gated). Penalties keep running while occluded.\n    var sPrev = state.s\n    if (bestS > state.s && !losBlocked(state.los, px, pz, bestPX, bestPZ)) state.s = bestS\n    // the speed bonus pays the ALONG-CHAIN speed: this frame's CREDITED progress (dS / dt, capped at vRef). Raw\n    // |velocity| paid wrong-way driving, reversing and fast approaches at frozen progress (carrot through the wall,\n    // LOS-gated s) up to bonusRate pts/s — the score rose without any credited metre. Credited dS is 0 in all of\n    // those cases, so only forward progress along the chain earns the bonus.\n    var alongV = dt > 0 ? (state.s - sPrev) / dt : 0\n    if (alongV > vRef) alongV = vRef\n    state.bonus += (alongV / vRef) * dt * (params.bonusRate || 5)\n    state.penalty += dt * (wallT ? (params.wallPenaltyPerS || 12) : objT ? (params.objectPenaltyPerS || 4) : 0)\n  }\n  var score = state.s + state.bonus - state.penalty\n  if (score < 0) score = 0\n  // high-water mark: the run score above still drains on touches, but the shown / snapshotted score is its maximum\n  // over time — a stall against a wall can no longer zero out the points earned on the way. NOT rounded: a continuous\n  // score is the finer signal (sub-point crawling progress, tie-break between candidates with equal integer scores).\n  if (score > state.best) state.best = score\n  if (params.hud) api.setScore(state.best)\n  api.watch('schlau.score', state.best.toFixed(1) + ' pts')\n  api.watch('schlau.prog', state.s.toFixed(1) + ' / ' + total.toFixed(0) + ' m')\n  api.watch('schlau.speed', v.toFixed(1) + ' m/s')\n  api.watch('schlau.seg', String(state.seg))\n  if (params.hud) {\n    function hexChannel(h, k) {\n      return parseInt(h.slice(1 + k * 2, 3 + k * 2), 16)\n    }\n    function hexLerp(a, b, t) {\n      var out = '#'\n      for (var k = 0; k < 3; k++) {\n        var va = hexChannel(a, k), vb = hexChannel(b, k)\n        var vv = Math.round(va + (vb - va) * t)\n        out += (vv < 16 ? '0' : '') + vv.toString(16)\n      }\n      return out\n    }\n    if (!state.cums) {\n      state.cums = []\n      for (var c = 0; c < params.chains.length; c++) {\n        var chC = params.chains[c]\n        var cumC = [0]\n        for (var q2 = 1; q2 < chC.length; q2++) cumC.push(cumC[q2 - 1] + Math.hypot(chC[q2][0] - chC[q2 - 1][0], chC[q2][1] - chC[q2 - 1][1]))\n        state.cums.push(cumC)\n      }\n    }\n\n    for (var k2 = 0; k2 < params.chains.length; k2++) {\n      var chK = params.chains[k2], colK = params.chainColors[k2] || ['#44ff77', '#ffaa44']\n      for (var s3 = 0; s3 < chK.length - 1; s3++) {\n        api.visualizeLine([chK[s3][0], 0.35, chK[s3][1]], [chK[s3 + 1][0], 0.35, chK[s3 + 1][1]], hexLerp(colK[0], colK[1], chK.length > 2 ? s3 / (chK.length - 2) : 0))\n      }\n    }\n\n  }\n  return {}\n}",
       "params": {
         "chain": [
           [
-            -1.5,
-            -3.5
+            -26.5,
+            -8.5
           ],
           [
-            1.8846153846153846,
-            -12.192307692307692
+            -22.22485636589829,
+            0.12370577553796558
           ],
           [
-            5.269230769230769,
-            -20.884615384615383
+            -17.94971273179658,
+            8.747411551075931
           ],
           [
-            8.653846153846153,
-            -29.576923076923077
+            -17.77265238760723,
+            9.538186315052366
           ],
           [
-            12.038461538461538,
-            -38.26923076923077
+            -17.725657613650426,
+            10.347177405267322
           ],
           [
-            15.423076923076923,
-            -46.96153846153846
+            -17.80996282182818,
+            11.153135049750295
           ],
           [
-            18.807692307692307,
-            -55.65384615384615
+            -19.209432450268842,
+            18.540796340068738
           ],
           [
-            22.192307692307693,
-            -64.34615384615384
+            -20.60890207870951,
+            25.928457630387186
           ],
           [
-            25.576923076923077,
-            -73.03846153846153
+            -22.008371707150175,
+            33.31611892070563
           ],
           [
-            28.96153846153846,
-            -81.73076923076923
+            -23.407841335590838,
+            40.703780211024075
           ],
           [
-            32.34615384615385,
-            -90.42307692307692
+            -23.70679513798551,
+            41.3909239576953
           ],
           [
-            35.73076923076923,
-            -99.11538461538461
+            -24.10508545791835,
+            42.025671723034726
           ],
           [
-            39.11538461538461,
-            -107.8076923076923
+            -24.593766059059732,
+            42.59376605905973
           ],
           [
-            42.5,
-            -116.5
+            -29.5,
+            47.5
           ]
         ],
         "chains": [
           [
             [
-              -1.5,
-              -3.5
+              -26.5,
+              -8.5
             ],
             [
-              1.8846153846153846,
-              -12.192307692307692
+              -22.22485636589829,
+              0.12370577553796558
             ],
             [
-              5.269230769230769,
-              -20.884615384615383
+              -17.94971273179658,
+              8.747411551075931
             ],
             [
-              8.653846153846153,
-              -29.576923076923077
+              -17.77265238760723,
+              9.538186315052366
             ],
             [
-              12.038461538461538,
-              -38.26923076923077
+              -17.725657613650426,
+              10.347177405267322
             ],
             [
-              15.423076923076923,
-              -46.96153846153846
+              -17.80996282182818,
+              11.153135049750295
             ],
             [
-              18.807692307692307,
-              -55.65384615384615
+              -19.209432450268842,
+              18.540796340068738
             ],
             [
-              22.192307692307693,
-              -64.34615384615384
+              -20.60890207870951,
+              25.928457630387186
             ],
             [
-              25.576923076923077,
-              -73.03846153846153
+              -22.008371707150175,
+              33.31611892070563
             ],
             [
-              28.96153846153846,
-              -81.73076923076923
+              -23.407841335590838,
+              40.703780211024075
             ],
             [
-              32.34615384615385,
-              -90.42307692307692
+              -23.70679513798551,
+              41.3909239576953
             ],
             [
-              35.73076923076923,
-              -99.11538461538461
+              -24.10508545791835,
+              42.025671723034726
             ],
             [
-              39.11538461538461,
-              -107.8076923076923
+              -24.593766059059732,
+              42.59376605905973
             ],
             [
-              42.5,
-              -116.5
+              -29.5,
+              47.5
             ]
           ]
         ],
-        "walls": [],
+        "walls": [
+          [
+            [
+              62,
+              60
+            ],
+            [
+              62,
+              62
+            ],
+            [
+              -62,
+              62
+            ],
+            [
+              -62,
+              60
+            ]
+          ],
+          [
+            [
+              62,
+              -62
+            ],
+            [
+              62,
+              -60
+            ],
+            [
+              -62,
+              -60
+            ],
+            [
+              -62,
+              -62
+            ]
+          ],
+          [
+            [
+              62,
+              -62
+            ],
+            [
+              62,
+              62
+            ],
+            [
+              60,
+              62
+            ],
+            [
+              60,
+              -62
+            ]
+          ],
+          [
+            [
+              -60,
+              -62
+            ],
+            [
+              -60,
+              62
+            ],
+            [
+              -62,
+              62
+            ],
+            [
+              -62,
+              -62
+            ]
+          ],
+          [
+            [
+              -22.387,
+              9.352
+            ],
+            [
+              -22.327,
+              13.352
+            ],
+            [
+              -34.929,
+              13.543
+            ],
+            [
+              -34.99,
+              9.543
+            ]
+          ],
+          [
+            [
+              -52.865,
+              2.308
+            ],
+            [
+              -42.536,
+              -0.522
+            ],
+            [
+              -39.185,
+              11.711
+            ],
+            [
+              -49.514,
+              14.541
+            ]
+          ],
+          [
+            [
+              -17.005,
+              42.019
+            ],
+            [
+              -10.964,
+              47.8
+            ],
+            [
+              -14.787,
+              51.794
+            ],
+            [
+              -20.827,
+              46.013
+            ]
+          ],
+          [
+            [
+              -3.173,
+              -52.333
+            ],
+            [
+              5.875,
+              -48.638
+            ],
+            [
+              2.69,
+              -40.838
+            ],
+            [
+              -6.358,
+              -44.532
+            ]
+          ],
+          [
+            [
+              -41.975,
+              -30.867
+            ],
+            [
+              -36.582,
+              -38.242
+            ],
+            [
+              -25.923,
+              -30.447
+            ],
+            [
+              -31.316,
+              -23.072
+            ]
+          ],
+          [
+            [
+              6.719,
+              14.312
+            ],
+            [
+              10.786,
+              22.839
+            ],
+            [
+              -0.171,
+              28.065
+            ],
+            [
+              -4.238,
+              19.539
+            ]
+          ],
+          [
+            [
+              -47.829,
+              -53.19
+            ],
+            [
+              -44.417,
+              -56.878
+            ],
+            [
+              -34.367,
+              -47.58
+            ],
+            [
+              -37.779,
+              -43.892
+            ]
+          ],
+          [
+            [
+              26.67,
+              9.027
+            ],
+            [
+              34.627,
+              15.196
+            ],
+            [
+              26.341,
+              25.883
+            ],
+            [
+              18.384,
+              19.714
+            ]
+          ],
+          [
+            [
+              20.678,
+              -17.873
+            ],
+            [
+              26.754,
+              -15.119
+            ],
+            [
+              21.985,
+              -4.601
+            ],
+            [
+              15.91,
+              -7.355
+            ]
+          ]
+        ],
         "chainColors": [
           [
             "#44ff77",
@@ -503,8 +738,8 @@
         "hud": true,
         "vRef": 20,
         "bonusRate": 5,
-        "wallPenaltyPerS": 12,
-        "objectPenaltyPerS": 4
+        "wallPenaltyPerS": 30,
+        "objectPenaltyPerS": 15
       }
     }
   },
@@ -539,13 +774,13 @@
         "depth": 8
       },
       "position": [
-        0,
+        -28.404937284067273,
         0.494,
-        0
+        -5.267748790793121
       ],
       "rotation": [
         0,
-        0.29977222624663935,
+        -0.45155193695574053,
         0
       ],
       "mass": 2,
@@ -559,6 +794,292 @@
       ]
     },
     {
+      "id": "box_0",
+      "name": "Box 0",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 124,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        0,
+        3,
+        61
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_1",
+      "name": "Box 1",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 124,
+        "height": 6,
+        "depth": 2
+      },
+      "position": [
+        0,
+        3,
+        -61
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_2",
+      "name": "Box 2",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 2,
+        "height": 6,
+        "depth": 124
+      },
+      "position": [
+        61,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_3",
+      "name": "Box 3",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 2,
+        "height": 6,
+        "depth": 124
+      },
+      "position": [
+        -61,
+        3,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_4",
+      "name": "Box 4",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 12.604027327150106,
+        "height": 6,
+        "depth": 4
+      },
+      "position": [
+        -28.658343559841263,
+        3,
+        11.447644745730795
+      ],
+      "rotation": [
+        0,
+        0.01515889318874768,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_5",
+      "name": "Box 5",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 12.683469477109611,
+        "height": 6,
+        "depth": 10.709470122586936
+      },
+      "position": [
+        -46.0248009554629,
+        3,
+        7.00939112141652
+      ],
+      "rotation": [
+        0,
+        1.8381995954086514,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_6",
+      "name": "Box 6",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 5.528456138912588,
+        "height": 6,
+        "depth": 8.361000726930797
+      },
+      "position": [
+        -15.895849658254129,
+        3,
+        46.90678269156436
+      ],
+      "rotation": [
+        0,
+        0.807334001913171,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_7",
+      "name": "Box 7",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 8.425924527458847,
+        "height": 6,
+        "depth": 9.773403586354107
+      },
+      "position": [
+        -0.24120902284714418,
+        3,
+        -46.5851482632785
+      ],
+      "rotation": [
+        0,
+        1.183173450871947,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_8",
+      "name": "Box 8",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 13.205504877027124,
+        "height": 6,
+        "depth": 9.136096458882093
+      },
+      "position": [
+        -33.948797612487056,
+        3,
+        -30.656868803960997
+      ],
+      "rotation": [
+        0,
+        2.5101762389159616,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_9",
+      "name": "Box 9",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 12.139075934886932,
+        "height": 6,
+        "depth": 9.446736321318895
+      },
+      "position": [
+        3.274063223215755,
+        3,
+        21.18873668868507
+      ],
+      "rotation": [
+        0,
+        0.44505933137614945,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_10",
+      "name": "Box 10",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 13.691166733391583,
+        "height": 6,
+        "depth": 5.024804944172502
+      },
+      "position": [
+        -41.09797868958851,
+        3,
+        -50.38518290998296
+      ],
+      "rotation": [
+        0,
+        2.3950457315424925,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_11",
+      "name": "Box 11",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 13.523227587342262,
+        "height": 6,
+        "depth": 10.068246124777943
+      },
+      "position": [
+        26.505642407324757,
+        3,
+        17.454940399294856
+      ],
+      "rotation": [
+        0,
+        0.9112962313287493,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
+      "id": "box_12",
+      "name": "Box 12",
+      "bodyType": "static",
+      "shape": {
+        "type": "box",
+        "width": 11.548519081901759,
+        "height": 6,
+        "depth": 6.671010955236852
+      },
+      "position": [
+        21.33185833967822,
+        3,
+        -11.23701337956367
+      ],
+      "rotation": [
+        0,
+        1.1451085879690468,
+        0
+      ],
+      "friction": 0.5
+    },
+    {
       "id": "schlau_goal_0",
       "name": "Schlau goal",
       "bodyType": "static",
@@ -569,9 +1090,9 @@
         "depth": 4
       },
       "position": [
-        42.22019591854321,
+        -29.199431860034565,
         9,
-        -116.74506864227281
+        47.13935698969473
       ],
       "rotation": [
         0,

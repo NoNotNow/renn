@@ -25,7 +25,8 @@ import { getTransformerWatchEntries, setAgentObservationWatchActive } from '@/ru
 import { DEFAULT_DT, WorldSimulator } from '@/test/helpers/worldSimulator'
 
 /**
- * The six schlau training worlds: ONE start -> goal task per world (3 open seeds 3001-3003, 3 box seeds 3004-3006),
+ * The six schlau training worlds: ONE start -> goal task per world (all six goal_box, seeds 3001-3006, since the
+ * user's all-box decision of 2026-10-23),
  * the geodesic nose -> goal path as the world's single guidance chain, the schlau policy driving the one car.
  * Regenerate after any change to src/policyEvolution/schlauTraining.ts or a schlau ship:
  *   npx tsx tools/renn-mcp/export-schlau-training-worlds.ts --score

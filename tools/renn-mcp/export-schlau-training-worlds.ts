@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 /**
  * Write the six schlau training worlds (the schlau policy driving seeded START -> GOAL tasks, one task per world —
- * 3 open seeds 3001-3003, 3 box seeds 3004-3006 — with the geodesic path as the world's single guidance chain, in-world
+ * all six goal_box, seeds 3001-3006, since the user's all-box decision of 2026-10-23 — with the geodesic path as the world's single guidance chain, in-world
  * scoring + chain rendering) to public/exampleWorlds/schlau_<n>/ (File -> Example Worlds, the Schlau car of the
  * Training dialog). Per world: world.json, meta.json (bestScore null until measured) and a top-down thumb.svg plus the
  * single route_0.svg tile (the geodesic path, like the world layout).

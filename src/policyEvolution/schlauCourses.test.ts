@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { pointPolyGap, rectPoly, type V2 } from '@/avEvolution/eval/geometry'
 import type { CourseBox } from './courses'
-import { buildSchlauTask, parseSchlauKey, SCHLAU_KINDS, schlauHoldoutKeys, schlauKey, schlauTrainKeys } from './schlauCourses'
+import { buildSchlauTask, parseSchlauKey, SCHLAU_KINDS, schlauHoldoutKeys, schlauKey, schlauLineCrosses, schlauTrainKeys } from './schlauCourses'
 
 /** arena half-size of `goal_box` (m): the 4 walls stand centred at +/-61, inner faces at +/-60 */
 const ARENA_HALF = 60
@@ -113,16 +113,16 @@ describe('goal_open', () => {
 })
 
 describe('goal_box', () => {
-  it('4 walls + 3-8 obstacle boxes, all inside the arena, start / goal clear, goal reachable, 50-110 m (seeds 1..10)', () => {
+  it('4 walls + the crossing wall + 3-8 sampled obstacle boxes, all inside the arena, start / goal clear, goal reachable, 50-110 m (seeds 1..10)', () => {
     for (let seed = 1; seed <= 10; seed++) {
       const t = buildSchlauTask('goal_box', seed)
       expect(t.key).toBe(`goal_box:${seed}`)
-      // the walls are the only thin boxes (2 m); the obstacles are 4-14 m per axis
+      // the walls are the only thin boxes (2 m); the obstacles (crossing wall + sampled boxes) are 4-14 m per axis
       const walls = t.boxes.filter((b) => Math.min(b.size[0], b.size[1]) <= 2)
       const obstacles = t.boxes.filter((b) => Math.min(b.size[0], b.size[1]) > 2)
       expect(walls.length).toBe(4)
-      expect(obstacles.length).toBeGreaterThanOrEqual(3)
-      expect(obstacles.length).toBeLessThanOrEqual(8)
+      expect(obstacles.length).toBeGreaterThanOrEqual(1 + 3)
+      expect(obstacles.length).toBeLessThanOrEqual(1 + 8)
       // the walls: 2 m thick, centred at +/-61 (inner faces at +/-60), spanning the arena
       for (const w of walls) {
         expect(Math.min(w.size[0], w.size[1])).toBe(2)
@@ -163,6 +163,22 @@ describe('goal_box', () => {
     }
   })
 
+  it('every goal_box task: the direct start -> goal segment crosses >= 1 obstacle box (the guaranteed crossing wall, user decision 2026-10-23)', () => {
+    // canonical tasks: the train band seeds, the holdout-adjacent example seed 2002, the training-world seeds, seeds 1..10
+    for (const seed of [...Array.from({ length: 10 }, (_, i) => i + 1), 2002, 3004, 3005, 3006]) {
+      const t = buildSchlauTask('goal_box', seed)
+      expect(schlauLineCrosses(t.boxes, t.start, t.goal), `goal_box:${seed}`).toBe(true)
+    }
+    // variants keep the crossing too (the start jitter rejects poses that lose it; the canonical start is the fallback)
+    for (let seed = 1; seed <= 5; seed++) {
+      const t = buildSchlauTask('goal_box', seed, 1)
+      expect(schlauLineCrosses(t.boxes, t.start, t.goal), `goal_box:${seed}~1`).toBe(true)
+    }
+    // goal_open has no boxes by definition — nothing to cross (unchanged)
+    const open = buildSchlauTask('goal_open', 1)
+    expect(schlauLineCrosses(open.boxes, open.start, open.goal)).toBe(false)
+  })
+
   it('variant 1: a valid task with a clear start, differing from variant 0', () => {
     let diffs = 0
     for (const kind of SCHLAU_KINDS)
@@ -181,8 +197,8 @@ describe('goal_box', () => {
           expect(Math.hypot(v1.goal[0], v1.goal[1])).toBeGreaterThanOrEqual(60)
           expect(Math.hypot(v1.goal[0], v1.goal[1])).toBeLessThanOrEqual(140)
         } else {
-          expect(v1.boxes.length).toBeGreaterThanOrEqual(4 + 3)
-          expect(v1.boxes.length).toBeLessThanOrEqual(4 + 8)
+          expect(v1.boxes.length).toBeGreaterThanOrEqual(4 + 1 + 3)
+          expect(v1.boxes.length).toBeLessThanOrEqual(4 + 1 + 8)
           expect(Math.abs(v1.start[0])).toBeLessThanOrEqual(ARENA_HALF - 10)
           expect(Math.abs(v1.start[1])).toBeLessThanOrEqual(ARENA_HALF - 10)
           expect(Math.abs(v1.goal[0])).toBeLessThanOrEqual(ARENA_HALF - 10)

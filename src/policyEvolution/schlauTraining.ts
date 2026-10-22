@@ -22,7 +22,7 @@ import { CAR_BODY, CAR2_PARAMS, CAR_START_Y, POLICY_GROUND } from './episode'
 import { freshGenome } from './islands'
 import { NOSE_M } from './policy'
 import { buildSchlauTask, type SchlauKind, type SchlauTask } from './schlauCourses'
-import { schlauGeodesicPath } from './schlauScore'
+import { SCHLAU_OBJECT_TOUCH_PENALTY_PER_S, SCHLAU_WALL_TOUCH_PENALTY_PER_S, schlauGeodesicPath } from './schlauScore'
 import { hiddenOfSchlau, N_IN_SCHLAU, SCHLAU_ACTUATOR_ID, SCHLAU_CAR_BODY_ID, SCHLAU_STAGE_ID, schlauDriveStage } from './schlauPolicy'
 import { trainingScoreStageCode } from './trainingScoreStage'
 
@@ -36,17 +36,19 @@ export interface SchlauTrainingWorldSpec {
 }
 
 /**
- * The six schlau training worlds: three open-ground tasks (`goal_open`) and three fenced-arena tasks (`goal_box`).
+ * The six schlau training worlds: ALL SIX are fenced-arena `goal_box` tasks (user decision 2026-10-23, second
+ * revision: only the box mazes make real training sense — the empty `goal_open` ground teaches nothing beyond
+ * driving at the goal; the kind stays in the code for the `schlau_open` EXAMPLE world and the episode tests).
  * Seeds 3001-3006 are distinct from every train/holdout task seed (train 1-16, holdout 1001+) so the worlds are
  * neither trained-on nor holdout tasks.
  */
 export const SCHLAU_TRAINING_WORLDS: SchlauTrainingWorldSpec[] = [
-  { id: 'schlau_1', name: 'Schlau open 1', kind: 'goal_open', seed: 3001 },
-  { id: 'schlau_2', name: 'Schlau open 2', kind: 'goal_open', seed: 3002 },
-  { id: 'schlau_3', name: 'Schlau open 3', kind: 'goal_open', seed: 3003 },
-  { id: 'schlau_4', name: 'Schlau box 1', kind: 'goal_box', seed: 3004 },
-  { id: 'schlau_5', name: 'Schlau box 2', kind: 'goal_box', seed: 3005 },
-  { id: 'schlau_6', name: 'Schlau box 3', kind: 'goal_box', seed: 3006 },
+  { id: 'schlau_1', name: 'Schlau box 1', kind: 'goal_box', seed: 3001 },
+  { id: 'schlau_2', name: 'Schlau box 2', kind: 'goal_box', seed: 3002 },
+  { id: 'schlau_3', name: 'Schlau box 3', kind: 'goal_box', seed: 3003 },
+  { id: 'schlau_4', name: 'Schlau box 4', kind: 'goal_box', seed: 3004 },
+  { id: 'schlau_5', name: 'Schlau box 5', kind: 'goal_box', seed: 3005 },
+  { id: 'schlau_6', name: 'Schlau box 6', kind: 'goal_box', seed: 3006 },
 ]
 
 /** Transformer id base of the per-task score stage: `<base><task index>` (one task per world: always index 0). */
@@ -66,7 +68,7 @@ export const schlauCarId = (i: number) => SCHLAU_CAR_BODY_ID + '_' + i
 export const SCHLAU_GOAL_REACH_M = 8
 /** Height of the floating goal slab: above the 6 m boxes, the car and the 0.5 m policy rays — nothing ever touches it. */
 export const SCHLAU_GOAL_Y = 9
-/** Color of the drawn carrot line (car -> ~8 m ahead on its geodesic path). */
+/** Color of the dialog's route tile line (route_0.svg). The in-world CARROT is GONE since 2026-10-23 (the lookahead vector misled) — the schlau drive stage draws ONE lila nose -> goal target line instead (SCHLAU_GOAL_VECTOR_COLOR, schlauPolicy.ts). */
 export const SCHLAU_CARROT_COLOR = '#44aaff'
 /** Colors of the drawn geodesic path (api.visualizeLine): start green, goal orange. */
 export const SCHLAU_CHAIN_COLORS = { start: '#44ff77', end: '#ffaa44' } as const
@@ -77,14 +79,18 @@ export const SCHLAU_SCORE = {
   vRef: 20,
   /** bonus points per second at full speed */
   bonusRate: 5,
-  /** penalty points per SECOND of wall contact (isTouchingSide) */
-  wallPenaltyPerS: 12,
-  /** penalty points per SECOND of object contact (isTouchingObject without a lateral contact and without support below) */
-  objectPenaltyPerS: 4,
+  /** penalty points per SECOND of wall contact (isTouchingSide) — the shared schlau constants (schlauScore.ts): 30 since 2026-10-23 */
+  wallPenaltyPerS: SCHLAU_WALL_TOUCH_PENALTY_PER_S,
+  /** penalty points per SECOND of object contact (isTouchingObject without a lateral contact and without support below) — the shared schlau constants: 15 since 2026-10-23 */
+  objectPenaltyPerS: SCHLAU_OBJECT_TOUCH_PENALTY_PER_S,
 } as const
 
-/** The shared in-world score stage code (trainingScoreStage.ts) with the 'schlau' watch-label prefix. */
-export const SCHLAU_SCORE_STAGE_CODE = trainingScoreStageCode('schlau', SCHLAU_GOAL_REACH_M, SCHLAU_CARROT_COLOR)
+/**
+ * The shared in-world score stage code (trainingScoreStage.ts) with the 'schlau' watch-label prefix and NO carrot
+ * (user decision 2026-10-23: the lookahead vector is gone from the schlau worlds — the drive stage draws ONE lila
+ * nose -> goal target line instead; maze / crux keep the carrot, byte-identical).
+ */
+export const SCHLAU_SCORE_STAGE_CODE = trainingScoreStageCode('schlau', SCHLAU_GOAL_REACH_M, '')
 
 /** The seeded task + the geodesic nose -> goal path + the wall corner polys of one schlau training world. */
 export interface SchlauTrainingSetup {
