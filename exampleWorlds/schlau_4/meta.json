@@ -1,7 +1,7 @@
 {
   "id": "schlau_4",
   "seed": 3004,
-  "name": "Schlau box 1",
+  "name": "Schlau box 4",
   "kind": "goal_box",
   "candidate": {
     "policy": "schlau",
@@ -9,10 +9,10 @@
     "gen": null,
     "source": "placeholder"
   },
-  "bestScore": null,
+  "bestScore": 0.4,
   "chain": {
-    "points": 7,
-    "lengthM": 56.1
+    "points": 11,
+    "lengthM": 60.1
   },
   "tileSvg": {
     "w": 220,
@@ -25,31 +25,47 @@
             80.2
           ],
           [
-            99,
-            85.8
+            97.5,
+            80.6
           ],
           [
-            113,
-            91.5
+            110,
+            81
           ],
           [
-            126.9,
-            97.1
+            122.4,
+            81.4
           ],
           [
-            140.9,
-            102.7
+            134.9,
+            81.9
           ],
           [
-            154.9,
-            108.4
+            136.4,
+            82.3
+          ],
+          [
+            137.7,
+            83.1
+          ],
+          [
+            138.9,
+            84
+          ],
+          [
+            148.9,
+            94
+          ],
+          [
+            158.9,
+            104
           ],
           [
             168.9,
             114
           ]
         ],
-        "score": null
+        "score": 0.4
       }
     ]
   }
