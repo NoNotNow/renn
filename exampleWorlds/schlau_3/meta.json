@@ -1,0 +1,60 @@
+{
+  "id": "schlau_3",
+  "seed": 3003,
+  "name": "Schlau open 3",
+  "kind": "goal_open",
+  "candidate": {
+    "policy": "schlau",
+    "label": "schlau (untrained placeholder)",
+    "gen": null,
+    "source": "placeholder"
+  },
+  "bestScore": null,
+  "chain": {
+    "points": 8,
+    "lengthM": 69.8
+  },
+  "tileSvg": {
+    "w": 116,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            10.4,
+            210
+          ],
+          [
+            24,
+            181.4
+          ],
+          [
+            37.6,
+            152.9
+          ],
+          [
+            51.2,
+            124.3
+          ],
+          [
+            64.8,
+            95.7
+          ],
+          [
+            78.4,
+            67.1
+          ],
+          [
+            92,
+            38.6
+          ],
+          [
+            105.6,
+            10
+          ]
+        ],
+        "score": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "id": "schlau_5",
+  "seed": 3005,
+  "name": "Schlau box 2",
+  "kind": "goal_box",
+  "candidate": {
+    "policy": "schlau",
+    "label": "schlau (untrained placeholder)",
+    "gen": null,
+    "source": "placeholder"
+  },
+  "bestScore": null,
+  "chain": {
+    "points": 8,
+    "lengthM": 64.8
+  },
+  "tileSvg": {
+    "w": 220,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            115.6,
+            156
+          ],
+          [
+            109,
+            142.6
+          ],
+          [
+            102.3,
+            129.2
+          ],
+          [
+            95.6,
+            115.9
+          ],
+          [
+            88.9,
+            102.5
+          ],
+          [
+            82.2,
+            89.1
+          ],
+          [
+            75.6,
+            75.8
+          ],
+          [
+            68.9,
+            62.4
+          ]
+        ],
+        "score": null
+      }
+    ]
+  }
+}
