@@ -247,7 +247,9 @@ const DEPLOYED_MENU_ENTRY: CandidateMenuEntry = {
 function candidateMenuEntry(candidate: MazeCandidate): CandidateMenuEntry {
   return {
     id: candidate.id,
-    label: candidate.label,
+    // a candidate WITHOUT headless scores was exported by the FAST path (fresh, scores pending — e.g. the
+    // training watcher's new best): the visible label says so, because the health dots hide for it
+    label: candidate.scores ? candidate.label : `${candidate.label} (unscored)`,
     title: `${candidate.detail}${candidate.gen != null ? ` · gen ${candidate.gen}` : ''}${
       candidate.scoredGen != null ? ` · scored gen ${candidate.scoredGen}` : ''
     }`,
@@ -675,20 +677,29 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
   // The candidate FILE is per set: the schlau set reads schlau-candidates.json (schlau-shaped genomes), every
   // other set reads the shared v3 candidates.json.
   const fetchCandidates = trainingSet.candidates?.fetch ?? fetchMazeCandidates
+  // Applies one fetched candidates file: only the LATEST request wins (a slow earlier response must not
+  // overwrite a newer one — the mount fetch and the picker-open refetch can race).
+  const candidateFetchIdRef = useRef(0)
+  const applyCandidatesFile = useCallback(
+    (file: MazeCandidatesFile | null, fetchId: number) => {
+      if (candidateFetchIdRef.current !== fetchId) return
+      setCandidatesFile(file)
+      if (file) {
+        setCandidateId((prev) => (prev && file.candidates.some((c) => c.id === prev) ? prev : null))
+      }
+    },
+    [],
+  )
   useEffect(() => {
     let cancelled = false
+    const fetchId = ++candidateFetchIdRef.current
     fetchCandidates(BASE_URL).then((file) => {
-      if (!cancelled) {
-        setCandidatesFile(file)
-        if (file) {
-          setCandidateId((prev) => (prev && file.candidates.some((c) => c.id === prev) ? prev : null))
-        }
-      }
+      if (!cancelled) applyCandidatesFile(file, fetchId)
     })
     return () => {
       cancelled = true
     }
-  }, [fetchCandidates])
+  }, [fetchCandidates, applyCandidatesFile])
 
   const selectedCandidate = useMemo(
     () => candidatesFile?.candidates.find((c) => c.id === candidateId) ?? null,
@@ -709,6 +720,20 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
    * the on-change clamp keeps the dragged corner inside the viewport.
    */
   const [candidateMenuSize, setCandidateMenuSize] = useState<CornerBrSize | null>(null)
+  // Fresh models land on disk at any time (an AFK training run's watcher fast-exports every new best into the
+  // candidates file; the dev server serves public/ live) — re-fetch whenever the picker OPENS so the fresh
+  // best is selectable without a reload or a tab remount.
+  useEffect(() => {
+    if (!candidateMenuOpen) return
+    let cancelled = false
+    const fetchId = ++candidateFetchIdRef.current
+    fetchCandidates(BASE_URL).then((file) => {
+      if (!cancelled) applyCandidatesFile(file, fetchId)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [candidateMenuOpen, fetchCandidates, applyCandidatesFile])
   const candidateMenuTestid = `${trainingSet.testid}-training-candidates-menu`
   const resolveCandidateMenuRect = useCallback(() => {
     if (typeof document === 'undefined') return null

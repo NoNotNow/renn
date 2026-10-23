@@ -80,14 +80,15 @@ function makeMeta(
 
 function stubFetchWithMeta(
   make: (spec: (typeof MAZE_TRAINING_WORLDS)[number]) => MazeTrainingMeta,
-  candidates?: MazeCandidate[],
+  candidates?: MazeCandidate[] | (() => MazeCandidate[]),
 ) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: unknown) => {
       const url = String(input)
       if (url.includes('policy-evolution/candidates.json')) {
-        if (!candidates) throw new Error('offline')
+        const list = typeof candidates === 'function' ? candidates() : candidates
+        if (!list) throw new Error('offline')
         return {
           ok: true,
           json: async () => ({
@@ -96,7 +97,7 @@ function stubFetchWithMeta(
             policy: 'v3',
             gen: 42,
             updatedAt: '2026-10-11T00:00:00.000Z',
-            candidates,
+            candidates: list,
           }),
         }
       }
@@ -346,6 +347,43 @@ describe('MazeTrainingDialog', () => {
     expect(screen.queryByTestId('maze-training-candidates-menu')).not.toBeInTheDocument()
     await user.click(screen.getByTestId('maze-training-route-tile-maze_train_3-2'))
     expect(onPlay).toHaveBeenLastCalledWith('maze_train_3', 2, null)
+  })
+
+  it('re-fetches the candidates file when the model picker opens: a fresh best exported mid-session becomes selectable', async () => {
+    const user = userEvent.setup()
+    // fetch 1 (panel mount): only the island; fetch 2+ (picker open): the island plus the fresh best —
+    // the shape of the watcher's fast export landing while the panel stays mounted
+    let candidatesFetches = 0
+    const SCORES = Object.fromEntries(MAZE_TRAINING_WORLDS.map((spec) => [spec.id, { best: 5, routes: [1] }]))
+    stubFetchWithMeta((spec) => makeMeta(spec, 10, { forward: 2, reversed: 2 }), () => {
+      candidatesFetches += 1
+      // the fresh best arrives UNSCORED (fast export); the island stays scored — the menu must label that
+      const list = [makeCandidate('island-0', 'I1', SCORES)]
+      if (candidatesFetches >= 2) list.push(makeCandidate('best', 'Best'))
+      return list
+    })
+    render(<MazeTrainingDialog onPlayExampleWorld={() => {}} />)
+    const trigger = await screen.findByTestId('maze-training-candidates')
+    // mounted with the first file: no best candidate, so no Milestones tab at all
+    expect(screen.queryByTestId('maze-training-candidates-tab-milestones')).not.toBeInTheDocument()
+    expect(candidatesFetches).toBe(1)
+    // opening the picker re-fetches: the fresh best arrives while the menu is open
+    await user.click(trigger)
+    await screen.findByTestId('maze-training-candidates-tab-milestones')
+    await user.click(screen.getByTestId('maze-training-candidates-tab-milestones'))
+    const best = await screen.findByTestId('maze-training-candidate-option-best')
+    // the fresh best is visibly marked unscored (its headless scores are pending); the island is not
+    expect(best).toHaveTextContent('Best (unscored)')
+    await user.click(screen.getByTestId('maze-training-candidates-tab-islands'))
+    expect(screen.getByTestId('maze-training-candidate-option-island-0')).toHaveTextContent('I1')
+    expect(screen.getByTestId('maze-training-candidate-option-island-0')).not.toHaveTextContent('unscored')
+    expect(candidatesFetches).toBe(2)
+    // every reopen re-fetches (close first, so the open path runs again)
+    await user.click(screen.getByTestId('maze-training-candidates-menu-close'))
+    await user.click(trigger)
+    await waitFor(() => {
+      expect(candidatesFetches).toBe(3)
+    })
   })
 
   it('tabs the menu by group with an icon per tab; Escape closes, so does a trigger re-click', async () => {
