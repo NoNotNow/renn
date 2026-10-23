@@ -70,6 +70,15 @@ describe('resolveSchlauCandidate', () => {
     expect(() => resolveSchlauCandidate({ policy: 'v3', best: { genome: genome() } }, { source: 'v3-run.json' })).toThrow(/not 'schlau'/)
   })
 
+  it('accepts BOTH nets: a deep schlau2 genome (H^2 + 30 H + 2) resolves exactly like a 1-layer one', () => {
+    const deep = Array.from({ length: 6 * 6 + 30 * 6 + 2 }, (_, i) => (i % 7 === 0 ? 0.5 : i / 100))
+    const r = resolveSchlauCandidate({ policy: 'schlau', genome: deep }, { source: 'schlau2.json' })
+    expect(r.genome).toEqual(deep)
+    expect(r.source).toBe('schlau2.json')
+    // the 1-layer fallback still resolves (the disjoint length sets can never mix the two up)
+    expect(resolveSchlauCandidate({ genome: genome() }).genome).toEqual(genome())
+  })
+
   it('refuses genomes without a schlau shape and non-array / non-finite genomes', () => {
     expect(() => resolveSchlauCandidate({ genome: [0.1, 0.2] })).toThrow(/29 H \+ 2/)
     expect(() => resolveSchlauCandidate({})).toThrow(/no schlau genome/)

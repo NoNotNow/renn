@@ -1,7 +1,7 @@
 /**
  * Read-only CROSS-KIND DECISION EVAL for the schlau ship decision (2026-10-23): scores ONE candidate genome — or
  * the untrained placeholder (the status quo the exported worlds bake today) — over the DECISION-GRADE holdout band,
- * 8 holdouts per kind UNSHAPED over ALL THREE schlau kinds (goal_open, goal_box, goal_wall — schlauCourses.ts),
+ * 8 holdouts per kind UNSHAPED over ALL FOUR schlau kinds (goal_open, goal_box, goal_wall, goal_turn — schlauCourses.ts),
  * headless via the schlau worker pool. NIE the 3-setup smoke band: --holdout-per-kind below
  * SCHLAU_HOLDOUT_PER_KIND (8) throws — decision reports are never based on a 3-setup eval (the noise lesson of
  * feature-policy-evolution.md). No training, no train split, no shaping bonus — the schlau episode runner has no
@@ -21,7 +21,12 @@
  * Output: per-kind finishes / outcome counts / mean progress share (progress / geodesic start distance) / mean
  * norm / weakest-link min (aggregateKindMin over the kind's episode values, es.ts) / wall-touch usage, plus the
  * same aggregates over the whole band — the numbers the ship-bar verdict needs (better than the placeholder
- * AND goal_wall finishes measurably > 0).
+ * AND goal_wall finishes measurably > 0; the ship gate is UNCHANGED by goal_turn: whether the new turn kind
+ * should gate ships is a LATER training-phase decision with data, not this tool's).
+ *
+ * BOTH schlau nets evaluate here (deep schlau, handoff 2026-10-23 Task 2): a 'schlau2' genome (two hidden layers,
+ * len = H^2 + 30 H + 2, schlauDeep.ts) scores on the same band through the same dual-mode episode stage; the
+ * report carries `net`. The two length sets are disjoint, so a file can never mix them up.
  */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -33,6 +38,7 @@ import { aggregateKindMin, episodeValues } from '@/policyEvolution/es'
 import { placeholderSchlauGenome } from '@/policyEvolution/schlauTraining'
 import { parseSchlauKey, parseSchlauKinds, SCHLAU_HOLDOUT_PER_KIND, SCHLAU_KINDS, schlauHoldoutKeys, type SchlauKind } from '@/policyEvolution/schlauCourses'
 import { hiddenOfSchlau, N_IN_SCHLAU } from '@/policyEvolution/schlauPolicy'
+import { hiddenOfSchlau2, schlauNetOf } from '@/policyEvolution/schlauDeep'
 import type { SchlauWorkerJob } from './worker-schlau'
 
 /** a decision eval never goes below the decision-grade band (8 holdouts per kind; a 3-setup report is noise) */
@@ -54,13 +60,13 @@ export interface SchlauCandidateSource {
   genome: number[]
 }
 
-/** Shape + numbers check of a schlau genome (len = 29 H + 2 for the 26 schlau inputs; a v3 genome passes the LENGTH only — the policy tag guards it, see resolveSchlauCandidate). */
+/** Shape + numbers check of a schlau genome — EITHER net (1-layer: 29 H + 2; deep 'schlau2': H^2 + 30 H + 2); a v3 genome passes the LENGTH of the 1-layer net only — the policy tag guards it, see resolveSchlauCandidate. */
 function schlauGenomeOrThrow(genome: unknown, where: string): number[] {
   if (!Array.isArray(genome) || !genome.length || !(genome as unknown[]).every((x) => typeof x === 'number' && Number.isFinite(x)))
     throw new Error(`${where}: no schlau genome (expected an array of finite numbers, got ${Array.isArray(genome) ? `an array of ${genome.length}` : typeof genome})`)
   const g = genome as number[]
-  if (hiddenOfSchlau(g.length) < 1)
-    throw new Error(`${where}: genome of ${g.length} numbers has no integer hidden size for schlau (${N_IN_SCHLAU} inputs, len = 29 H + 2)`)
+  if (!schlauNetOf(g.length))
+    throw new Error(`${where}: genome of ${g.length} numbers is no schlau net (${N_IN_SCHLAU} inputs; 1-layer: 29 H + 2; deep schlau2: H^2 + 30 H + 2)`)
   return g
 }
 
@@ -290,7 +296,8 @@ async function main() {
     kinds: [...kinds],
     holdoutPerKind,
     episodes: keys.length,
-    hidden: hiddenOfSchlau(candidate.genome.length),
+    hidden: schlauNetOf(candidate.genome.length) === 'schlau2' ? hiddenOfSchlau2(candidate.genome.length) : hiddenOfSchlau(candidate.genome.length), // per-layer width (deep) / hidden size (1-layer)
+    net: schlauNetOf(candidate.genome.length),
     elapsedSec: Math.round((Date.now() - t0) / 1000),
     total: {
       finishes,

@@ -79,8 +79,11 @@ export interface TrainingSet {
   loadLogLabel: string
   /**
    * Per-set candidate models (the dialog's model dropdown + the Builder's weight swap). Absent = the shared v3
-   * candidates file (candidates.json + applyTrainingCandidate). The schlau set carries its own file
-   * (schlau-candidates.json) and its own swap (applySchlauCandidate) — schlau genomes are NOT v3-shaped.
+   * candidates file (candidates.json + applyTrainingCandidate). The schlau sets carry their own file
+   * (schlau-candidates.json) and their own swap (applySchlauCandidate) — schlau genomes are NOT v3-shaped, and the
+   * swap accepts BOTH schlau nets (1-layer fallback and deep 'schlau2', schlauDeep.ts: the stage code is
+   * dual-mode, the disjoint length sets make the net unambiguous; applySchlauCandidate refuses a deep candidate
+   * only for a stage that predates the deep support).
    */
   candidates?: {
     fetch: (baseUrl: string) => Promise<MazeCandidatesFile | null>

@@ -16,7 +16,7 @@
  * scored with the MAZE metric (MAZE_TRAIN_SCORE) so the numbers compare with the v3 maze worlds' meta bestScores.
  *
  * SHAPE-KOLLISION (schlauPolicy.ts): a schlau genome is length-identical to v3 (29 H + 2) but wired differently —
- * buildSchlauMazeWorld only accepts schlau-shaped genomes (hiddenOfSchlau) and the worlds carry the drive stage
+ * buildSchlauMazeWorld only accepts schlau-shaped genomes (schlauNetOf: 1-layer OR deep) and the worlds carry the drive stage
  * under the `schlau_drive` namespace (applySchlauCandidate swaps params.w); a v3 genome must never be baked here.
  *
  * Keep this module free of node imports (no `node:fs`): it is importable from the browser bundle.
@@ -33,8 +33,9 @@ import {
 } from './mazeTraining'
 import { CAR_HALF_WIDTH } from './chains'
 import { CAR2_PARAMS, CAR_BODY, CAR_SIZE, CAR_START_Y, POLICY_GROUND } from './episode'
-import { NOSE_M, STAGE_NET } from './policy'
-import { SCHLAU_STAGE_BODY, SCHLAU_STAGE_HEAD, SCHLAU_STAGE_ID, SCHLAU_STAGE_PRIORITY, hiddenOfSchlau, N_IN_SCHLAU } from './schlauPolicy'
+import { NOSE_M } from './policy'
+import { SCHLAU_STAGE_BODY, SCHLAU_STAGE_HEAD, SCHLAU_STAGE_ID, SCHLAU_STAGE_PRIORITY, N_IN_SCHLAU, STAGE_NET_SCHLAU } from './schlauPolicy'
+import { schlauNetOf } from './schlauDeep'
 import { SCHLAU_GOAL_Y, SCHLAU_SCORE_STAGE_CODE, type SchlauTrainingCandidate } from './schlauTraining'
 
 /** One schlau maze world: mirrors the maze training world of the same index (seed = the maze's seed). */
@@ -211,7 +212,7 @@ export const SCHLAU_MAZE_STAGE_BODY: string = (() => {
 })()
 
 /** Stage code of the maze schlau drive stage (same head + net as the schlau stage; only the goal feed differs). */
-export const SCHLAU_MAZE_STAGE_CODE = SCHLAU_STAGE_HEAD + SCHLAU_MAZE_STAGE_BODY + STAGE_NET
+export const SCHLAU_MAZE_STAGE_CODE = SCHLAU_STAGE_HEAD + SCHLAU_MAZE_STAGE_BODY + STAGE_NET_SCHLAU
 
 /** Drive stage id of maze copy i (the `schlau_drive` namespace: applySchlauCandidate swaps params.w of these). */
 export const schlauMazeDriveStageId = (i: number) => `${SCHLAU_STAGE_ID}_${i}`
@@ -238,11 +239,13 @@ export function schlauMazeDriveStage(params: Record<string, unknown>): Record<st
  * same seed (one copy per route at x = i * MAZE_TRAIN_ROUTES.spacingM), every copy driven by a schlau car on its
  * own chain through the in-sight goal feed, plus the shared schlau score stage per car (car 0 writes
  * the HUD score and draws). The genome is handed in (the browser bundle must not read genomes from disk).
- * Throws on an empty / non-schlau-shaped genome (hiddenOfSchlau; a v3 genome has the SAME length — never bake one).
+ * Throws on an empty / non-schlau-shaped genome (schlauNetOf; a v3 genome has the SAME length as the 1-layer net —
+ * never bake one). BOTH schlau nets are accepted: the dual-mode stage code (STAGE_NET_SCHLAU) runs the 1-layer
+ * fallback and the deep 'schlau2' genome (schlauDeep.ts) alike.
  */
 export function buildSchlauMazeWorld(spec: SchlauMazeWorldSpec, genome: number[]): RennWorld {
-  if (!genome || hiddenOfSchlau(genome.length) === 0) {
-    throw new Error(`buildSchlauMazeWorld: pass a schlau genome (29 H + 2, ${N_IN_SCHLAU} inputs) — got ${genome ? `${genome.length} numbers` : 'none'}`)
+  if (!genome || !schlauNetOf(genome.length)) {
+    throw new Error(`buildSchlauMazeWorld: pass a schlau genome (1-layer 29 H + 2 or deep H^2 + 30 H + 2, ${N_IN_SCHLAU} inputs) — got ${genome ? `${genome.length} numbers` : 'none'}`)
   }
   const { course, routes, chains } = mazeTrainingRoutes(spec as Parameters<typeof mazeTrainingRoutes>[0])
   const spacing = MAZE_TRAIN_ROUTES.spacingM

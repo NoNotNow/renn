@@ -17,11 +17,18 @@
  *
  * SHAPE COLLISION WARNING: N_IN_SCHLAU = 26 equals N_IN_V3, so a schlau genome has the v3 length formula
  * (len = 29 H + 2) and `genomeShape` / `widenHidden` / `freezeOldMask` (policy.ts) resolve it as nIn 26 — which is
- * exactly right for schlau (the helpers are layout-generic). But a schlau genome can never be told apart from a v3
- * genome by its length: run files / candidate manifests must carry `policy: 'schlau'` and schlau genomes must never
+ * exactly right for this 1-layer net (the helpers are layout-generic). But a schlau genome can never be told apart from a
+ * v3 genome by its length: run files / candidate manifests must carry `policy: 'schlau'` and schlau genomes must never
  * be shipped into the v3 worlds (the v3 stage would read the move vectors as touch flags and vice versa).
+ *
+ * The DEEP variant ("schlau v2", schlauDeep.ts): TWO hidden layers of equal width H (len = H^2 + 30 H + 2, net tag
+ * 'schlau2'). Its length set is DISJOINT from the 1-layer formula by construction (the colliding widths H = 0 / 28
+ * mod 29 are forbidden), so the stage below reads the net off params.w.length alone — the same stage code drives BOTH
+ * nets: a 1-layer genome computes exactly the old single-hidden-layer pass (bit-identical), a deep genome runs the
+ * two-layer pass. The old worlds on disk keep their baked 1-layer-only stage code; applySchlauCandidate therefore
+ * REFUSES a deep candidate for a stage without deep support (SCHLAU2_STAGE_MARKER) — re-export the worlds instead.
  */
-import { genomeLength, hiddenOfLength, N_RAYS, NOSE_M, RAY_RANGE, STAGE_HIDDEN, STAGE_NET, STAGE_RND, TAU_SPEED, V_FWD_MAX, V_REV_MAX } from './policy'
+import { genomeLength, hiddenOfLength, N_RAYS, NOSE_M, RAY_RANGE, STAGE_HIDDEN, STAGE_RND, TAU_SPEED, V_FWD_MAX, V_REV_MAX } from './policy'
 
 /** Ray bearings in degrees from the heading (positive = left), evenly spread over the full 360 degrees. */
 export const SCHLAU_RAY_ANGLES_DEG: readonly number[] = Array.from({ length: N_RAYS }, (_, i) => (i * 360) / N_RAYS)
@@ -160,7 +167,75 @@ export const SCHLAU_STAGE_BODY = `function transform(input, dt, params, state, a
   x[n + 11] = Math.min(gd / 60, 1)
 `
 
-export const POLICY_STAGE_CODE_SCHLAU = SCHLAU_STAGE_HEAD + SCHLAU_STAGE_BODY + STAGE_NET
+/**
+ * Marker string the dual-mode stage code carries iff it supports the deep net ('schlau2'). Worlds exported
+ * BEFORE the deep support bake stage code WITHOUT it: swapping a deep candidate into such a world would leave
+ * the car standing silently (the old stage's hiddenOf finds no integer H and returns {}), so
+ * applySchlauCandidate refuses deep candidates for marker-less stages — re-export the worlds instead.
+ */
+export const SCHLAU2_STAGE_MARKER = 'schlau2: deep two-hidden-layer forward'
+
+/**
+ * The schlau stage's forward pass — DUAL MODE (the v1/v2/v3 stages keep the shared single-layer STAGE_NET):
+ * a 1-layer genome (len = 29 H + 2, the fallback net) computes exactly the old pass, bit-identical; a deep
+ * 'schlau2' genome (len = H^2 + 30 H + 2, schlauDeep.ts) runs the two-hidden-layer pass. The length sets are
+ * disjoint (the deep widths colliding with 29 H + 2 are forbidden — H ≡ 0 / 28 mod 29), so the length alone
+ * decides. Deep layout: W1 (H x N_IN) | b1 | W2 (H x H, row = layer-2 unit) | b2 | W3 (2 x H) | b3.
+ */
+export const STAGE_NET_SCHLAU = `  var H = hiddenOf(w)
+  var deep = false
+  if (!H) {
+    // ${SCHLAU2_STAGE_MARKER} (len = H*H + 30*H + 2): 900 + 4*(len-2) = (2H+30)^2 is a perfect square, so the root is exact
+    var s2 = Math.sqrt(900 + 4 * (w.length - 2))
+    var hd = (s2 - 30) / 2
+    if (hd >= 1 && Math.abs(hd - Math.round(hd)) < 1e-9) { H = Math.round(hd); deep = true } else return {}
+  }
+  var oW3, hh
+  if (deep) {
+    var oW2 = H * N_IN + H
+    var oB2 = oW2 + H * H
+    var h1 = new Array(H)
+    for (var j = 0; j < H; j++) {
+      var sum = w[H * N_IN + j]
+      for (var k = 0; k < N_IN; k++) sum += w[j * N_IN + k] * x[k]
+      h1[j] = Math.tanh(sum)
+    }
+    hh = new Array(H)
+    for (var j2 = 0; j2 < H; j2++) {
+      var sum2 = w[oB2 + j2]
+      for (var i2 = 0; i2 < H; i2++) sum2 += w[oW2 + j2 * H + i2] * h1[i2]
+      hh[j2] = Math.tanh(sum2)
+    }
+    oW3 = oB2 + H
+  } else {
+    hh = new Array(H)
+    for (var j3 = 0; j3 < H; j3++) {
+      var sum3 = w[H * N_IN + j3]
+      for (var k3 = 0; k3 < N_IN; k3++) sum3 += w[j3 * N_IN + k3] * x[k3]
+      hh[j3] = Math.tanh(sum3)
+    }
+    oW3 = H * N_IN + H
+  }
+  var out = [0, 0]
+  for (var q = 0; q < 2; q++) {
+    var sq = w[oW3 + 2 * H + q]
+    for (var m = 0; m < H; m++) sq += w[oW3 + q * H + m] * hh[m]
+    out[q] = Math.tanh(sq)
+  }
+  state.steer = out[0]
+  state.gas = out[1]
+  // car2 treats exactly 0 as "no steering command"
+  input.actions.steering_angle = Math.abs(out[0]) < 1e-4 ? 1e-4 : out[0]
+  var vT = out[1] > 0 ? out[1] * VF : out[1] * VR
+  var u = (vT - api.vec.dot(input.velocity, fwd)) / TAU / (params.gain || 1200)
+  u = u > 1 ? 1 : u < -1 ? -1 : u
+  input.actions.throttle = u > 0 ? u : 0
+  input.actions.brake = u < 0 ? -u : 0
+  return {}
+}
+`
+
+export const POLICY_STAGE_CODE_SCHLAU = SCHLAU_STAGE_HEAD + SCHLAU_STAGE_BODY + STAGE_NET_SCHLAU
 
 /** Transformer config of the schlau drive stage (params: w, goal, gain, noise?, noiseSeed?). */
 export function schlauDriveStage(params: Record<string, unknown>): Record<string, unknown> {

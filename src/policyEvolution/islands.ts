@@ -263,13 +263,13 @@ export interface IslandsState {
   events: Array<{ gen: number; replaced: number; with: string; scores: number[] }>
 }
 
-/** `warm`: a genome (of length esCfg.dim) every island centre starts from instead of a random network. */
-export function initialIslands(esCfg: EsConfig, cfg: IslandsConfig, warm?: ArrayLike<number>): IslandsState {
+/** `warm`: a genome (of length esCfg.dim) every island centre starts from instead of a random network. `fresh`: per-island random genomes instead — REQUIRED for dims whose length `genomeShape` misreads (the deep schlau net, see schlauDeep.ts: its lengths can collide with the v1/v2 formulas, so the default freshGenome path would silently create a genome of the right LENGTH but the wrong LAYOUT). */
+export function initialIslands(esCfg: EsConfig, cfg: IslandsConfig, warm?: ArrayLike<number>, fresh?: (island: number) => number[]): IslandsState {
   const rng = createRng(esCfg.seed * 7919 + 13)
   const islands: IslandState[] = []
   for (let k = 0; k < cfg.islands; k++) {
     const es = initialEsState({ ...esCfg, seed: esCfg.seed * 1000 + k })
-    es.theta = warm ? Array.from(warm) : freshGenome(createRng(esCfg.seed * 1000 + k), esCfg.initStd, genomeShape(esCfg.dim).nIn, genomeShape(esCfg.dim).hidden)
+    es.theta = warm ? Array.from(warm) : fresh ? fresh(k) : freshGenome(createRng(esCfg.seed * 1000 + k), esCfg.initStd, genomeShape(esCfg.dim).nIn, genomeShape(esCfg.dim).hidden)
     islands.push({ es, age: 0, origin: 'random', stagn: 0 })
   }
   return { gen: 0, islands, rngState: rng.getState(), globalStagn: 0, events: [] }
@@ -283,6 +283,20 @@ export interface IslandsStepReport {
   boosts: number[]
   /** islands that did NOT step this generation (paused by focus mode) */
   paused: number[]
+}
+
+/**
+ * Non-1-layer genome support (deep schlau, schlauDeep.ts), all optional and absent on every v1/v2/v3 run:
+ * `fresh` replaces the random-immlicant genome (which otherwise comes from `genomeShape` — a deep length can be
+ * MISREAD as v1/v2, producing a genome of the right length but the wrong layout); `crossover: false` disables the
+ * neuron crossover (crossoverNeurons is genomeShape-based and would silently scramble a deep genome). Deep runs
+ * pass both; a future deep crossover can move in behind `fresh` without touching the 1-layer path.
+ */
+export interface IslandGenomeOpts {
+  /** builds a fresh random immigrant genome of the run's own layout (receives the island-model rng) */
+  fresh?: (rng: Rng) => number[]
+  /** false = every replacement is an immigrant, never a crossover (deep genomes have no crossover yet) */
+  crossover?: boolean
 }
 
 /**
@@ -300,7 +314,7 @@ export class IslandEs {
   /** one mutable EsConfig per island (the engines' own objects): only `sigma` is rewritten, from the base sigma and the boost */
   private readonly engineCfgs: EsConfig[]
 
-  constructor(readonly esCfg: EsConfig, readonly cfg: IslandsConfig, public state: IslandsState, private readonly fitness: FitnessFn = aggregateFitness, private readonly fitnessVec?: FitnessVecFn, private readonly csa = false) {
+  constructor(readonly esCfg: EsConfig, readonly cfg: IslandsConfig, public state: IslandsState, private readonly fitness: FitnessFn = aggregateFitness, private readonly fitnessVec?: FitnessVecFn, private readonly csa = false, private readonly genomeOpts: IslandGenomeOpts = {}) {
     this.engineCfgs = state.islands.map((_, k) => ({ ...esCfg, seed: esCfg.seed * 1000 + k }))
     this.engines = state.islands.map((isl, k) => new PolicyEs(this.engineCfgs[k]!, isl.es, fitness, fitnessVec))
     this.rng = createRng(0)
@@ -438,10 +452,12 @@ export class IslandEs {
     // bookkeeping above runs unchanged.
     if (this.cfg.islands >= 3 && candidates.length > 0 && !this.esCfg.freeze?.some(Boolean)) {
       const worst = candidates[candidates.length - 1]!
-      const cross = this.rng.next() < this.cfg.pCross
+      const cross = this.genomeOpts.crossover !== false && this.rng.next() < this.cfg.pCross
       const genome = cross
         ? crossoverNeurons(this.state.islands[order[0]!]!.es.theta, this.state.islands[order[1]!]!.es.theta, this.rng)
-        : freshGenome(this.rng, this.esCfg.initStd, genomeShape(this.esCfg.dim).nIn, genomeShape(this.esCfg.dim).hidden)
+        : this.genomeOpts.fresh
+          ? this.genomeOpts.fresh(this.rng)
+          : freshGenome(this.rng, this.esCfg.initStd, genomeShape(this.esCfg.dim).nIn, genomeShape(this.esCfg.dim).hidden)
       const es = initialEsState({ ...this.esCfg, seed: this.esCfg.seed * 1000 + worst + this.state.gen })
       es.theta = genome
       // the fresh island carries no sigma / csaPath: a new lineage restarts CSA at the base sigma, path zero

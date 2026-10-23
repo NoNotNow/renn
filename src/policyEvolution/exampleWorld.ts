@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import { genomeLengthV3, hiddenOfLength, N_IN_V2, N_IN_V3, padV2Genome } from './policy'
 import { cmdConfigFor } from './episode'
-import { hiddenOfSchlau } from './schlauPolicy'
+import { schlauNetOf } from './schlauDeep'
 import type { SchlauKind } from './schlauCourses'
 import { buildSchlauTrainingWorld, placeholderSchlauGenome } from './schlauTraining'
 import shipped from './shippedPolicy.json'
@@ -214,13 +214,15 @@ export function buildPolicyChainsExampleWorld(spec: PolicyChainsExampleWorld, ge
 // --- schlau: the second, goal-directed policy (start -> goal only, no chains) ------------------------------------------------
 
 /**
- * A schlau stage genome (26 inputs, len = 29 H + 2): schlau shapes pass through. The length formula COLLIDES with
- * v3 (also 26 inputs) but the layout differs (360 deg rays + movement memory + goal vector vs the v2 inputs + the
- * two touch flags) — a v3 genome is NOT a schlau genome, so there is no padding here: anything else fails loudly.
+ * A schlau stage genome — EITHER net (schlauNetOf): the 1-layer fallback (26 inputs, len = 29 H + 2) or the deep
+ * 'schlau2' net (two hidden layers, len = H^2 + 30 H + 2, schlauDeep.ts); the two length sets are DISJOINT by
+ * construction, so the net is unambiguous. The 1-layer length formula still COLLIDES with v3 (also 26 inputs) but
+ * the layout differs (360 deg rays + movement memory + goal vector vs the v2 inputs + the two touch flags) — a v3
+ * genome is NOT a schlau genome, so there is no padding here: anything else fails loudly.
  */
 export function ensureSchlauGenome(genome: number[]): number[] {
-  if (hiddenOfSchlau(genome.length)) return genome
-  throw new Error(`schlau genome of ${genome.length} numbers fits no hidden size (len = 29 H + 2) — schlau and v3 genomes share the length formula but NOT the layout`)
+  if (schlauNetOf(genome.length)) return genome
+  throw new Error(`schlau genome of ${genome.length} numbers fits neither net (1-layer: 29 H + 2; deep schlau2: H^2 + 30 H + 2) — schlau and v3 genomes share the 1-layer length formula but NOT the layout`)
 }
 
 const SHIPPED_SCHLAU_URL = new URL('./shippedPolicySchlau.json', import.meta.url)

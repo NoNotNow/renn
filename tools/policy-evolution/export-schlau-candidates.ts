@@ -28,6 +28,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { ensureSchlauGenome } from '../../src/policyEvolution/exampleWorld'
+import { schlauNetOf } from '../../src/policyEvolution/schlauDeep'
 import {
   SCHLAU_GOAL_PREFIX,
   SCHLAU_GOAL_REACH_M,
@@ -79,6 +80,8 @@ interface ExportedCandidate {
   gen: number | null
   genome: number[]
   detail: string
+  /** which schlau net the genome is ('schlau' 1-layer | 'schlau2' deep) — see the header; the length alone decides */
+  net?: 'schlau' | 'schlau2'
   scores?: Record<string, TrainingCandidateWorldScores>
   scoredGen?: number | null
 }
@@ -128,7 +131,8 @@ export function mergeFastBest(
     label: 'Best',
     gen: latestBest.best?.gen ?? null,
     genome,
-    detail: `latest best by train fitness${latestBest.best?.island != null ? ` (island ${latestBest.best.island})` : ''} — fresh export, headless scores pending`,
+    net: schlauNetOf(genome.length) ?? undefined,
+    detail: `latest best by train fitness${latestBest.best?.island != null ? ` (island ${latestBest.best.island})` : ''}${schlauNetOf(genome.length) === 'schlau2' ? ' · deep schlau2 net' : ''} — fresh export, headless scores pending`,
   }
   if (existing == null) {
     return {
@@ -254,8 +258,12 @@ async function main(): Promise<void> {
     })
   }
 
-  // schlau shape on EVERY candidate (never ensureV3Inputs — a v3 genome is not a schlau genome despite the same length)
-  for (const c of candidates) ensureSchlauGenome(c.genome)
+  // schlau shape on EVERY candidate (either net; never ensureV3Inputs — a v3 genome is not a schlau genome despite
+  // the same length) + the net tag (the length alone decides; the tag documents it for the dialog)
+  for (const c of candidates) {
+    ensureSchlauGenome(c.genome)
+    c.net = schlauNetOf(c.genome.length) ?? undefined
+  }
 
   // headless scores per candidate over the six schlau training worlds (same measurement as the exporters' --score):
   // the dialog's health dots show the selected candidate's weakest world, not the deployed one's

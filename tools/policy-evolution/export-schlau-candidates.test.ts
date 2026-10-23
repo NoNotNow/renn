@@ -83,9 +83,29 @@ describe('mergeFastBest', () => {
     expect(() => mergeFastBest(null, { ...latestBest(1), policy: 'v3' })).toThrow(/not 'schlau'/)
     expect(() => mergeFastBest(null, { ...latestBest(1), best: { gen: 1, genome: [] } })).toThrow(/best\.genome/)
     expect(() => mergeFastBest(null, { ...latestBest(1), best: { gen: 1, genome: [1, 'x', 3] as unknown as number[] } })).toThrow(/best\.genome/)
-    // a v3-length genome is NOT accepted by shape (len = 29 H + 2): 30 numbers fit no hidden size
-    expect(() => mergeFastBest(null, { ...latestBest(1), best: { gen: 1, genome: Array.from({ length: 30 }, (_, i) => i) } })).toThrow(/hidden size/)
+    // a 30-number genome fits NEITHER net (1-layer: 29 H + 2; deep: H^2 + 30 H + 2 — the disjoint length sets)
+    expect(() => mergeFastBest(null, { ...latestBest(1), best: { gen: 1, genome: Array.from({ length: 30 }, (_, i) => i) } })).toThrow(/fits neither net/)
     expect(() => mergeFastBest({ ...existingFile([]), policy: 'v3' }, latestBest(1))).toThrow(/another policy/)
+  })
+})
+
+describe('mergeFastBest: net versioning (deep schlau)', () => {
+  /** A valid DEEP schlau genome: len = H^2 + 30 H + 2 with H = 2 (66 numbers, disjoint from every 29 H + 2). */
+  const deepGenome = (): number[] => Array.from({ length: 2 * 2 + 30 * 2 + 2 }, (_, i) => (i % 7 === 0 ? 0.5 : i / 100))
+
+  it('tags the merged best with its net: schlau (1-layer) or schlau2 (deep) — the disjoint length decides', () => {
+    const one = mergeFastBest(existingFile([{ ...ISLAND }]), latestBest(120), new Date('2026-10-23T01:00:00.000Z'))
+    expect(one.candidates.find((c) => c.id === 'best')!.net).toBe('schlau')
+    const deep = mergeFastBest(existingFile([{ ...ISLAND }]), { ...latestBest(121), best: { gen: 121, genome: deepGenome() } }, new Date('2026-10-23T02:00:00.000Z'))
+    const best = deep.candidates.find((c) => c.id === 'best')!
+    expect(best.net).toBe('schlau2')
+    expect(best.detail).toMatch(/deep schlau2 net/)
+  })
+
+  it('REFUSES a deep genome only when it is no schlau net at all — an old 1-layer file keeps loading as the fallback', () => {
+    // a v3-length genome is still accepted by the 1-layer check (the policy tag guards, not this merge) — unchanged
+    expect(() => mergeFastBest(existingFile([]), latestBest(122))).not.toThrow()
+    expect(() => mergeFastBest(existingFile([]), { ...latestBest(123), best: { gen: 123, genome: [1, 2, 3] } })).toThrow(/fits neither net/)
   })
 })
 

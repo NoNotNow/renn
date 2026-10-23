@@ -23,7 +23,8 @@ import { freshGenome } from './islands'
 import { NOSE_M } from './policy'
 import { buildSchlauTask, type SchlauKind, type SchlauTask } from './schlauCourses'
 import { SCHLAU_OBJECT_TOUCH_PENALTY_PER_S, SCHLAU_WALL_TOUCH_PENALTY_PER_S, schlauGeodesicPath } from './schlauScore'
-import { hiddenOfSchlau, N_IN_SCHLAU, SCHLAU_ACTUATOR_ID, SCHLAU_CAR_BODY_ID, SCHLAU_STAGE_ID, schlauDriveStage } from './schlauPolicy'
+import { N_IN_SCHLAU, SCHLAU2_STAGE_MARKER, SCHLAU_ACTUATOR_ID, SCHLAU_CAR_BODY_ID, SCHLAU_STAGE_ID, schlauDriveStage } from './schlauPolicy'
+import { schlauNetOf } from './schlauDeep'
 import { trainingScoreStageCode } from './trainingScoreStage'
 
 /** One schlau training world: the task (`kind` + `seed`) and the dialog/example-world identity. */
@@ -150,8 +151,8 @@ export function schlauTrainingSetup(spec: SchlauTrainingWorldSpec): SchlauTraini
  * `placeholderSchlauGenome()` until a first net is trained). Throws on an empty / non-schlau genome.
  */
 export function buildSchlauTrainingWorld(spec: SchlauTrainingWorldSpec, genome: number[]): RennWorld {
-  if (!genome || hiddenOfSchlau(genome.length) === 0) {
-    throw new Error('buildSchlauTrainingWorld: pass a schlau genome (placeholderSchlauGenome() until a first net is trained) — 29 H + 2 numbers, 26 inputs')
+  if (!genome || !schlauNetOf(genome.length)) {
+    throw new Error('buildSchlauTrainingWorld: pass a schlau genome (placeholderSchlauGenome() until a first net is trained) — 29 H + 2 (1-layer) or H^2 + 30 H + 2 (deep schlau2) numbers, 26 inputs')
   }
   const { task, path, walls } = schlauTrainingSetup(spec)
   const carId = schlauCarId(0)
@@ -326,20 +327,28 @@ export function focusSchlauGoal(world: RennWorld, routeIndex: number): RennWorld
 /**
  * Swaps the drive-stage weights (`params.w`) of every schlau car of the LOADED world instance to the candidate's
  * genome — the schlau variant of applyTrainingCandidate (mazeCandidates.ts), same pattern as `focusSchlauGoal`:
- * deep clone, mutate params, return; the file on disk is never touched. Throws when the genome is not schlau-shaped
+ * deep clone, mutate params, return; the file on disk is never touched. Accepts BOTH nets (the stage code is
+ * dual-mode, schlauPolicy.ts STAGE_NET_SCHLAU): a 1-layer genome (29 H + 2, the fallback) or a deep 'schlau2'
+ * genome (H^2 + 30 H + 2, schlauDeep.ts) — the length sets are disjoint, so the net is unambiguous. A deep
+ * candidate is REFUSED for a stage whose baked code predates the deep support (no SCHLAU2_STAGE_MARKER: the car
+ * would silently stand still) — re-export the worlds instead. Throws when the genome is no schlau net at all
  * (a v1/v2/v3 genome cannot drive the schlau stage — the layouts differ) and when no schlau drive stage exists.
  */
 export function applySchlauCandidate(world: RennWorld, genome: ArrayLike<number>): RennWorld {
-  if (!hiddenOfSchlau(genome.length)) {
-    throw new Error(`applySchlauCandidate: genome of ${genome.length} numbers is not schlau-shaped (29 H + 2, 26 inputs)`)
+  const net = schlauNetOf(genome.length)
+  if (!net) {
+    throw new Error(`applySchlauCandidate: genome of ${genome.length} numbers is not schlau-shaped (1-layer: 29 H + 2; deep schlau2: H^2 + 30 H + 2; 26 inputs)`)
   }
   const w = JSON.parse(JSON.stringify(world)) as {
-    transformers?: Record<string, { params?: Record<string, unknown> }>
+    transformers?: Record<string, { code?: unknown; params?: Record<string, unknown> }>
   }
   let swapped = 0
   for (const [id, transformer] of Object.entries(w.transformers ?? {})) {
     if (id !== SCHLAU_STAGE_ID && !id.startsWith(`${SCHLAU_STAGE_ID}_`)) continue
     if (!transformer.params || !Array.isArray(transformer.params.w)) continue
+    if (net === 'schlau2' && typeof transformer.code === 'string' && !transformer.code.includes(SCHLAU2_STAGE_MARKER)) {
+      throw new Error(`applySchlauCandidate: stage ${id} predates the schlau2 (deep) support — a deep candidate would leave the car silently standing; re-export the worlds (export-schlau-training-worlds / export-schlau-maze-worlds) so the dual-mode stage is baked in`)
+    }
     transformer.params.w = Array.from(genome)
     swapped++
   }

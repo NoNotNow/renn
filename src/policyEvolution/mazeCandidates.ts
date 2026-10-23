@@ -23,6 +23,14 @@ export interface MazeCandidate {
   /** Tooltip line (island age / origin / stagnation, best/shipped provenance). */
   detail: string
   /**
+   * Which SCHLAU net the genome is — 'schlau' (1-layer, 29 H + 2) or 'schlau2' (deep, two hidden layers,
+   * H^2 + 30 H + 2, schlauDeep.ts); only the schlau candidates file (schlau-candidates.json) carries it. The
+   * genome length alone already decides (the two length sets are disjoint by construction) — this tag is
+   * documentation for the dialog label, never a loader switch. Absent = a v3 candidate (candidates.json) or a
+   * pre-tag schlau export (1-layer, the fallback net).
+   */
+  net?: 'schlau' | 'schlau2'
+  /**
    * Headless per-world scores of THIS genome (export-maze-candidates.ts scores every candidate over all maze +
    * crux training worlds each watcher cycle): best over cars + the per-route scores, keyed by world id. The
    * dialog's health dots follow the selected candidate's scores; missing on older deploys (dots stay gray).

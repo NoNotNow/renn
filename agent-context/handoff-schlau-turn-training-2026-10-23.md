@@ -1,6 +1,6 @@
 # Handoff: schlau turn training — dead-end rotation tasks + deeper net
 
-Date: 2026-10-23. Status: **not started** — start this when the current schlau / Beacon work is finished.
+Date: 2026-10-23. Status: **Task 1 DONE (commit 5a5b7673), Task 2 DONE (deep net "schlau v2" implemented 2026-10-23 — see the note under Task 2; the TRAINING of the deep net is still open)**.
 Owner context for a fresh agent: read `start-here.md` first, then `feature-policy-evolution.md` +
 `handoff-policy-evolution.md` for the policy-evolution state, and `plan-beacon-roadmap.md` (the Beacon
 roadmap car this training feeds into).
@@ -35,6 +35,17 @@ Extend `src/policyEvolution/schlauCourses.ts` (`SCHLAU_KINDS`) with a fourth kin
   schlau episode builder (`schlauEpisode.ts`, `schlauMaze.ts` patterns) must emit `goal_turn` worlds.
 
 ## Task 2 — deeper net: add hidden layers to the schlau genome
+
+**IMPLEMENTED 2026-10-23 (Task 2 of this handoff):** the deep net lives in `src/policyEvolution/schlauDeep.ts`
+(net tag `'schlau2'`, TWO hidden layers of equal width H, own length formula `H^2 + 30 H + 2` — DISJOINT from the
+1-layer `29 H + 2` by construction: the colliding widths H ≡ 0/28 mod 29 are forbidden, so a length is an unambiguous
+net). The stage forward pass is dual-mode (`STAGE_NET_SCHLAU`, schlauPolicy.ts — 1-layer genomes stay bit-identical);
+`widenHiddenSchlau2` / `freezeOldMaskSchlau2` mirror the widen-freeze recipe; `run-schlau.ts --deep [N]` trains it
+(from scratch, crossover OFF + fresh deep immigrants — the 1-layer neuron crossover would corrupt a deep genome;
+a 1-layer warm start is deliberately NOT supported: the extra layer has no identity init); the candidates file tags
+every entry with `net` and the dialog swap accepts both. The 1-layer net stays the fallback everywhere. Open: the
+actual deep TRAINING (curriculum over goal_open/box/wall/turn) and the paired comparison against the 1-layer bests —
+that comparison decides the ship, per the original plan below.
 
 Today the schlau head is a single-hidden-layer MLP (`policy.ts`: `len = hidden*nIn + hidden + N_OUT*hidden +
 N_OUT`; schlau: `len = 29H + 2`, `N_IN_SCHLAU = 26`, see `schlauPolicy.ts`). A shunt turn is a sequenced,

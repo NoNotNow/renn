@@ -438,3 +438,29 @@ lineage) is widened to H=32 with the old core FROZEN, the new units evolved on h
   box); anti-cheese: arcs >= 4 m, visited set kills oscillation, FLIP_COST prices cusps. Trainable +
   informational in every eval (like blocks), OUT of the ship band (decision 2026-10-19, pinned in
   `wfCandidateWorlds.test.ts`). Design + critic: `test-results/policy-evolution/rangieren/DESIGN-R2.md`, `CRITIC-R2.md`.
+
+## The schlau policy (2026-10-21/23): second goal-directed car + the deep "schlau v2" net
+
+The "schlau" car (`schlauPolicy.ts`, `schlauCourses.ts` START -> GOAL tasks, no chains/carrots: 14 rays over the
+full 360 deg, fwd speed, 4 movement-memory vectors of 20 m, goal vector; 26 inputs, len = 29 H + 2 — length-identical
+to v3, the `policy: 'schlau'` tag separates them) trains via `run-schlau.ts` (islands, kinds goal_open/box/wall/turn,
+`beatsBestSchlau` finish-count checkpoint) and drives the Training dialog's Schlau tabs + the `schlau_maze_*`
+bridge worlds. **Deep net (handoff 2026-10-23 Task 2, `schlauDeep.ts`)**: TWO hidden layers of equal width H, net tag
+`'schlau2'`, OWN length formula `H^2 + 30 H + 2` — DISJOINT from the 1-layer `29 H + 2` BY CONSTRUCTION (the colliding
+widths H ≡ 0/28 mod 29 are FORBIDDEN, so a genome length alone decides the net and candidate files can never mix them):
+`hiddenOfSchlau` rejects every deep genome, `schlauNetOf` is the discriminator. The stage forward pass is DUAL-MODE
+(`STAGE_NET_SCHLAU`: 1-layer genomes bit-identical, deep genomes run the 2-layer pass; both training worlds and maze
+bridges bake it — `applySchlauCandidate` refuses a deep candidate only for an old marker-less stage).
+`widenHiddenSchlau2` (function-preserving, new units silent in BOTH layers) / `freezeOldMaskSchlau2` mirror the
+widen-freeze recipe; `freshGenomeSchlau2` carries the +0.5 speed prior at the deep b3[1] (the LAST weight). Deep
+genomes must NEVER reach the genomeShape-based helpers (deep H=6 reads as v2-H-8!): `run-schlau.ts --deep [N]`
+(creation flag, persisted `net: 'schlau2'`) injects per-island fresh factories (`initialIslands`' `fresh` param) and
+runs island replacement with crossover OFF + fresh deep immigrants (`IslandEs`' `IslandGenomeOpts`); a 1-layer warm
+start is deliberately NOT supported (the extra layer has no identity init — deep trains from scratch or warms from
+another deep genome). Candidates versioning: every exported candidate carries `net` ('schlau' | 'schlau2'); old
+all-1-layer files keep loading as the fallback. `eval-schlau-candidate.ts` evaluates both nets on the same 4-kind
+decision band (ship gate unchanged: goal_wall finishes > 0; whether goal_turn should gate ships is a LATER
+data-driven training-phase decision). Tests: `schlauDeep.test.ts` (shape disjointness pinned over h ≤ 64 / H ≤ 200,
+forward vs an independent 2-layer pass, dual-mode stage, widen preservation, freeze mask layout, guards),
+`run-schlau-kinds.test.ts` (--deep wiring). OPEN: the deep TRAINING and the paired comparison vs the 1-layer bests
+(the comparison decides the ship — the deep net never replaces the fallback before it wins).

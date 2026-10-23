@@ -157,3 +157,63 @@ describe('run-schlau --fit', () => {
     }
   }, 130_000)
 })
+
+// --deep (creation only, persisted as net: 'schlau2'): the DEEP schlau net (handoff 2026-10-23 Task 2,
+// src/policyEvolution/schlauDeep.ts) — two hidden layers of equal width, len = H^2 + 30 H + 2 (DISJOINT from the
+// 1-layer 29 H + 2), trained from scratch, island replacement by fresh deep immigrants with crossover OFF.
+// These spawn tests pin the runner wiring end-to-end: the net tag + dim persist, the per-island fresh factory
+// bakes real DEEP genomes (the +0.5 speed prior at the deep b3[1] = the LAST weight — genomeShape would misread
+// the length as v2 and put it mid-vector), and the creation flag / 1-layer warm start fail loudly on resume.
+describe('run-schlau --deep (schlau v2)', () => {
+  const run = (args: string[]) =>
+    spawnSync('npx', ['tsx', 'tools/policy-evolution/run-schlau.ts', ...args], {
+      encoding: 'utf8',
+      timeout: 120_000,
+    })
+
+  it('a --deep creation persists net schlau2 with the deep dim and fresh deep islands; --deep on resume is rejected', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'schlau-deep-'))
+    const out = path.join(dir, 'deep.json')
+    try {
+      const r = run(['--deep', '6', '--gens', '1', '--islands', '2', '--pairs', '1', '--batch', '1', '--workers', '2', '--kinds', 'goal_open', '--train-per-kind', '2', '--out', out])
+      expect(r.status, r.stderr).toBe(0)
+      expect(r.stdout).toMatch(/net: schlau2 \(deep, two hidden layers of equal width\) — island crossover OFF/)
+      const file = JSON.parse(fs.readFileSync(out, 'utf8')) as {
+        net?: 'schlau2'
+        hidden?: number
+        config?: { dim?: number }
+        state?: { islands?: Array<{ es?: { theta?: number[] } }> }
+      }
+      expect(file.net).toBe('schlau2')
+      expect(file.hidden).toBe(6)
+      expect(file.config!.dim).toBe(6 * 6 + 30 * 6 + 2)
+      for (const isl of file.state!.islands!) {
+        expect(isl.es!.theta).toHaveLength(6 * 6 + 30 * 6 + 2)
+        // the +0.5 speed-target start prior sits at the DEEP b3[1] (the LAST weight): a genomeShape-misread fresh
+        // genome (v2 layout) would carry it at 8 * 24 + 8 + 1 and leave the last weight a ~0.1-std gaussian — this
+        // pins the deep fresh factory (one ES step may drift the prior a little)
+        expect(isl.es!.theta![isl.es!.theta!.length - 1]).toBeGreaterThan(0.4)
+        expect(isl.es!.theta![isl.es!.theta!.length - 1]).toBeLessThan(0.6)
+      }
+      const two = file.state!.islands![0]!.es!.theta![0]
+      const other = file.state!.islands![1]!.es!.theta![0]
+      expect(two).not.toBe(other)
+      const r2 = run(['--resume', '--deep', '6', '--gens', '1', '--out', out])
+      expect(r2.status).not.toBe(0)
+      expect(r2.stderr).toMatch(/--deep is a creation flag/)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  }, 130_000)
+
+  it('refuses a 1-layer warm genome for a deep run (deep trains from scratch or warm-starts from ANOTHER deep genome)', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'schlau-deep-'))
+    try {
+      const r = run(['--deep', '6', '--warm', 'src/policyEvolution/shippedPolicySchlau.json', '--gens', '1', '--out', path.join(dir, 'x.json')])
+      expect(r.status).not.toBe(0)
+      expect(r.stderr).toMatch(/not deep-schlau2-shaped/)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  }, 130_000)
+})

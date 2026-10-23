@@ -44,6 +44,17 @@
  *   npx tsx tools/policy-evolution/run-schlau.ts --warm <run.json> --hidden 24 --freeze-old --gens 300 --out test-results/policy-evolution/schlau-widen.json
  *   npx tsx tools/policy-evolution/run-schlau.ts --resume --unfreeze --gens 300 --out test-results/policy-evolution/schlau-widen.json
  *
+ * `--deep [N]` (creation only, persisted as net: 'schlau2' + hidden: the per-layer width): trains the DEEP net
+ * (handoff 2026-10-23 Task 2, schlauDeep.ts) — TWO hidden layers of equal width (len = H^2 + 30 H + 2, disjoint from
+ * the 1-layer formula, so candidate files can never mix the nets up by length). N optionally sets the initial width
+ * (= --deep --hidden N), default 10. Trained FROM SCRATCH (a deeper genome is a NEW policy): a 1-layer warm genome is
+ * REFUSED; warm starts work only between deep genomes (--warm <deep run/latest-best>, widened by --hidden like the
+ * 1-layer path via widenHiddenSchlau2, frozen by --freeze-old via freezeOldMaskSchlau2). Island replacement runs
+ * with crossover OFF (the neuron crossover is 1-layer-only; deep immigrants come from freshGenomeSchlau2) — the
+ * one functional difference besides the genome itself. Everything else (kinds, staging, fitness, checkpoint) is
+ * identical. The 1-layer runs stay bit-identical: no --deep = no code path change.
+ *   npx tsx tools/policy-evolution/run-schlau.ts --deep 12 --gens 600 --workers 4 --out test-results/policy-evolution/schlau2.json
+ *
  * Options: --gens N (100) --pairs N (antithetic pairs PER island, 8) --workers N (cpus-1)
  *   --out FILE (test-results/policy-evolution/schlau.json) --seed N (1) --islands N (3) --epoch N (25) --mature N (75)
  *   --p-cross P (0.5) --hidden N (10, creation only) --warm FILE --freeze-old --unfreeze --resume
@@ -71,6 +82,7 @@ import { DEFAULT_ISLANDS, initialIslands, IslandEs, sigmaBoost, type IslandsConf
 import { freezeOldMask, widenHidden } from '@/policyEvolution/policy'
 import { beatsBestSchlau } from '@/policyEvolution/schlauCheckpoint'
 import { genomeLengthSchlau, hiddenOfSchlau, N_IN_SCHLAU } from '@/policyEvolution/schlauPolicy'
+import { SCHLAU2_NET, freezeOldMaskSchlau2, freshGenomeSchlau2, genomeLengthSchlau2, hiddenOfSchlau2, widenHiddenSchlau2 } from '@/policyEvolution/schlauDeep'
 import { parseSchlauKey, parseSchlauKinds, schlauHoldoutKeys, schlauKindsCanStage, schlauKey, schlauTrainKeys, type SchlauKind } from '@/policyEvolution/schlauCourses'
 import type { SchlauWorkerJob } from './worker-schlau'
 
@@ -93,7 +105,9 @@ interface RunFile {
   schema: 'renn.policy-evolution.schlau/1'
   /** IMMER 'schlau' — schlau-Genomes sind längen-identisch zu v3 (29 H + 2); der Policy-Tag ist die einzige Unterscheidung. */
   policy: 'schlau'
-  /** hidden size of this run's genomes (persisted so --resume is exact) */
+  /** 'schlau2' = the DEEP net (two hidden layers, len = H^2 + 30 H + 2, schlauDeep.ts, creation flag --deep); absent = the 1-layer net */
+  net?: 'schlau2'
+  /** hidden size of this run's genomes (per-LAYER width when net = 'schlau2'; persisted so --resume is exact) */
   hidden: number
   /** stage curriculum (null = beide kinds ab Start, --no-stage) */
   stage?: StageState | null
@@ -121,11 +135,16 @@ const SCHLAU_BASE_KINDS: SchlauKind[] = ['goal_open', 'goal_box']
 const schlauActiveKinds = (share: number, kinds: readonly SchlauKind[]): SchlauKind[] =>
   share >= SCHLAU_STAGE.max - 1e-9 ? [...kinds] : ['goal_open']
 
-/** Liest ein Genome aus `--warm FILE`: { genome } oder { best: { genome } } (wie v2GenomeFromFile, ohne v2-Padding). Shape-Prüfung via hiddenOfSchlau — NICHT ensureV3Inputs (die Längenformel kollidiert mit v3; der Layout-Unterschied ist der Policy-Tag). */
-function readWarmGenome(file: string): number[] {
+/** Liest ein Genome aus `--warm FILE`: { genome } oder { best: { genome } } (wie v2GenomeFromFile, ohne v2-Padding). Shape-Prüfung via hiddenOfSchlau / hiddenOfSchlau2 je nach `net` — NICHT ensureV3Inputs (die Längenformel kollidiert mit v3; der Layout-Unterschied ist der Policy-Tag). */
+function readWarmGenome(file: string, net: 'schlau' | 'schlau2'): number[] {
   const doc = JSON.parse(fs.readFileSync(file, 'utf8')) as { genome?: number[]; best?: { genome?: number[] } }
   const g = doc.genome ?? doc.best?.genome
   if (!g || !g.every((x) => typeof x === 'number')) throw new Error(`--warm ${file}: no genome (expected { genome } or { best: { genome } })`)
+  if (net === 'schlau2') {
+    if (hiddenOfSchlau2(g.length) < 1)
+      throw new Error(`--warm ${file}: genome of ${g.length} numbers is not deep-schlau2-shaped (H^2 + 30 H + 2) — the deep net trains FROM SCRATCH or warm-starts from ANOTHER deep genome (a 1-layer warm start is deliberately not supported: the extra layer has no identity init, see schlauDeep.ts)`)
+    return g
+  }
   if (hiddenOfSchlau(g.length) < 1)
     throw new Error(`--warm ${file}: genome of ${g.length} numbers has no integer hidden size for schlau (${N_IN_SCHLAU} inputs, len = 29 H + 2)`)
   return g
@@ -220,6 +239,18 @@ async function main() {
   if (hiddenArg !== undefined && (!Number.isInteger(hiddenArg) || hiddenArg < 1)) throw new Error(`--hidden must be a positive integer, got ${String(args.hidden)}`)
   // --hidden ist creation-only: das Run-File trägt hidden (und config.dim), ein Resume setzt es exakt fort
   if (resumed && hiddenArg !== undefined) throw new Error(`--hidden is a creation flag (the run file stores hidden: ${file!.hidden}; a resume continues it)`)
+  // --deep (creation only, persisted as net: 'schlau2'): the DEEP net (schlauDeep.ts) — two hidden layers of equal
+  // width, len = H^2 + 30 H + 2 (DISJOINT from the 1-layer 29 H + 2, so the nets can never be mixed up by length).
+  // An optional value sets the initial per-layer width (= --deep --hidden N); a bare --deep keeps the default 10.
+  if (resumed && args.deep !== undefined) throw new Error(`--deep is a creation flag (the run file stores net: ${file!.net ?? 'schlau'}; a plain --resume continues it)`)
+  const deepWidth = args.deep !== undefined && args.deep !== true ? Number(args.deep) : undefined
+  if (args.deep !== undefined && args.deep !== true && (!Number.isInteger(deepWidth) || deepWidth! < 1))
+    throw new Error(`--deep needs a positive integer per-layer width (or no value at all), got ${String(args.deep)}`)
+  const net: 'schlau' | 'schlau2' = resumed ? file!.net ?? 'schlau' : args.deep !== undefined ? 'schlau2' : 'schlau'
+  // a deep run file must be self-consistent (net + hidden + dim); a 1-layer file never carries the net field
+  if (resumed && net === 'schlau2' && file!.config.dim !== genomeLengthSchlau2(file!.hidden))
+    throw new Error(`--resume ${out}: net 'schlau2' with hidden ${file!.hidden} but dim ${file!.config.dim} (expected ${genomeLengthSchlau2(file.hidden)}) — the run file is inconsistent`)
+  if (!resumed && net === 'schlau2') console.log(`net: ${SCHLAU2_NET} (deep, two hidden layers of equal width) — island crossover OFF, immigrants fresh`)
   // --kinds a,b,c (creation only, PERSISTED wie speedCap): die Kind-Band dieses Runs. Default = die Basis-Band
   // (goal_open,goal_box) — der Basis-Run mischt goal_wall NIE unbemerkt in seinen Batch; die Wall-Runs (Auftrag C)
   // sind DEDIZIERT (--kinds goal_wall), weil eine 0-finish-Blockade-Kind die MIN-Fitness vergiftet (WF-Lektion).
@@ -241,24 +272,28 @@ async function main() {
   const canStage = schlauKindsCanStage(kinds)
   if (!resumed && args['no-stage'] === undefined && !canStage)
     console.log(`stage curriculum off: --kinds ${kinds.join(',')} (the stage needs >= 2 kinds including goal_open — this band trains its kinds from the start)`)
-  // --warm FILE: { genome } oder { best: { genome } }; Shape-Prüfung via hiddenOfSchlau (NICHT ensureV3Inputs)
-  let warm = args.warm ? readWarmGenome(String(args.warm)) : undefined
-  const warmH0 = warm ? hiddenOfSchlau(warm.length) : 0
-  if (warm && hiddenArg !== undefined && !resumed) {
-    if (hiddenArg < warmH0) throw new Error(`--hidden ${hiddenArg} is smaller than the warm genome's ${warmH0} hidden units`)
-    if (hiddenArg > warmH0) warm = widenHidden(warm, hiddenArg, createRng(num(args.seed, 1) * 31 + 7))
-    console.log(`warm start: hidden ${warmH0} -> ${hiddenArg}`)
+  // --warm FILE: { genome } oder { best: { genome } }; Shape-Prüfung via hiddenOfSchlau / hiddenOfSchlau2 (NICHT ensureV3Inputs).
+  // Der Deep-Net-Warm-Start funktioniert nur zwischen DEEP genomes (keine 1-layer-Warmstarts: die zusätzliche Schicht
+  // hat keine Identitäts-Initialisierung, siehe schlauDeep.ts) — readWarmGenome lehnt alles andere laut ab.
+  let warm = args.warm ? readWarmGenome(String(args.warm), net) : undefined
+  const warmH0 = warm ? (net === 'schlau2' ? hiddenOfSchlau2(warm.length) : hiddenOfSchlau(warm.length)) : 0
+  // the effective width flag: --hidden, or (deep runs) the --deep value
+  const widthArg = hiddenArg ?? (net === 'schlau2' ? deepWidth : undefined)
+  if (warm && widthArg !== undefined && !resumed) {
+    if (widthArg < warmH0) throw new Error(`--hidden ${widthArg} is smaller than the warm genome's ${warmH0} hidden units`)
+    if (widthArg > warmH0) warm = net === 'schlau2' ? widenHiddenSchlau2(warm, widthArg, createRng(num(args.seed, 1) * 31 + 7)) : widenHidden(warm, widthArg, createRng(num(args.seed, 1) * 31 + 7))
+    console.log(`warm start: hidden ${warmH0} -> ${widthArg}`)
   }
-  // ohne --hidden gewinnt die hidden size des warm genome (wie v3), sonst der Default 10 (klein anfangen, später per widen-freeze vergrößern)
-  const hidden = resumed ? file!.hidden : (hiddenArg ?? (warm ? warmH0 : 10))
+  // ohne Width-Flag gewinnt die hidden size des warm genome (wie v3), sonst der Default 10 (klein anfangen, später per widen-freeze vergrößern)
+  const hidden = resumed ? file!.hidden : (widthArg ?? (warm ? warmH0 : 10))
   // --freeze-old (widen-freeze phase 1, CREATION only): freeze everything the warm function lives in (old W1 rows,
   // old b1, old W2 columns, both b2 — freezeOldMask) and evolve ONLY the new units' parameters. The mask lives in
   // config.freeze (EsConfig), so every resume keeps it; --unfreeze on resume clears it (phase 2).
   if (args['freeze-old'] !== undefined) {
     if (resumed) throw new Error('--freeze-old is a creation flag (the mask persists in config.freeze; clear it on resume with --unfreeze)')
     if (!warm) throw new Error('--freeze-old needs --warm (the old core the mask freezes)')
-    if (hiddenArg === undefined) throw new Error('--freeze-old needs --hidden N (the widened hidden size)')
-    if (hiddenArg <= warmH0) throw new Error(`--freeze-old needs a widening: --hidden ${hiddenArg} must be greater than the warm genome's ${warmH0} hidden units`)
+    if (widthArg === undefined) throw new Error('--freeze-old needs --hidden N (the widened hidden size)')
+    if (widthArg <= warmH0) throw new Error(`--freeze-old needs a widening: --hidden ${widthArg} must be greater than the warm genome's ${warmH0} hidden units`)
   }
   // Keys: TRAIN (kanonische Starts, variant 0) und HOLDOUT (Start-Variante 1), pro kind gruppiert für die stratified
   // batch — NUR die kinds dieses Runs (die --kinds Band). Default-Band-Größen: per-kind TRAIN
@@ -280,13 +315,15 @@ async function main() {
   if (!resumed) {
     const config: EsConfig = {
       ...DEFAULT_ES_CONFIG,
-      dim: genomeLengthSchlau(hidden),
+      dim: net === 'schlau2' ? genomeLengthSchlau2(hidden) : genomeLengthSchlau(hidden),
       pairs: num(args.pairs, 8),
       sigma: num(args.sigma, DEFAULT_ES_CONFIG.sigma),
       lr: num(args.lr, DEFAULT_ES_CONFIG.lr),
       seed: num(args.seed, 1),
       // --freeze-old only at creation: the mask persists with the config, a plain resume keeps it (phase 1 continues)
-      ...(args['freeze-old'] !== undefined ? { freeze: freezeOldMask(genomeLengthSchlau(hidden), warmH0) } : {}),
+      ...(args['freeze-old'] !== undefined
+        ? { freeze: net === 'schlau2' ? freezeOldMaskSchlau2(genomeLengthSchlau2(hidden), warmH0) : freezeOldMask(genomeLengthSchlau(hidden), warmH0) }
+        : {}),
     }
     const islands: IslandsConfig = {
       islands: num(args.islands, DEFAULT_ISLANDS.islands),
@@ -297,6 +334,7 @@ async function main() {
     file = {
       schema: 'renn.policy-evolution.schlau/1',
       policy: 'schlau',
+      ...(net === 'schlau2' ? { net } : {}),
       hidden,
       config,
       islands,
@@ -304,7 +342,13 @@ async function main() {
       kinds,
       ...(fit === 'mean' ? { fit } : {}),
       stage: args['no-stage'] === undefined && canStage ? initialStage(SCHLAU_STAGE) : null,
-      state: initialIslands(config, islands, warm),
+      // deep runs inject their own per-island fresh factory (genomeShape misreads deep lengths as v1/v2 — see schlauDeep.ts)
+      state: initialIslands(
+        config,
+        islands,
+        warm,
+        net === 'schlau2' ? (k) => freshGenomeSchlau2(createRng(config.seed * 1000 + k), config.initStd, hidden) : undefined,
+      ),
       history: [],
     }
   }
@@ -315,7 +359,16 @@ async function main() {
     if (file!.config.freeze !== undefined) console.log(`unfreeze: config.freeze cleared at gen ${file!.state.gen} (phase 2 — all ${file!.config.dim} dims evolve; the stored config.lr keeps applying — --lr is a creation flag, for a smaller phase-2 step edit config.lr in the run file)`)
     delete file!.config.freeze
   }
-  const isl = new IslandEs(file!.config, file!.islands, file!.state, fitness, fitnessVec)
+  // deep runs replace with fresh deep immigrants and never crossover (the neuron crossover is 1-layer-only)
+  const isl = new IslandEs(
+    file!.config,
+    file!.islands,
+    file!.state,
+    fitness,
+    fitnessVec,
+    false,
+    (file!.net ?? 'schlau') === 'schlau2' ? { fresh: (rng) => freshGenomeSchlau2(rng, file!.config.initStd, file!.hidden), crossover: false } : {},
+  )
   const pool = new SchlauPool(workers)
   const evaluate = pool.evaluator()
   fs.mkdirSync(path.dirname(out), { recursive: true })
@@ -332,6 +385,7 @@ async function main() {
           schema: 'renn.policy-evolution.latest-best/1',
           source: out,
           policy: 'schlau',
+          ...(file.net ? { net: file.net } : {}),
           hidden: file.hidden,
           kinds: [...kinds],
           ...(file.speedCap ? { speedCap: file.speedCap } : {}),
@@ -361,6 +415,7 @@ async function main() {
           schema: 'renn.policy-evolution.latest-stats/1',
           source: out,
           policy: 'schlau',
+          ...(file.net ? { net: file.net } : {}),
           hidden: file.hidden,
           kinds: [...kinds],
           ...(file.speedCap ? { speedCap: file.speedCap } : {}),

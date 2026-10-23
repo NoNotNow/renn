@@ -23,7 +23,8 @@ import {
   schlauDistanceField,
   type SchlauField,
 } from './schlauScore'
-import { hiddenOfSchlau, N_IN_SCHLAU, SCHLAU_ACTUATOR_ID, SCHLAU_CAR_BODY_ID, SCHLAU_STAGE_ID, schlauDriveStage } from './schlauPolicy'
+import { N_IN_SCHLAU, SCHLAU_ACTUATOR_ID, SCHLAU_CAR_BODY_ID, SCHLAU_STAGE_ID, schlauDriveStage } from './schlauPolicy'
+import { schlauNetOf } from './schlauDeep'
 import {
   CAR2_PARAMS,
   CAR_BODY,
@@ -83,6 +84,8 @@ function schlauFieldOf(task: SchlauTask): SchlauField {
  * shape as buildPolicyWorld (episode.ts).
  */
 export function buildSchlauWorld(task: SchlauTask, genome: ArrayLike<number>, opts: { noise?: number; noiseSeed?: number } = {}): RennWorld {
+  if (!schlauNetOf(genome.length))
+    throw new Error(`buildSchlauWorld: genome of ${genome.length} numbers is no schlau net (1-layer: 29 H + 2; deep schlau2: H^2 + 30 H + 2)`)
   const rad = (d: number) => (d * Math.PI) / 180
   const entities: unknown[] = [
     {
@@ -141,10 +144,11 @@ export async function runSchlauEpisode(
   key: string,
   opts: { seconds?: number; noise?: number; onFrame?: (x: number, z: number, t: number) => void } = {},
 ): Promise<PolicyEpisodeMetrics> {
-  // shape-only check: a schlau genome has an integer hidden size for N_IN_SCHLAU (len = 29 H + 2). The length formula
-  // collides with v3 (N_IN_V3 = 26 as well), so a v3 genome passes this check — the caller must pass a schlau genome.
-  if (hiddenOfSchlau(genome.length) < 1)
-    throw new Error(`schlau episode ${key} needs a schlau genome (${N_IN_SCHLAU} inputs, len = 29 H + 2), got ${genome.length}`)
+  // shape-only check: a schlau genome is EITHER net — 1-layer (len = 29 H + 2) or deep 'schlau2' (len = H^2 + 30 H + 2,
+  // schlauDeep.ts); the dual-mode stage code runs both. The 1-layer length formula collides with v3 (N_IN_V3 = 26 as
+  // well), so a v3 genome still passes this check — the caller must pass a schlau genome.
+  if (!schlauNetOf(genome.length))
+    throw new Error(`schlau episode ${key} needs a schlau genome (${N_IN_SCHLAU} inputs, len = 29 H + 2 one-layer or H^2 + 30 H + 2 deep), got ${genome.length}`)
   const { kind, seed, variant } = parseSchlauKey(key)
   const task = buildSchlauTask(kind, seed, variant)
   // open ground (goal_open: no boxes): the shortest drivable distance IS the euclidean nose->goal distance — the
