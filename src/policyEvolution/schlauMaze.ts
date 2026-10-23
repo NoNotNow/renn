@@ -1,0 +1,283 @@
+/**
+ * MAZE-BRIDGE of the "schlau" policy (L2A task chunk, user decision 2026-10-23): the schlau car drives the MAZE
+ * worlds of renn. The maze worlds guide the v3 policy with a waypoint CHAIN (the policy-input stage walks it and
+ * feeds two lookahead points); the schlau head has no chain input — it gets ONE goal vector (x[23..25]). The
+ * bridge: a WAYPOINT-SEQUENTIAL goal feed — the schlau drive stage walks the maze chain itself and hands the head
+ * the NEXT waypoint as its single goal; when the car reaches a waypoint the goal advances to the next one; the
+ * chain end is the finish. The head never sees the whole chain, only the current goal.
+ *
+ * Worlds: `schlau_maze_1..10` — the SAME maze geometry + chains as the maze_train worlds (same seeds, both built
+ * from mazeTrainingRoutes — the geometry is equal by construction), with a schlau car per route copy. The
+ * per-car score stage is the SHARED schlau score stage code (SCHLAU_SCORE_STAGE_CODE, watch label 'schlau.score')
+ * scored with the MAZE metric (MAZE_TRAIN_SCORE) so the numbers compare with the v3 maze worlds' meta bestScores.
+ *
+ * SHAPE-KOLLISION (schlauPolicy.ts): a schlau genome is length-identical to v3 (29 H + 2) but wired differently —
+ * buildSchlauMazeWorld only accepts schlau-shaped genomes (hiddenOfSchlau) and the worlds carry the drive stage
+ * under the `schlau_drive` namespace (applySchlauCandidate swaps params.w); a v3 genome must never be baked here.
+ *
+ * Keep this module free of node imports (no `node:fs`): it is importable from the browser bundle.
+ */
+import type { RennWorld } from '@/types/world'
+import { rectPoly, type V2 } from '@/avEvolution/eval/geometry'
+import {
+  MAZE_TRAIN_CHAIN_COLORS,
+  MAZE_TRAIN_CHAIN_COLORS_REVERSED,
+  MAZE_TRAIN_ROUTES,
+  MAZE_TRAIN_SCORE,
+  MAZE_TRAINING_WORLDS,
+  mazeTrainingRoutes,
+} from './mazeTraining'
+import { CAR2_PARAMS, CAR_BODY, CAR_SIZE, CAR_START_Y, POLICY_GROUND } from './episode'
+import { NOSE_M, STAGE_NET } from './policy'
+import { SCHLAU_STAGE_BODY, SCHLAU_STAGE_HEAD, SCHLAU_STAGE_ID, SCHLAU_STAGE_PRIORITY, hiddenOfSchlau, N_IN_SCHLAU } from './schlauPolicy'
+import { SCHLAU_GOAL_Y, SCHLAU_SCORE_STAGE_CODE, type SchlauTrainingCandidate } from './schlauTraining'
+
+/** One schlau maze world: mirrors the maze training world of the same index (seed = the maze's seed). */
+export interface SchlauMazeWorldSpec {
+  id: string
+  name: string
+  seed: number
+}
+
+/**
+ * The ten schlau maze worlds — one per maze training world (maze_train_1..10), same seeds: the maze geometry,
+ * the routes and the tapered guidance chains are IDENTICAL to the v3 worlds (mazeTrainingRoutes is deterministic
+ * in the seed and shared), so a schlau score on schlau_maze_n measures the same task the v3 policy runs on
+ * maze_train_n.
+ */
+export const SCHLAU_MAZE_WORLDS: SchlauMazeWorldSpec[] = MAZE_TRAINING_WORLDS.map((maze, i) => ({
+  id: `schlau_maze_${i + 1}`,
+  name: `Schlau Maze ${i + 1}`,
+  seed: maze.seed,
+}))
+
+/** true when the schlau maze specs mirror the maze training specs 1:1 (same order, same seeds) — the parity contract. */
+export function schlauMazeWorldSpecsEqualMazeTrain(): boolean {
+  return (
+    SCHLAU_MAZE_WORLDS.length === MAZE_TRAINING_WORLDS.length &&
+    SCHLAU_MAZE_WORLDS.every((s, i) => s.seed === MAZE_TRAINING_WORLDS[i]!.seed)
+  )
+}
+
+// --- waypoint-sequential goal feed (the maze bridge of the schlau drive stage) --------------------------------------------
+
+/**
+ * Waypoint advance reach (m): when the car NOSE comes this close to the CURRENT goal waypoint, the goal advances
+ * to the next one. Below the maze finish reach (8 m — the score stage's freeze) so a waypoint is genuinely
+ * approached before it counts as reached, above the chain's start spacing jitter.
+ */
+export const SCHLAU_MAZE_WAYPOINT_REACH_M = 6
+/**
+ * Waypoint arc-pass margin (m): the goal also advances when the nose's chain projection passes the current
+ * waypoint by this margin — a wide overshoot (missing the reach circle at speed) never parks the goal behind
+ * the car. The projection is local (±3 segments of the last one) and monotone (a high-water, like the score).
+ */
+export const SCHLAU_MAZE_WAYPOINT_PASS_M = 2
+
+/** The single goal assignment of the original schlau stage body — the one line the maze bridge replaces. */
+const SCHLAU_MAZE_GOAL_MARKER = 'var g = params.goal || [pos[0], pos[2]]'
+
+/** The waypoint-sequential goal block: walks params.chain, feeds the head ONE goal (the next waypoint). */
+const SCHLAU_MAZE_WAYPOINT_GOAL_JS = `var g
+  // MAZE BRIDGE — waypoint-sequential goal feed (user decision 2026-10-23): the head gets ONE goal, the NEXT
+  // waypoint of params.chain; state.wpc walks the chain — the goal advances when the car NOSE comes within
+  // ${SCHLAU_MAZE_WAYPOINT_REACH_M} m of the current waypoint or when the nose arc projection passes it by
+  // ${SCHLAU_MAZE_WAYPOINT_PASS_M} m (a wide overshoot never parks the goal behind the car); the LAST waypoint
+  // (the chain end = the finish) never advances. Without params.chain the stage keeps the static params.goal feed.
+  if (params.chain && params.chain.length > 1) {
+    if (!state.wpc) {
+      var wcum = [0]
+      for (var wq = 1; wq < params.chain.length; wq++) wcum.push(wcum[wq - 1] + Math.hypot(params.chain[wq][0] - params.chain[wq - 1][0], params.chain[wq][1] - params.chain[wq - 1][1]))
+      state.wpc = { ch: params.chain, cum: wcum, wp: 1, seg: 0, s: 0 }
+    }
+    var wS = state.wpc
+    var wpx = pos[0] + fwd[0] * ${NOSE_M}, wpz = pos[2] + fwd[2] * ${NOSE_M}
+    while (wS.wp < wS.ch.length - 1 && Math.hypot(wpx - wS.ch[wS.wp][0], wpz - wS.ch[wS.wp][1]) < ${SCHLAU_MAZE_WAYPOINT_REACH_M}) wS.wp++
+    var wbD = Infinity, wbS = wS.s, wbSeg = wS.seg
+    for (var wi = Math.max(0, wS.seg - 2); wi <= Math.min(wS.ch.length - 2, wS.seg + 3); wi++) {
+      var wax = wS.ch[wi][0], waz = wS.ch[wi][1]
+      var wdx = wS.ch[wi + 1][0] - wax, wdz = wS.ch[wi + 1][1] - waz
+      var wlen2 = wdx * wdx + wdz * wdz || 1
+      var wu = Math.max(0, Math.min(1, ((wpx - wax) * wdx + (wpz - waz) * wdz) / wlen2))
+      var wd = Math.hypot(wpx - (wax + wu * wdx), wpz - (waz + wu * wdz))
+      if (wd < wbD) { wbD = wd; wbS = wS.cum[wi] + wu * Math.sqrt(wlen2); wbSeg = wi }
+    }
+    wS.seg = wbSeg
+    if (wbS > wS.s) wS.s = wbS
+    while (wS.wp < wS.ch.length - 1 && wS.s > wS.cum[wS.wp] + ${SCHLAU_MAZE_WAYPOINT_PASS_M}) wS.wp++
+    g = wS.ch[wS.wp]
+  } else {
+    g = params.goal || [pos[0], pos[2]]
+  }`
+
+/**
+ * The maze schlau stage BODY: the shared schlau body with ONLY the goal assignment replaced by the
+ * waypoint-sequential block — rays, movement memory, drawn trail and net stay byte-identical by construction
+ * (the splice is positional; a changed schlau body without the marker fails loudly instead of drifting silently).
+ */
+export const SCHLAU_MAZE_STAGE_BODY: string = (() => {
+  const at = SCHLAU_STAGE_BODY.indexOf(SCHLAU_MAZE_GOAL_MARKER)
+  if (at < 0 || SCHLAU_STAGE_BODY.indexOf(SCHLAU_MAZE_GOAL_MARKER, at + 1) >= 0) {
+    throw new Error('schlauMaze: the schlau stage body no longer carries exactly one static-goal assignment — update the maze bridge splice')
+  }
+  return SCHLAU_STAGE_BODY.slice(0, at) + SCHLAU_MAZE_WAYPOINT_GOAL_JS + SCHLAU_STAGE_BODY.slice(at + SCHLAU_MAZE_GOAL_MARKER.length)
+})()
+
+/** Stage code of the maze schlau drive stage (same head + net as the schlau stage; only the goal feed differs). */
+export const SCHLAU_MAZE_STAGE_CODE = SCHLAU_STAGE_HEAD + SCHLAU_MAZE_STAGE_BODY + STAGE_NET
+
+/** Drive stage id of maze copy i (the `schlau_drive` namespace: applySchlauCandidate swaps params.w of these). */
+export const schlauMazeDriveStageId = (i: number) => `${SCHLAU_STAGE_ID}_${i}`
+/** Car2 actuator id of maze copy i. */
+export const schlauMazeActuatorId = (i: number) => `schlau_car_${i}`
+/** Score stage id of maze copy i. */
+export const schlauMazeScoreStageId = (i: number) => `schlau_maze_score_${i}`
+/** Car entity id of maze copy i. */
+export const schlauMazeCarId = (i: number) => `schlau_maze_car_${i}`
+/** Goal slab entity id of maze copy i. */
+export const schlauMazeGoalId = (i: number) => `schlau_maze_goal_${i}`
+/** Prefix of the goal slabs (the headless scorer locates them by this prefix). */
+export const SCHLAU_MAZE_GOAL_PREFIX = 'schlau_maze_goal_'
+
+/** Transformer config of the maze schlau drive stage (params: w, chain, gain). */
+export function schlauMazeDriveStage(params: Record<string, unknown>): Record<string, unknown> {
+  return { type: 'custom', priority: SCHLAU_STAGE_PRIORITY, enabled: true, name: 'Schlau maze drive', code: SCHLAU_MAZE_STAGE_CODE, params }
+}
+
+// --- world builder -------------------------------------------------------------------------------------------------------
+
+/**
+ * One playable schlau maze world: the maze geometry + routes + tapered chains of the maze training world of the
+ * same seed (one copy per route at x = i * MAZE_TRAIN_ROUTES.spacingM), every copy driven by a schlau car on its
+ * own chain through the waypoint-sequential goal feed, plus the shared schlau score stage per car (car 0 writes
+ * the HUD score and draws). The genome is handed in (the browser bundle must not read genomes from disk).
+ * Throws on an empty / non-schlau-shaped genome (hiddenOfSchlau; a v3 genome has the SAME length — never bake one).
+ */
+export function buildSchlauMazeWorld(spec: SchlauMazeWorldSpec, genome: number[]): RennWorld {
+  if (!genome || hiddenOfSchlau(genome.length) === 0) {
+    throw new Error(`buildSchlauMazeWorld: pass a schlau genome (29 H + 2, ${N_IN_SCHLAU} inputs) — got ${genome ? `${genome.length} numbers` : 'none'}`)
+  }
+  const { course, routes, chains } = mazeTrainingRoutes(spec as Parameters<typeof mazeTrainingRoutes>[0])
+  const spacing = MAZE_TRAIN_ROUTES.spacingM
+  const carIds = routes.map((_, i) => schlauMazeCarId(i))
+  const chainsShifted: V2[][] = chains.map((ch, i) => ch.map((p) => [p[0] + i * spacing, p[1]] as V2))
+  const wallsShifted: V2[][][] = routes.map((_, i) =>
+    course.boxes.map((b) => {
+      const poly = rectPoly(b.at[0] + i * spacing, b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])
+      return poly.map((p) => [Math.round(p[0] * 1000) / 1000, Math.round(p[1] * 1000) / 1000] as V2)
+    }),
+  )
+  const chainColors = routes.map((r) =>
+    r.reversed ? [MAZE_TRAIN_CHAIN_COLORS_REVERSED.start, MAZE_TRAIN_CHAIN_COLORS_REVERSED.end] : [MAZE_TRAIN_CHAIN_COLORS.start, MAZE_TRAIN_CHAIN_COLORS.end],
+  )
+  const rad = (deg: number) => (deg * Math.PI) / 180
+  const boxH = 6
+  const entities: unknown[] = [POLICY_GROUND]
+  const transformers: Record<string, unknown> = {}
+  routes.forEach((route, i) => {
+    entities.push({
+      id: schlauMazeCarId(i),
+      name: `Schlau maze car ${i}`,
+      bodyType: 'dynamic',
+      shape: { type: 'box', width: CAR_SIZE[0], height: 1, depth: CAR_SIZE[1] },
+      position: [route.startAt[0] + i * spacing, CAR_START_Y, route.startAt[1]],
+      rotation: [0, rad(route.startYawDeg), 0],
+      ...CAR_BODY,
+      transformers: [schlauMazeDriveStageId(i), schlauMazeActuatorId(i), schlauMazeScoreStageId(i)],
+    })
+    course.boxes.forEach((b, j) => {
+      entities.push({
+        id: `box_${j}_${i}`,
+        name: `Box ${j}_${i}`,
+        bodyType: 'static',
+        shape: { type: 'box', width: b.size[0], height: boxH, depth: b.size[1] },
+        position: [b.at[0] + i * spacing, boxH / 2, b.at[1]],
+        rotation: [0, rad(b.yawDeg), 0],
+        friction: 0.5,
+      })
+    })
+    const end = route.route[route.route.length - 1]!
+    entities.push({
+      id: schlauMazeGoalId(i),
+      name: `Schlau maze goal ${i}`,
+      bodyType: 'static',
+      shape: { type: 'box', width: 4, height: 0.3, depth: 4 },
+      position: [end[0] + i * spacing, SCHLAU_GOAL_Y, end[1]],
+      rotation: [0, 0, 0],
+      material: { color: [0.15, 0.9, 0.3] },
+    })
+    transformers[schlauMazeDriveStageId(i)] = schlauMazeDriveStage({
+      w: genome,
+      chain: chainsShifted[i]!,
+      gain: CAR2_PARAMS.power / CAR_BODY.mass,
+    })
+    transformers[schlauMazeActuatorId(i)] = { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS }
+    transformers[schlauMazeScoreStageId(i)] = {
+      type: 'custom',
+      priority: 6,
+      enabled: true,
+      name: 'Schlau maze score',
+      code: SCHLAU_SCORE_STAGE_CODE,
+      params: {
+        chain: chainsShifted[i]!,
+        chains: chainsShifted,
+        walls: wallsShifted[i]!,
+        chainColors,
+        cars: carIds,
+        idx: i,
+        hud: i === 0,
+        vRef: MAZE_TRAIN_SCORE.vRef,
+        bonusRate: MAZE_TRAIN_SCORE.bonusRate,
+        wallPenaltyPerS: MAZE_TRAIN_SCORE.wallPenaltyPerS,
+        objectPenaltyPerS: MAZE_TRAIN_SCORE.objectPenaltyPerS,
+      },
+    }
+  })
+  return {
+    version: '1.0',
+    world: {
+      gravity: [0, -100, 0],
+      distanceCulling: false,
+      ambientLight: [0.45, 0.45, 0.5],
+      directionalLight: { direction: [1, 2, 1], color: [1, 0.98, 0.9], intensity: 1.2 },
+      skyColor: [0.35, 0.5, 0.75],
+      camera: { control: 'follow', mode: 'thirdPerson', target: carIds[0]!, distance: 35, height: 22, cameraTargetLag: 120, cameraPositionLag: 180 },
+      debugTargetLineEntityId: carIds[0]!,
+    },
+    transformers,
+    entities,
+    scripts: {},
+    groups: [],
+  } as unknown as RennWorld
+}
+
+// --- meta ----------------------------------------------------------------------------------------------------------------
+
+/** meta.json of one schlau maze world (documentation next to world.json; the File menu needs no meta). */
+export function schlauMazeMeta(
+  spec: SchlauMazeWorldSpec,
+  bestScore: number | null,
+  candidate: SchlauTrainingCandidate,
+): {
+  id: string
+  seed: number
+  name: string
+  candidate: SchlauTrainingCandidate
+  bestScore: number | null
+  chain: { points: number; lengthM: number }
+  routes: { forward: number; reversed: number }
+} {
+  const { routes, chains } = mazeTrainingRoutes(spec as Parameters<typeof mazeTrainingRoutes>[0])
+  const primary = chains[0]!
+  let lengthM = 0
+  for (let i = 1; i < primary.length; i++) lengthM += Math.hypot(primary[i]![0] - primary[i - 1]![0], primary[i]![1] - primary[i - 1]![1])
+  return {
+    id: spec.id,
+    seed: spec.seed,
+    name: spec.name,
+    candidate,
+    bestScore,
+    chain: { points: primary.length, lengthM: Math.round(lengthM * 10) / 10 },
+    routes: { forward: routes.filter((r) => !r.reversed).length, reversed: routes.filter((r) => r.reversed).length },
+  }
+}
