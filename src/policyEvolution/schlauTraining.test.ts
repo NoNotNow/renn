@@ -34,11 +34,16 @@ const noseOf = (task: SchlauTask): V2 => {
 const registry = (w: RennWorld) => (w.transformers ?? {}) as Record<string, { params?: Record<string, unknown> }>
 
 describe('SCHLAU_TRAINING_WORLDS: the registry', () => {
-  it('six worlds: ids schlau_1..6, all six goal_box (user decision 2026-10-23), unique seeds', () => {
-    expect(SCHLAU_TRAINING_WORLDS.map((s) => s.id)).toEqual(['schlau_1', 'schlau_2', 'schlau_3', 'schlau_4', 'schlau_5', 'schlau_6'])
-    expect(SCHLAU_TRAINING_WORLDS.every((s) => s.kind === 'goal_box')).toBe(true)
-    expect(new Set(SCHLAU_TRAINING_WORLDS.map((s) => s.seed)).size).toBe(6)
+  it('sixteen worlds: ids schlau_1..16, unique (kind, seed) tasks, the ramp tiers + goal_wall demos (user note 2026-10-23 ~03:00)', () => {
+    expect(SCHLAU_TRAINING_WORLDS.map((s) => s.id)).toEqual(Array.from({ length: 16 }, (_, i) => `schlau_${i + 1}`))
+    // unique TASKS (the same seed number may back a goal_box and a goal_wall demo — different tasks)
+    expect(new Set(SCHLAU_TRAINING_WORLDS.map((s) => `${s.kind}:${s.seed}`)).size).toBe(16)
     for (const spec of SCHLAU_TRAINING_WORLDS) expect(spec.name.length).toBeGreaterThan(0)
+    // the original six hard-tier goal_box worlds stay first (seeds 3001-3006, never trained-on / holdout)
+    expect(SCHLAU_TRAINING_WORLDS.slice(0, 6).every((s) => s.kind === 'goal_box' && s.seed >= 3001 && s.seed <= 3006)).toBe(true)
+    // the ramp tiers: goal_box easy -> hard over train-band seeds, goal_wall demos easy -> blockade
+    expect(SCHLAU_TRAINING_WORLDS.filter((s) => s.kind === 'goal_box' && s.seed <= 16).map((s) => s.seed)).toEqual([2, 4, 7, 11, 14, 16])
+    expect(SCHLAU_TRAINING_WORLDS.filter((s) => s.kind === 'goal_wall').map((s) => s.seed)).toEqual([2, 9, 16, 3001])
   })
 
   it('SCHLAU_SCORE pins the touch penalties (user decision 2026-10-23: wall 30, object 15 pts/s)', () => {
@@ -62,7 +67,7 @@ describe('SCHLAU_TRAINING_WORLDS: the registry', () => {
 })
 
 describe('schlauTrainingSetup: task + geodesic nose -> goal path + wall polys', () => {
-  it('over all six worlds: a path from the start nose to the goal that keeps the car width off every box', () => {
+  it('over all sixteen worlds: a path from the start nose to the goal that keeps the car width off every box', () => {
     for (const spec of SCHLAU_TRAINING_WORLDS) {
       const { task, path, walls } = schlauTrainingSetup(spec)
       expect(path.length).toBeGreaterThan(1)
@@ -77,12 +82,12 @@ describe('schlauTrainingSetup: task + geodesic nose -> goal path + wall polys', 
         const poly = rectPoly(b.at[0], b.at[1], (b.yawDeg * Math.PI) / 180, b.size[0], b.size[1])
         for (const [x, z] of path) expect(pointPolyGap(x, z, poly)).toBeGreaterThanOrEqual(SCHLAU_INFLATE_M - 0.5)
       }
-      // all training worlds are goal_box (user decision 2026-10-23): every task has boxes
-      // and the direct start -> goal line crosses at least one of them (the generator's wall).
+      // every world's kind guarantees boxes AND the direct start -> goal line crossing at least one of them
+      // (goal_box: the crossing wall; goal_wall: the sealed gate layers).
       expect(task.boxes.length).toBeGreaterThanOrEqual(1)
       expect(schlauLineCrosses(task.boxes, task.start, task.goal)).toBe(true)
     }
-  })
+  }, 30000)
 })
 
 describe('buildSchlauTrainingWorld: one task per world', () => {
@@ -127,7 +132,7 @@ describe('buildSchlauTrainingWorld: one task per world', () => {
       expect(world.world.camera?.target).toBe(schlauCarId(0))
       expect(world.world.debugTargetLineEntityId).toBe(schlauCarId(0))
     }
-  })
+  }, 30000)
 
   it('throws on an empty / non-schlau genome', () => {
     const spec = SCHLAU_TRAINING_WORLDS[0]!

@@ -1,0 +1,84 @@
+{
+  "id": "schlau_10",
+  "seed": 11,
+  "name": "Schlau box medium 2",
+  "kind": "goal_box",
+  "candidate": {
+    "policy": "schlau",
+    "label": "schlau (untrained placeholder)",
+    "gen": null,
+    "source": "placeholder"
+  },
+  "bestScore": null,
+  "chain": {
+    "points": 14,
+    "lengthM": 73.7
+  },
+  "tileSvg": {
+    "w": 220,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            154.4,
+            157.6
+          ],
+          [
+            140.6,
+            154.4
+          ],
+          [
+            126.9,
+            151.2
+          ],
+          [
+            113.2,
+            147.9
+          ],
+          [
+            99.5,
+            144.7
+          ],
+          [
+            98.6,
+            144.7
+          ],
+          [
+            93.1,
+            144.8
+          ],
+          [
+            91.7,
+            145.2
+          ],
+          [
+            90.3,
+            145.9
+          ],
+          [
+            89.1,
+            146.8
+          ],
+          [
+            79.6,
+            155.5
+          ],
+          [
+            70.1,
+            164.3
+          ],
+          [
+            60.6,
+            173
+          ],
+          [
+            51.1,
+            181.8
+          ]
+        ],
+        "score": null
+      }
+    ]
+  }
+}

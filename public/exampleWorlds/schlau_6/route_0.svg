@@ -4,11 +4,11 @@
 <rect x="10" y="10" width="200" height="3.2" fill="#444a55"/>
 <rect x="206.8" y="10" width="3.2" height="200" fill="#444a55"/>
 <rect x="10" y="10" width="3.2" height="200" fill="#444a55"/>
-<rect x="75" y="125.9" width="20.1" height="6.5" fill="#444a55"/>
+<rect x="59.7" y="125.9" width="50.7" height="6.5" fill="#444a55"/>
 <rect x="150" y="167.5" width="12.4" height="16.9" fill="#444a55"/>
 <rect x="146.2" y="35.4" width="19.1" height="13" fill="#444a55"/>
 <rect x="116.7" y="161.8" width="10.7" height="13.7" fill="#444a55"/>
-<polyline points="120.5,85 108.4,95.5 96.3,106 84.2,116.5 72.2,127 71.5,127.8 68.9,131.8 68.6,132.3 62.3,145.8 56,159.2" fill="none" stroke="#44aaff" stroke-width="1.5" stroke-opacity="0.9"/>
+<polyline points="120.5,85 110.8,93.1 101.1,101.1 91.5,109.2 81.8,117.3 81.5,117.5 73.9,125.2 66.3,132.8 58.7,140.5 58,141.7 57.6,143 57.3,144.4 56,159.2" fill="none" stroke="#44aaff" stroke-width="1.5" stroke-opacity="0.9"/>
 <circle cx="120.5" cy="85" r="5" fill="#44ff77"/>
 <circle cx="56" cy="159.2" r="5" fill="#ff4444"/>
 </svg>

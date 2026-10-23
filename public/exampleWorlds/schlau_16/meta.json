@@ -1,0 +1,76 @@
+{
+  "id": "schlau_16",
+  "seed": 3001,
+  "name": "Schlau wall blockade",
+  "kind": "goal_wall",
+  "candidate": {
+    "policy": "schlau",
+    "label": "schlau (untrained placeholder)",
+    "gen": null,
+    "source": "placeholder"
+  },
+  "bestScore": null,
+  "chain": {
+    "points": 12,
+    "lengthM": 63.6
+  },
+  "tileSvg": {
+    "w": 220,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            97.9,
+            133.4
+          ],
+          [
+            105.9,
+            123.7
+          ],
+          [
+            113.9,
+            114
+          ],
+          [
+            121.9,
+            104.3
+          ],
+          [
+            122.1,
+            102.9
+          ],
+          [
+            122.1,
+            94.7
+          ],
+          [
+            117.3,
+            91.4
+          ],
+          [
+            117,
+            91.2
+          ],
+          [
+            107.4,
+            83.6
+          ],
+          [
+            97.8,
+            76
+          ],
+          [
+            88.2,
+            68.4
+          ],
+          [
+            78.5,
+            60.8
+          ]
+        ],
+        "score": null
+      }
+    ]
+  }
+}

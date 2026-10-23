@@ -60,13 +60,162 @@ const carrotLoopJs = (color: string) => `    for (var k3 = 0; k3 < params.cars.l
     }`
 
 /**
+ * The LIVE-ROUTE drawing (schlau ONLY, `liveRoute = true`, user note 2026-10-23 ~02:55: "the drawn route looks
+ * predetermined"): the geodesic route is REDRAWN from the car's CURRENT nose — at most every 0.5 s of stage time
+ * or after a 2 m nose move — instead of the once-baked spawn -> goal polyline. VISUAL ONLY: `params.chain`
+ * stays the SCORE basis (monotone progress, LOS gate, finish freeze — the scorer itself is position-live via
+ * the distance field, alternative routes are fully rewarded). The static parts (walls + goal) are preprocessed
+ * ONCE into a 1 m grid with 2.5 m wall inflation + a BFS distance field from the goal cell; a redraw walks the
+ * field downhill from the nose (O(path)) and string-pulls with the rect LOS helper. A blocked/unreachable nose
+ * keeps the LAST drawn route (no flicker); at spawn the live route equals the old baked one. maze / crux never
+ * pass the flag — their stage code stays byte-identical (pinned by trainingScoreStage.test.ts).
+ */
+
+/** the live-route helpers (emitted ONLY for `liveRoute`): the point -> convex-poly distance (0 inside). */
+const LIVE_ROUTE_HELPERS_JS = `function lrPolyDist(px, pz, poly) {
+  var pos = false, neg = false, best = Infinity
+  for (var i = 0; i < poly.length; i++) {
+    var a = poly[i], b = poly[(i + 1) % poly.length]
+    var ex = b[0] - a[0], ez = b[1] - a[1]
+    var cr = (px - a[0]) * ez - (pz - a[1]) * ex
+    if (cr > 0) pos = true
+    else if (cr < 0) neg = true
+    var t = ((px - a[0]) * ex + (pz - a[1]) * ez) / (ex * ex + ez * ez || 1)
+    t = t < 0 ? 0 : t > 1 ? 1 : t
+    var dx = px - (a[0] + ex * t), dz = pz - (a[1] + ez * t)
+    var d = Math.sqrt(dx * dx + dz * dz)
+    if (d < best) best = d
+  }
+  return pos && neg ? best : 0
+}
+function lrInit(params) {
+  var walls = params.walls || []
+  var ch = params.chain
+  var g = ch[ch.length - 1]
+  var minX = g[0] - 24, maxX = g[0] + 24, minZ = g[1] - 24, maxZ = g[1] + 24
+  for (var w = 0; w < walls.length; w++)
+    for (var p = 0; p < walls[w].length; p++) {
+      var x = walls[w][p][0], z = walls[w][p][1]
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (z < minZ) minZ = z
+      if (z > maxZ) maxZ = z
+    }
+  minX = Math.floor(minX) - 2
+  minZ = Math.floor(minZ) - 2
+  maxX = Math.ceil(maxX) + 2
+  maxZ = Math.ceil(maxZ) + 2
+  var nx = maxX - minX + 1, nz = maxZ - minZ + 1
+  var blocked = new Uint8Array(nx * nz)
+  var dist = new Int32Array(nx * nz)
+  for (var i = 0; i < dist.length; i++) dist[i] = -1
+  for (var wi = 0; wi < walls.length; wi++) {
+    var poly = walls[wi]
+    var bx0 = Infinity, bx1 = -Infinity, bz0 = Infinity, bz1 = -Infinity
+    for (var pi = 0; pi < poly.length; pi++) {
+      if (poly[pi][0] < bx0) bx0 = poly[pi][0]
+      if (poly[pi][0] > bx1) bx1 = poly[pi][0]
+      if (poly[pi][1] < bz0) bz0 = poly[pi][1]
+      if (poly[pi][1] > bz1) bz1 = poly[pi][1]
+    }
+    for (var cz = Math.max(minZ, Math.floor(bz0 - 2.5)); cz <= Math.min(maxZ, Math.ceil(bz1 + 2.5)); cz++)
+      for (var cx = Math.max(minX, Math.floor(bx0 - 2.5)); cx <= Math.min(maxX, Math.ceil(bx1 + 2.5)); cx++)
+        if (lrPolyDist(cx, cz, poly) <= 2.5) blocked[(cz - minZ) * nx + (cx - minX)] = 1
+  }
+  var gx = Math.round(g[0]) - minX, gz = Math.round(g[1]) - minZ
+  var start = gz * nx + gx
+  if (!blocked[start]) {
+    var q = [start]
+    dist[start] = 0
+    for (var qi = 0; qi < q.length; qi++) {
+      var c = q[qi]
+      var d = dist[c] + 1
+      var bx = c % nx, bz = (c - bx) / nx
+      if (bx > 0 && !blocked[c - 1] && dist[c - 1] < 0) { dist[c - 1] = d; q.push(c - 1) }
+      if (bx < nx - 1 && !blocked[c + 1] && dist[c + 1] < 0) { dist[c + 1] = d; q.push(c + 1) }
+      if (bz > 0 && !blocked[c - nx] && dist[c - nx] < 0) { dist[c - nx] = d; q.push(c - nx) }
+      if (bz < nz - 1 && !blocked[c + nx] && dist[c + nx] < 0) { dist[c + nx] = d; q.push(c + nx) }
+    }
+  }
+  return { minX: minX, minZ: minZ, nx: nx, nz: nz, blocked: blocked, dist: dist, goal: [g[0], g[1]] }
+}
+function lrWalk(lr, x, z, los) {
+  var cx = Math.round(x) - lr.minX, cz = Math.round(z) - lr.minZ
+  if (cx < 0 || cz < 0 || cx >= lr.nx || cz >= lr.nz) return null
+  var c = cz * lr.nx + cx
+  if (lr.blocked[c] || lr.dist[c] < 0) return null
+  var pts = [[x, z]]
+  var guard = 0
+  while (lr.dist[c] > 0 && guard++ < 10000) {
+    var bx = c % lr.nx, bz = (c - bx) / lr.nx
+    var best = -1, bd = lr.dist[c]
+    if (bx > 0 && lr.dist[c - 1] >= 0 && lr.dist[c - 1] < bd) { best = c - 1; bd = lr.dist[c - 1] }
+    if (bx < lr.nx - 1 && lr.dist[c + 1] >= 0 && lr.dist[c + 1] < bd) { best = c + 1; bd = lr.dist[c + 1] }
+    if (bz > 0 && lr.dist[c - lr.nx] >= 0 && lr.dist[c - lr.nx] < bd) { best = c - lr.nx; bd = lr.dist[c - lr.nx] }
+    if (bz < lr.nz - 1 && lr.dist[c + lr.nx] >= 0 && lr.dist[c + lr.nx] < bd) { best = c + lr.nx; bd = lr.dist[c + lr.nx] }
+    if (best < 0) return null
+    c = best
+    var bx2 = c % lr.nx, bz2 = (c - bx2) / lr.nx
+    pts.push([bx2 + lr.minX, bz2 + lr.minZ])
+  }
+  pts.push(lr.goal)
+  // WINDOWED string-pull (max ~8 cells per skip): an unbounded pull collapses the route into 2-3 long
+  // straight corridor-cutters that read as wrong (user bug report 2026-10-23) — the window keeps the
+  // polyline close to the 2.5 m-cleared BFS path (a smooth corridor line like the baked geodesic, but live)
+  var out = [pts[0]]
+  var i = 0
+  while (i < pts.length - 1) {
+    var j = Math.min(i + 8, pts.length - 1)
+    for (; j > i + 1; j--) if (!losBlocked(los, pts[i][0], pts[i][1], pts[j][0], pts[j][1])) break
+    out.push(pts[j])
+    i = j
+  }
+  return out
+}`
+
+/** the live-route DRAW inside the hud block (emitted ONLY for `liveRoute`; replaces the baked chain loop). */
+const LIVE_ROUTE_DRAW_JS = `    // LIVE route (schlau only): redrawn from the car's CURRENT nose — every >= 0.5 s of stage time or after a
+    // 2 m nose move; a blocked / unreachable nose keeps the last drawn route (no flicker). VISUAL ONLY: the
+    // score keeps running on params.chain (the baked geodesic), the drawing shows where the car can still go.
+    if (state.t - state.lrT >= 0.5 || Math.hypot(px - state.lrNose[0], pz - state.lrNose[1]) > 2) {
+      var lrPts = lrWalk(state.lr, px, pz, state.los)
+      if (lrPts) {
+        state.lrPts = lrPts
+        state.lrT = state.t
+        state.lrNose = [px, pz]
+      }
+      // a blocked / null walk keeps the last drawn route (no flicker)
+    }
+    // re-anchor the drawn route at the CURRENT nose every frame (between the throttled recomputes the car
+    // keeps moving — a detached route start reads as wrongly displayed)
+    if (state.lrPts) state.lrPts[0] = [px, pz]
+    if (state.lrPts && state.lrPts.length > 1) {
+      var colL = params.chainColors[params.idx] || ['#44ff77', '#ffaa44']
+      for (var s4 = 0; s4 < state.lrPts.length - 1; s4++)
+        api.visualizeLine([state.lrPts[s4][0], 0.35, state.lrPts[s4][1]], [state.lrPts[s4 + 1][0], 0.35, state.lrPts[s4 + 1][1]], hexLerp(colL[0], colL[1], state.lrPts.length > 2 ? s4 / (state.lrPts.length - 2) : 0))
+    }`
+
+/**
+ * The baked chain drawing (maze / crux keep it; the schlau live route replaces it). Extracted verbatim — the
+ * false-branch output must stay byte-identical (hash-pinned by trainingScoreStage.test.ts).
+ */
+const CHAIN_DRAW_JS = `    for (var k2 = 0; k2 < params.chains.length; k2++) {
+      var chK = params.chains[k2], colK = params.chainColors[k2] || ['#44ff77', '#ffaa44']
+      for (var s3 = 0; s3 < chK.length - 1; s3++) {
+        api.visualizeLine([chK[s3][0], 0.35, chK[s3][1]], [chK[s3 + 1][0], 0.35, chK[s3 + 1][1]], hexLerp(colK[0], colK[1], chK.length > 2 ? s3 / (chK.length - 2) : 0))
+      }
+    }`
+
+/**
  * The score-stage transformer code. `prefix` only names the watch labels (maze.score / crux.score ...);
  * `goalReachM` is the goal-reach radius that freezes the score at the finish, `carrotColor` the drawn carrot line —
- * an EMPTY string draws no carrot (see the header note).
+ * an EMPTY string draws no carrot (see the header note). `liveRoute` (schlau only) replaces the baked route
+ * drawing with the LIVE nose -> goal route (see LIVE_ROUTE_*, above) — the flag is OFF for maze / crux, whose
+ * stage code stays byte-identical.
  */
-export function trainingScoreStageCode(prefix: string, goalReachM: number, carrotColor: string): string {
+export function trainingScoreStageCode(prefix: string, goalReachM: number, carrotColor: string, liveRoute = false): string {
   return `${WALL_LOS_JS}
-function transform(input, dt, params, state, api) {
+${liveRoute ? LIVE_ROUTE_HELPERS_JS + '\n' : ''}function transform(input, dt, params, state, api) {
   if (state.t === undefined) state.t = 0
   state.t += dt
   var env = input.environment
@@ -89,7 +238,12 @@ function transform(input, dt, params, state, api) {
     state.best = 0
     // line-of-sight gate cache: the own copy's wall rects, preprocessed with bounding circles (empty = ungated)
     state.los = losWallsInit(params.walls || [])
-  }
+${liveRoute ? `    // the live-route preprocessing: static (walls + goal) — the 1 m grid + the BFS field, computed ONCE
+    state.lr = lrInit(params)
+    state.lrT = -1
+    state.lrNose = [px, pz]
+    state.lrPts = null
+` : ''}  }
   var total = state.cum[n - 1]
   var up = api.getUpVector(input.rotation)
   var fwd = api.vec.normalize(api.vec.projectOntoPlane(api.getForwardVector(input.rotation), up))
@@ -172,12 +326,7 @@ function transform(input, dt, params, state, api) {
       }
     }
 ${carrotColor ? chainPointJs : ''}
-    for (var k2 = 0; k2 < params.chains.length; k2++) {
-      var chK = params.chains[k2], colK = params.chainColors[k2] || ['#44ff77', '#ffaa44']
-      for (var s3 = 0; s3 < chK.length - 1; s3++) {
-        api.visualizeLine([chK[s3][0], 0.35, chK[s3][1]], [chK[s3 + 1][0], 0.35, chK[s3 + 1][1]], hexLerp(colK[0], colK[1], chK.length > 2 ? s3 / (chK.length - 2) : 0))
-      }
-    }
+${liveRoute ? LIVE_ROUTE_DRAW_JS : CHAIN_DRAW_JS}
 ${carrotColor ? carrotLoopJs(carrotColor) : ''}
   }
   return {}

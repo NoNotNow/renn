@@ -176,14 +176,19 @@ describe('schlauScore: the geodesic distance field + shortest path', () => {
       for (let i = 1; i < res!.pts.length; i++)
         expect(Math.hypot(res!.pts[i]![0] - res!.pts[i - 1]![0], res!.pts[i]![1] - res!.pts[i - 1]![1]), `seed ${seed}`).toBeLessThanOrEqual(10 + 1e-9)
       const min = minClearance(res!.pts, polys)
+      // the polyline FILLET rounds corners with <= 1 m chords on a 5 m radius — a chord undercuts the true
+      // arc by its sagitta (<= c^2 / 8r = 0.025 m), so the measured polyline clearance can sit up to ~2.5 cm
+      // inside the exact-LOS clearance (seen live: seed 5 of the ramped goal_box band at 3.9944). The
+      // straight segments remain EXACT — this tolerance is the fillet's own documented approximation.
+      const FILLET_SAGITTA_M = 0.03
       if (res!.inflate === SCHLAU_PATH_INFLATE_M) {
         // the primary build: EXACT — every straight segment keeps the full 4 m off every box (no grazing corners)
-        expect(min, `seed ${seed}`).toBeGreaterThanOrEqual(SCHLAU_PATH_INFLATE_M - 1e-6)
+        expect(min, `seed ${seed}`).toBeGreaterThanOrEqual(SCHLAU_PATH_INFLATE_M - FILLET_SAGITTA_M)
       } else {
         // the documented fallback: only allowed when NO 4 m route exists, and it keeps the old 2.5 m floor
         expect(res!.inflate, `seed ${seed}`).toBe(SCHLAU_INFLATE_M)
         expect(routeExistsAt(task.boxes, nose, task.goal, SCHLAU_PATH_INFLATE_M), `seed ${seed}`).toBe(false)
-        expect(min, `seed ${seed}`).toBeGreaterThanOrEqual(SCHLAU_INFLATE_M - 1e-6)
+        expect(min, `seed ${seed}`).toBeGreaterThanOrEqual(SCHLAU_INFLATE_M - FILLET_SAGITTA_M)
         fallbacks++
       }
       // the crossing wall forces a detour: the path deviates >= 4 m off the direct nose -> goal line

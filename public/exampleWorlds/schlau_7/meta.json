@@ -1,0 +1,72 @@
+{
+  "id": "schlau_7",
+  "seed": 2,
+  "name": "Schlau box easy 1",
+  "kind": "goal_box",
+  "candidate": {
+    "policy": "schlau",
+    "label": "schlau (untrained placeholder)",
+    "gen": null,
+    "source": "placeholder"
+  },
+  "bestScore": null,
+  "chain": {
+    "points": 11,
+    "lengthM": 72.6
+  },
+  "tileSvg": {
+    "w": 220,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            110.8,
+            52.7
+          ],
+          [
+            121,
+            64.3
+          ],
+          [
+            131.2,
+            75.8
+          ],
+          [
+            141.4,
+            87.3
+          ],
+          [
+            151.6,
+            98.8
+          ],
+          [
+            161.8,
+            110.3
+          ],
+          [
+            162.5,
+            111.6
+          ],
+          [
+            162.9,
+            112.9
+          ],
+          [
+            165.4,
+            125.1
+          ],
+          [
+            167.9,
+            137.3
+          ],
+          [
+            170.5,
+            149.5
+          ]
+        ],
+        "score": null
+      }
+    ]
+  }
+}

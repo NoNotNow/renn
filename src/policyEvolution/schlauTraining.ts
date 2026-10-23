@@ -36,11 +36,13 @@ export interface SchlauTrainingWorldSpec {
 }
 
 /**
- * The six schlau training worlds: ALL SIX are fenced-arena `goal_box` tasks (user decision 2026-10-23, second
- * revision: only the box mazes make real training sense — the empty `goal_open` ground teaches nothing beyond
- * driving at the goal; the kind stays in the code for the `schlau_open` EXAMPLE world and the episode tests).
- * Seeds 3001-3006 are distinct from every train/holdout task seed (train 1-16, holdout 1001+) so the worlds are
- * neither trained-on nor holdout tasks.
+ * The schlau training worlds (user note 2026-10-23 ~03:00: "only the 6? too few and too easy"): a 16-world
+ * band covering the SEEDED difficulty ramp the model trains on (schlauDifficulty, critique §3/§6) —
+ * goal_box from easy (a 12-13 m crossing wall) through medium to hard (the ~33 m wall / detour-1.3 class),
+ * goal_wall from the wide-gate single layer to the narrow-gate blockade. The six original hard-tier worlds
+ * (Schlau box 1-6, seeds 3001-3006) stay first; seeds 3001-3006 remain distinct from every train/holdout
+ * seed. The tiered worlds DELIBERATELY use train-band seeds (1-16): the point of the dialog band is to show
+ * the variety the model trains on (L1, same note).
  */
 export const SCHLAU_TRAINING_WORLDS: SchlauTrainingWorldSpec[] = [
   { id: 'schlau_1', name: 'Schlau box 1', kind: 'goal_box', seed: 3001 },
@@ -49,6 +51,17 @@ export const SCHLAU_TRAINING_WORLDS: SchlauTrainingWorldSpec[] = [
   { id: 'schlau_4', name: 'Schlau box 4', kind: 'goal_box', seed: 3004 },
   { id: 'schlau_5', name: 'Schlau box 5', kind: 'goal_box', seed: 3005 },
   { id: 'schlau_6', name: 'Schlau box 6', kind: 'goal_box', seed: 3006 },
+  // the ramp tiers (schlauDifficulty: easy -> hard over the 16 train seeds)
+  { id: 'schlau_7', name: 'Schlau box easy 1', kind: 'goal_box', seed: 2 },
+  { id: 'schlau_8', name: 'Schlau box easy 2', kind: 'goal_box', seed: 4 },
+  { id: 'schlau_9', name: 'Schlau box medium 1', kind: 'goal_box', seed: 7 },
+  { id: 'schlau_10', name: 'Schlau box medium 2', kind: 'goal_box', seed: 11 },
+  { id: 'schlau_11', name: 'Schlau box hard 1', kind: 'goal_box', seed: 14 },
+  { id: 'schlau_12', name: 'Schlau box hard 2', kind: 'goal_box', seed: 16 },
+  { id: 'schlau_13', name: 'Schlau wall easy', kind: 'goal_wall', seed: 2 },
+  { id: 'schlau_14', name: 'Schlau wall medium', kind: 'goal_wall', seed: 9 },
+  { id: 'schlau_15', name: 'Schlau wall hard', kind: 'goal_wall', seed: 16 },
+  { id: 'schlau_16', name: 'Schlau wall blockade', kind: 'goal_wall', seed: 3001 },
 ]
 
 /** Transformer id base of the per-task score stage: `<base><task index>` (one task per world: always index 0). */
@@ -86,11 +99,13 @@ export const SCHLAU_SCORE = {
 } as const
 
 /**
- * The shared in-world score stage code (trainingScoreStage.ts) with the 'schlau' watch-label prefix and NO carrot
+ * The shared in-world score stage code (trainingScoreStage.ts) with the 'schlau' watch-label prefix, NO carrot
  * (user decision 2026-10-23: the lookahead vector is gone from the schlau worlds — the drive stage draws ONE lila
- * nose -> goal target line instead; maze / crux keep the carrot, byte-identical).
+ * nose -> goal target line instead; maze / crux keep the carrot, byte-identical) and the LIVE ROUTE on
+ * (user note 2026-10-23 ~02:55: the drawn route is recomputed from the car's CURRENT nose — visual only, the
+ * score keeps running on the baked params.chain; maze / crux never pass the flag, byte-identical).
  */
-export const SCHLAU_SCORE_STAGE_CODE = trainingScoreStageCode('schlau', SCHLAU_GOAL_REACH_M, '')
+export const SCHLAU_SCORE_STAGE_CODE = trainingScoreStageCode('schlau', SCHLAU_GOAL_REACH_M, '', true)
 
 /** The seeded task + the geodesic nose -> goal path + the wall corner polys of one schlau training world. */
 export interface SchlauTrainingSetup {

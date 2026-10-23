@@ -27,6 +27,13 @@
  * generation (default 1), a rotating window over the kind's train keys, rewritten to a start variant per generation
  * (`--no-variants` = canonical starts only).
  *
+ * `--kinds a,b,c` (CREATION only, persisted like speedCap): the run's kind band — validated, deduped, canonical
+ * SCHLAU_KINDS order. Default = the base band `goal_open,goal_box`, so the shared base run never mixes `goal_wall`
+ * into its batch and stays comparable with the dedicated wall runs (Auftrag C: the WF lesson — a 0-finish blockade
+ * kind poisons the weakest-link min fitness, so `goal_wall` trains in DEDICATED runs: `--kinds goal_wall`). A
+ * single-kind band (or any band without `goal_open`) forces the stage curriculum OFF (the stage is a goal_open ->
+ * rest ramp); a plain `--resume` continues the stored kinds and rejects the flag (like --hidden).
+ *
  * `--hidden N` (default 10): hidden units of this run's genomes — small to start, widened later (see the widen-freeze
  * recipe below). `--warm FILE` starts every island centre from a genome file ({ genome } like a shipped policy, or
  * { best: { genome } } of a run file; shape checked with hiddenOfSchlau). `--warm` + `--hidden N` > warm H widens the warm
@@ -40,10 +47,12 @@
  * Options: --gens N (100) --pairs N (antithetic pairs PER island, 8) --workers N (cpus-1)
  *   --out FILE (test-results/policy-evolution/schlau.json) --seed N (1) --islands N (3) --epoch N (25) --mature N (75)
  *   --p-cross P (0.5) --hidden N (10, creation only) --warm FILE --freeze-old --unfreeze --resume
- *   --train-per-kind N (8) --holdout-per-kind N (5) --batch N (1) --no-stage --no-variants
- *   --speed-cap M (creation only, persisted) --sigma --lr --stats-every N (20) --latest-best FILE --latest-stats FILE
+ *   --kinds a,b,c (creation only, default goal_open,goal_box) --train-per-kind N (per-kind default: open 3, box/wall 16) --holdout-per-kind N (8) --batch N (1)
+ *   --no-stage --no-variants --speed-cap M (creation only, persisted) --sigma --lr --stats-every N (20) --latest-best FILE --latest-stats FILE
  *
- * The best mean policy by TRAIN score (checked at every epoch end) is stored as `best.genome`. Agent exports (next to
+ * The best policy by TRAIN FINISH COUNT (the ascending lex train vector as the tie-break, beatsBestSchlau —
+ * checked at every epoch end) is stored as `best.genome` (critique 2026-10-23 §0: the pure lex order stored a
+ * 0-finish creeper over the driving island). Agent exports (next to
  * --out): latest-best.json on every best change + resume (policy: 'schlau', hidden, the genome), and latest-stats.json
  * every --stats-every gens (default 20) + every epoch end + resume (adds the stage share/ema while staging is on).
  */
@@ -54,11 +63,12 @@ import { Worker } from 'node:worker_threads'
 import { createRng } from '@/avEvolution/core/rng'
 import type { PolicyEpisodeMetrics } from '@/policyEvolution/episode'
 import { initialStage, stageBatch, updateStage, type StageConfig, type StageState } from '@/policyEvolution/curriculum'
-import { aggregateKindMin, beatsBest, DEFAULT_ES_CONFIG, episodeValues, type EsConfig, type EvaluateGenome, type FitnessFn, type FitnessVecFn } from '@/policyEvolution/es'
+import { aggregateKindMin, DEFAULT_ES_CONFIG, episodeValues, type EsConfig, type EvaluateGenome, type FitnessFn, type FitnessVecFn } from '@/policyEvolution/es'
 import { DEFAULT_ISLANDS, initialIslands, IslandEs, sigmaBoost, type IslandsConfig, type IslandsState } from '@/policyEvolution/islands'
 import { freezeOldMask, widenHidden } from '@/policyEvolution/policy'
+import { beatsBestSchlau } from '@/policyEvolution/schlauCheckpoint'
 import { genomeLengthSchlau, hiddenOfSchlau, N_IN_SCHLAU } from '@/policyEvolution/schlauPolicy'
-import { parseSchlauKey, SCHLAU_KINDS, schlauHoldoutKeys, schlauKey, schlauTrainKeys, type SchlauKind } from '@/policyEvolution/schlauCourses'
+import { parseSchlauKey, parseSchlauKinds, schlauHoldoutKeys, schlauKindsCanStage, schlauKey, schlauTrainKeys, type SchlauKind } from '@/policyEvolution/schlauCourses'
 import type { SchlauWorkerJob } from './worker-schlau'
 
 function parseArgs(argv: string[]) {
@@ -84,20 +94,27 @@ interface RunFile {
   hidden: number
   /** stage curriculum (null = beide kinds ab Start, --no-stage) */
   stage?: StageState | null
+  /** the run's kind band (creation-only --kinds, persisted; absent = die Basis-Band goal_open,goal_box) */
+  kinds?: SchlauKind[]
   /** opt-in training speed cap (m/s), persisted so --resume keeps it; absent = uncapped */
   speedCap?: number
   config: EsConfig
   islands: IslandsConfig
   state: IslandsState
   history: Array<Record<string, unknown>>
-  best?: { gen: number; island: number; train: number; holdout: number; genome: number[]; trainVec?: number[]; holdoutVec?: number[] }
+  /** TRAIN finishes of the best candidate (critique 2026-10-23 §0: FINISH COUNT is the primary checkpoint key, the lex vector only ties); absent in legacy files = the 0-finish creeper */
+  best?: { gen: number; island: number; train: number; holdout: number; trainFinishes?: number; genome: number[]; trainVec?: number[]; holdoutVec?: number[] }
 }
 
-/** Stage-Curriculum der 2 schlau-kinds: share 0 = nur `goal_open`, share max = beide kinds; Tor: EMA der goal_open-Finish-Rate >= 0.7. */
+/** Stage-Curriculum der schlau-kinds: share 0 = nur `goal_open`, share max = alle kinds des Runs; Tor: EMA der goal_open-Finish-Rate >= 0.7. */
 const SCHLAU_STAGE: StageConfig = { start: 0, step: 0.25, max: 1, threshold: 0.7, alpha: 0.3, minSteps: 6 }
 
-/** aktive kinds bei dieser share (activeKinds aus curriculum.ts ist v3-spezifisch — NICHT verwenden) */
-const schlauActiveKinds = (share: number): SchlauKind[] => (share >= SCHLAU_STAGE.max - 1e-9 ? [...SCHLAU_KINDS] : ['goal_open'])
+/** die Basis-Band: der Default von --kinds (Basis-Run bleibt vergleichbar, goal_wall mischt NIE unbemerkt hinein) */
+const SCHLAU_BASE_KINDS: SchlauKind[] = ['goal_open', 'goal_box']
+
+/** aktive kinds bei dieser share (activeKinds aus curriculum.ts ist v3-spezifisch — NICHT verwenden): unter der Schwelle nur `goal_open`, ab share max die kinds DIESES Runs */
+const schlauActiveKinds = (share: number, kinds: readonly SchlauKind[]): SchlauKind[] =>
+  share >= SCHLAU_STAGE.max - 1e-9 ? [...kinds] : ['goal_open']
 
 /** Liest ein Genome aus `--warm FILE`: { genome } oder { best: { genome } } (wie v2GenomeFromFile, ohne v2-Padding). Shape-Prüfung via hiddenOfSchlau — NICHT ensureV3Inputs (die Längenformel kollidiert mit v3; der Layout-Unterschied ist der Policy-Tag). */
 function readWarmGenome(file: string): number[] {
@@ -198,6 +215,18 @@ async function main() {
   if (hiddenArg !== undefined && (!Number.isInteger(hiddenArg) || hiddenArg < 1)) throw new Error(`--hidden must be a positive integer, got ${String(args.hidden)}`)
   // --hidden ist creation-only: das Run-File trägt hidden (und config.dim), ein Resume setzt es exakt fort
   if (resumed && hiddenArg !== undefined) throw new Error(`--hidden is a creation flag (the run file stores hidden: ${file!.hidden}; a resume continues it)`)
+  // --kinds a,b,c (creation only, PERSISTED wie speedCap): die Kind-Band dieses Runs. Default = die Basis-Band
+  // (goal_open,goal_box) — der Basis-Run mischt goal_wall NIE unbemerkt in seinen Batch; die Wall-Runs (Auftrag C)
+  // sind DEDIZIERT (--kinds goal_wall), weil eine 0-finish-Blockade-Kind die MIN-Fitness vergiftet (WF-Lektion).
+  if (resumed && args.kinds !== undefined)
+    throw new Error(`--kinds is a creation flag (the run file stores kinds: ${(file!.kinds ?? SCHLAU_BASE_KINDS).join(',')}; a plain --resume continues them)`)
+  if (args.kinds === true) throw new Error('--kinds needs a comma list of schlau kinds (e.g. --kinds goal_wall)')
+  const kinds: SchlauKind[] = resumed ? file!.kinds ?? SCHLAU_BASE_KINDS : args.kinds !== undefined ? parseSchlauKinds(String(args.kinds)) : SCHLAU_BASE_KINDS
+  // die Stage ist ein goal_open -> Rest-Ramp: eine Single-Kind-Band (die Wall-Runs) oder eine Band ohne goal_open
+  // stagt NIE — die aktive Kind-Band ist dann von Anfang an voll (implizites --no-stage)
+  const canStage = schlauKindsCanStage(kinds)
+  if (!resumed && args['no-stage'] === undefined && !canStage)
+    console.log(`stage curriculum off: --kinds ${kinds.join(',')} (the stage needs >= 2 kinds including goal_open — this band trains its kinds from the start)`)
   // --warm FILE: { genome } oder { best: { genome } }; Shape-Prüfung via hiddenOfSchlau (NICHT ensureV3Inputs)
   let warm = args.warm ? readWarmGenome(String(args.warm)) : undefined
   const warmH0 = warm ? hiddenOfSchlau(warm.length) : 0
@@ -217,9 +246,12 @@ async function main() {
     if (hiddenArg === undefined) throw new Error('--freeze-old needs --hidden N (the widened hidden size)')
     if (hiddenArg <= warmH0) throw new Error(`--freeze-old needs a widening: --hidden ${hiddenArg} must be greater than the warm genome's ${warmH0} hidden units`)
   }
-  // Keys: TRAIN (kanonische Starts, variant 0) und HOLDOUT (Start-Variante 1), pro kind gruppiert für die stratified batch
-  const train = schlauTrainKeys(num(args['train-per-kind'], 8))
-  const holdout = schlauHoldoutKeys(num(args['holdout-per-kind'], 5))
+  // Keys: TRAIN (kanonische Starts, variant 0) und HOLDOUT (Start-Variante 1), pro kind gruppiert für die stratified
+  // batch — NUR die kinds dieses Runs (die --kinds Band). Default-Band-Größen: per-kind TRAIN
+  // (SCHLAU_TRAIN_PER_KIND: goal_open 3 — saturiert, critique §3; goal_box / goal_wall 16 — die Ramps) und
+  // HOLDOUT 8 pro kind (Entscheidungs-Convention, eval-candidate DECISION_HOLDOUT_PER_KIND)
+  const train = schlauTrainKeys(args['train-per-kind'] !== undefined ? num(args['train-per-kind'], 16) : undefined, kinds)
+  const holdout = schlauHoldoutKeys(args['holdout-per-kind'] !== undefined ? num(args['holdout-per-kind'], 8) : undefined, kinds)
   const trainByKind: Record<string, string[]> = {}
   for (const k of train) (trainByKind[parseSchlauKey(k).kind] ??= []).push(k)
   // --speed-cap only at creation (persisted); a resume uses the stored value, so a resume without the flag behaves as before
@@ -252,7 +284,8 @@ async function main() {
       config,
       islands,
       ...(speedCap ? { speedCap } : {}),
-      stage: !args['no-stage'] ? initialStage(SCHLAU_STAGE) : null,
+      kinds,
+      stage: args['no-stage'] === undefined && canStage ? initialStage(SCHLAU_STAGE) : null,
       state: initialIslands(config, islands, warm),
       history: [],
     }
@@ -282,7 +315,7 @@ async function main() {
           source: out,
           policy: 'schlau',
           hidden: file.hidden,
-          kinds: [...SCHLAU_KINDS],
+          kinds: [...kinds],
           ...(file.speedCap ? { speedCap: file.speedCap } : {}),
           best: file.best,
           genome: file.best.genome,
@@ -311,7 +344,7 @@ async function main() {
           source: out,
           policy: 'schlau',
           hidden: file.hidden,
-          kinds: [...SCHLAU_KINDS],
+          kinds: [...kinds],
           ...(file.speedCap ? { speedCap: file.speedCap } : {}),
           gen: isl.state.gen,
           updatedAt: new Date().toISOString(),
@@ -339,7 +372,7 @@ async function main() {
   try {
     for (let i = 0; i < gens; i++) {
       const g = isl.state.gen
-      const active = file.stage ? schlauActiveKinds(file.stage.share) : [...SCHLAU_KINDS]
+      const active = file.stage ? schlauActiveKinds(file.stage.share, kinds) : [...kinds]
       const batchPerKind = num(args.batch, 1)
       const variant = args['no-variants'] ? 0 : g + 1
       // STRATIFIED batch: pro aktiver kind genau batchPerKind keys (rotierendes Fenster über die kind-Liste),
@@ -378,7 +411,7 @@ async function main() {
         const trainVec = fitnessVec(tr)
         const holdoutVec = fitnessVec(ho)
         const fin = (m: typeof tr) => `${m.filter((x) => x.outcome === 'finish').length}/${m.length}`
-        const perKind = SCHLAU_KINDS.map((k) => {
+        const perKind = kinds.map((k) => {
           const ms = ho.filter((m) => parseSchlauKey(m.key).kind === k)
           return { kind: k, finished: ms.filter((m) => m.outcome === 'finish').length, total: ms.length }
         })
@@ -394,10 +427,13 @@ async function main() {
           holdout: { fitness: holdFit, finished: ho.filter((x) => x.outcome === 'finish').length, total: ho.length },
           perKind,
         }
-        // best-update by the LEXICOGRAPHIC order of the train vector (beatsBest); trainFit (scalar min) stays the display
-        if (beatsBest(trainVec, file.best)) {
-          file.best = { gen: isl.state.gen, island: best, train: trainFit, holdout: holdFit, genome: theta, trainVec, holdoutVec }
-          writeLatestBest('new best by TRAIN')
+        // best-update: FINISH COUNT FIRST, the ascending lex train vector only as the tie-break
+        // (beatsBestSchlau, critique 2026-10-23 §0: the pure lex order preferred a 0-finish creeper over the
+        // 14/16-finish driver — a FAIL slot is never exactly 0); trainFit (scalar min) stays the display number
+        const trainFinishes = tr.filter((x) => x.outcome === 'finish').length
+        if (beatsBestSchlau({ finishes: trainFinishes, vec: trainVec }, file.best ? { finishes: file.best.trainFinishes ?? 0, vec: file.best.trainVec ?? [file.best.train] } : undefined)) {
+          file.best = { gen: isl.state.gen, island: best, train: trainFit, holdout: holdFit, trainFinishes, genome: theta, trainVec, holdoutVec }
+          writeLatestBest(`new best by TRAIN (${trainFinishes} finishes)`)
         }
         writeLatestStats('epoch end')
       }

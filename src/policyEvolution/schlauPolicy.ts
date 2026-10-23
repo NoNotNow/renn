@@ -53,6 +53,18 @@ export const SCHLAU_STAGE_PRIORITY = 5
  * The net INPUT goal vector stays center-anchored (unchanged) — this is the DRAWN line only.
  */
 export const SCHLAU_GOAL_VECTOR_COLOR = '#aa44ff'
+/**
+ * The DRAWN steering-input vectors (TASK B, user note 2026-10-23 ~02:10: "visualize the path vectors"):
+ * `SCHLAU_GOAL_INPUT_COLOR` — the center-anchored car -> goal vector (the SAME vector the net gets as
+ * x[23..25]; drawn full length next to the lila NOSE line, 4 m apart, so the anchoring difference is visible);
+ * `SCHLAU_MOVE_COLORS` — the DRIVEN TRAIL: the odometer history the 4 movement-memory inputs are computed
+ * from, drawn as thin world-frame polylines (newest segment brightest; the chord-arrow fan of the first
+ * draft read as wrong — user bug report 2026-10-23). The lila nose -> goal line and the score-stage route
+ * stay as they are. This is the schlau DRIVE stage (not shared with maze/crux — their stage code is
+ * byte-identical by construction).
+ */
+export const SCHLAU_GOAL_INPUT_COLOR = '#44aaff'
+export const SCHLAU_MOVE_COLORS = ['#44ffcc', '#3fd9b0', '#3aad94', '#358078'] as const
 
 /**
  * Stage code (runs every frame before the car2 actuator). Params: `w` (genome), `goal` ([x, z], world), `gain`
@@ -66,6 +78,16 @@ var ANGLES = ${JSON.stringify(SCHLAU_RAY_ANGLES_DEG.map((d) => (d * Math.PI) / 1
 var N_IN = ${N_IN_SCHLAU}, RANGE = ${RAY_RANGE}, VF = ${V_FWD_MAX}, VR = ${V_REV_MAX}, TAU = ${TAU_SPEED}${STAGE_RND}${STAGE_HIDDEN}`
 
 export const SCHLAU_STAGE_BODY = `function transform(input, dt, params, state, api) {
+  // drawVec: a thin arrow (shaft + two 0.8 m head whiskers); lengths < 0.05 m draw nothing (stationary memory)
+  var drawVec = function (ax, az, bx, bz, color) {
+    var vx = bx - ax, vz = bz - az
+    var vl = Math.hypot(vx, vz)
+    if (vl < 0.05) return
+    api.visualizeLine([ax, 0.35, az], [bx, 0.35, bz], color)
+    var ux = vx / vl, uz = vz / vl
+    api.visualizeLine([bx, 0.35, bz], [bx - ux * 0.8 - uz * 0.4, 0.35, bz - uz * 0.8 + ux * 0.4], color)
+    api.visualizeLine([bx, 0.35, bz], [bx - ux * 0.8 + uz * 0.4, 0.35, bz - uz * 0.8 - ux * 0.4], color)
+  }
   var w = params.w
   var noise = params.noise || 0
   if (state.rs === undefined) state.rs = (params.noiseSeed >>> 0) || 1
@@ -110,12 +132,27 @@ export const SCHLAU_STAGE_BODY = `function transform(input, dt, params, state, a
     x[n + 1 + 2 * k] = (dx * fwd[0] + dz * fwd[2]) / ${MOVE_SCALE_M}
     x[n + 2 + 2 * k] = (dx * left[0] + dz * left[2]) / ${MOVE_SCALE_M}
   }
+  // TASK B (revised, user bug report 2026-10-23 "die gefahrene Weg wird falsch dargestellt"): the DRIVEN
+  // TRAIL — the odometer history itself (the samples the 4 movement-memory inputs are computed FROM), drawn
+  // as one thin world-frame polyline per 20 m memory segment, newest brightest. The chord-arrow fan of the
+  // first draft read as wrong; the trail IS the driven path. Zero-length steps (stationary / reversing over
+  // the own trail) draw nothing.
+  var tcol = ${JSON.stringify([...SCHLAU_MOVE_COLORS])}
+  for (var k2 = 0; k2 < ${MOVE_SEGS}; k2++) {
+    for (var i2 = 0; i2 < 8; i2++) {
+      var pa = sampleAt(s - k2 * ${MOVE_SEG_M} - i2 * 2.5), pb = sampleAt(s - k2 * ${MOVE_SEG_M} - (i2 + 1) * 2.5)
+      if (Math.hypot(pa[1] - pb[1], pa[2] - pb[2]) < 0.05) continue
+      api.visualizeLine([pa[1], 0.35, pa[2]], [pb[1], 0.35, pb[2]], tcol[k2])
+    }
+  }
   // goal vector (from the car center)
   var g = params.goal || [pos[0], pos[2]]
   // the LILA target line (user decision 2026-10-23): the straight car NOSE -> goal line, drawn EVERY frame,
   // THROUGH obstacles (no pathing), at the same y = 0.35 as the route lines. It REPLACES the blue carrot — the
   // lookahead vector is gone from the schlau worlds; ONE target line, nose-anchored like the score anchor
   api.visualizeLine([pos[0] + fwd[0] * ${NOSE_M}, 0.35, pos[2] + fwd[2] * ${NOSE_M}], [g[0], 0.35, g[1]], '${SCHLAU_GOAL_VECTOR_COLOR}')
+  // TASK B: the CENTER-anchored goal vector — the same vector the net gets (x[n + 9..11]) — as a blue arrow
+  drawVec(pos[0], pos[2], g[0], g[1], '${SCHLAU_GOAL_INPUT_COLOR}')
   var gx = g[0] - pos[0], gz = g[1] - pos[2]
   var gd = Math.hypot(gx, gz) || 1
   x[n + 9] = (gx * fwd[0] + gz * fwd[2]) / gd

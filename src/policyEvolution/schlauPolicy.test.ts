@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createRng, gaussian } from '@/avEvolution/core/rng'
 import { freshGenome } from './islands'
-import { genomeLengthSchlau, hiddenOfSchlau, MOVE_SEG_M, MOVE_SEGS, N_IN_SCHLAU, POLICY_STAGE_CODE_SCHLAU, policyForwardSchlau, SCHLAU_GOAL_VECTOR_COLOR, SCHLAU_RAY_ANGLES_DEG } from './schlauPolicy'
+import { genomeLengthSchlau, hiddenOfSchlau, MOVE_SEG_M, MOVE_SEGS, N_IN_SCHLAU, POLICY_STAGE_CODE_SCHLAU, policyForwardSchlau, SCHLAU_GOAL_INPUT_COLOR, SCHLAU_GOAL_VECTOR_COLOR, SCHLAU_MOVE_COLORS, SCHLAU_RAY_ANGLES_DEG } from './schlauPolicy'
 import { N_RAYS, NOSE_M } from './policy'
 
 const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!
@@ -162,12 +162,48 @@ describe('schlau policy layout', () => {
     lineCalls.length = 0
     // identity heading: forward = +z, so the nose sits NOSE_M ahead of the center
     runStage({ w: g, gain: 1200, goal: [12, -30] }, () => ({ position: [3, 0, -NOSE_M], velocity: [0, 0, 5] }), 3)
-    expect(lineCalls).toHaveLength(3)
-    for (const c of lineCalls) {
+    const lila = lineCalls.filter((c) => c.color === SCHLAU_GOAL_VECTOR_COLOR)
+    expect(lila).toHaveLength(3)
+    for (const c of lila) {
       expect(c.from).toEqual([3, 0.35, 0])
       expect(c.to).toEqual([12, 0.35, -30])
       expect(c.color).toBe(SCHLAU_GOAL_VECTOR_COLOR)
       expect(SCHLAU_GOAL_VECTOR_COLOR).toBe('#aa44ff')
     }
+  })
+
+  it('draws the steering-input vectors (TASK B, user note 2026-10-23): the center-anchored goal arrow + the movement-memory arrows', () => {
+    const g = freshGenome(createRng(23), 0.5, N_IN_SCHLAU, 6)
+    lineCalls.length = 0
+    // stationary car: the movement memory is all-zero -> no move arrows; the goal-input arrow IS drawn
+    runStage({ w: g, gain: 1200, goal: [12, -30] }, () => ({ position: [3, 0, -NOSE_M], velocity: [0, 0, 5] }), 3)
+    const blue = lineCalls.filter((c) => c.color === SCHLAU_GOAL_INPUT_COLOR)
+    // one arrow per frame: shaft + 2 head whiskers, from the car CENTER to the goal (the net's own goal vector)
+    expect(SCHLAU_GOAL_INPUT_COLOR).toBe('#44aaff')
+    expect(blue.length % 3).toBe(0)
+    for (let i = 0; i < blue.length; i += 3) {
+      expect(blue[i]!.from).toEqual([3, 0.35, -NOSE_M])
+      expect(blue[i]!.to).toEqual([12, 0.35, -30])
+    }
+    // a MOVING car draws the DRIVEN TRAIL: the odometer history as thin polylines in the 4 segment colors,
+    // the newest segment brightest, every line on the actually driven path (world frame, y 0.35)
+    lineCalls.length = 0
+    let z = 0
+    runStage({ w: g, gain: 1200, goal: [12, -30] }, () => ({ position: [0, 0, z++], velocity: [0, 0, 60] }), 80)
+    const moveCalls = lineCalls.filter((c) => (SCHLAU_MOVE_COLORS as readonly string[]).includes(c.color))
+    expect(moveCalls.length).toBeGreaterThan(0)
+    for (const c of moveCalls) {
+      expect(c.from[1]).toBe(0.35)
+      expect(c.to[1]).toBe(0.35)
+      // every trail segment lies ON the driven path: pure +z motion -> x constant 0
+      expect(c.from[0]).toBe(0)
+      expect(c.to[0]).toBe(0)
+      // consecutive history samples: <= 2.5 m of arc + one frame of quantization (the odometer records per frame)
+      expect(Math.abs(c.to[2] - c.from[2])).toBeLessThanOrEqual(2.5 + 2 + 1e-9)
+      expect(Math.abs(c.to[2] - c.from[2])).toBeGreaterThan(0.05)
+    }
+    // the newest trail line ends at the car's current position
+    const newest = moveCalls.filter((c) => c.color === SCHLAU_MOVE_COLORS[0]).map((c) => Math.max(c.from[2], c.to[2]))
+    expect(Math.max(...newest)).toBeCloseTo(z - 1, 6)
   })
 })

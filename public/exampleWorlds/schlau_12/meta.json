@@ -1,0 +1,72 @@
+{
+  "id": "schlau_12",
+  "seed": 16,
+  "name": "Schlau box hard 2",
+  "kind": "goal_box",
+  "candidate": {
+    "policy": "schlau",
+    "label": "schlau (untrained placeholder)",
+    "gen": null,
+    "source": "placeholder"
+  },
+  "bestScore": null,
+  "chain": {
+    "points": 11,
+    "lengthM": 78.1
+  },
+  "tileSvg": {
+    "w": 220,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            52.7,
+            157.6
+          ],
+          [
+            55.6,
+            144.7
+          ],
+          [
+            58.4,
+            131.8
+          ],
+          [
+            61.3,
+            118.9
+          ],
+          [
+            64.1,
+            106
+          ],
+          [
+            64.5,
+            105.5
+          ],
+          [
+            75.4,
+            95.9
+          ],
+          [
+            86.3,
+            86.4
+          ],
+          [
+            97.1,
+            76.8
+          ],
+          [
+            108,
+            67.2
+          ],
+          [
+            118.9,
+            57.6
+          ]
+        ],
+        "score": null
+      }
+    ]
+  }
+}
