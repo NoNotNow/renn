@@ -1,5 +1,5 @@
 /**
- * Schlau training worlds: six playable worlds that train and showcase the "schlau" self-driving car — the second
+ * Schlau training worlds: twenty playable worlds that train and showcase the "schlau" self-driving car — the second
  * policy trained on START -> GOAL tasks only (no waypoint chains, no carrots; see schlauCourses.ts for the seeded
  * tasks and schlauPolicy.ts for the net). ONE task per world: the car starts at the task's start pose, a goal slab
  * floats above the task's goal, and the in-world score stage (the SHARED trainingScoreStage code, prefix 'schlau')
@@ -36,10 +36,11 @@ export interface SchlauTrainingWorldSpec {
 }
 
 /**
- * The schlau training worlds (user note 2026-10-23 ~03:00: "only the 6? too few and too easy"): a 16-world
+ * The schlau training worlds (user note 2026-10-23 ~03:00: "only the 6? too few and too easy"): a 20-world
  * band covering the SEEDED difficulty ramp the model trains on (schlauDifficulty, critique §3/§6) —
  * goal_box from easy (a 12-13 m crossing wall) through medium to hard (the ~33 m wall / detour-1.3 class),
- * goal_wall from the wide-gate single layer to the narrow-gate blockade. The six original hard-tier worlds
+ * goal_wall from the wide-gate single layer to the narrow-gate blockade, and the goal_turn dead-end shunt
+ * rotation tier (handoff 2026-10-23 Task 1). The six original hard-tier worlds
  * (Schlau box 1-6, seeds 3001-3006) stay first; seeds 3001-3006 remain distinct from every train/holdout
  * seed. The tiered worlds DELIBERATELY use train-band seeds (1-16): the point of the dialog band is to show
  * the variety the model trains on (L1, same note).
@@ -62,6 +63,13 @@ export const SCHLAU_TRAINING_WORLDS: SchlauTrainingWorldSpec[] = [
   { id: 'schlau_14', name: 'Schlau wall medium', kind: 'goal_wall', seed: 9 },
   { id: 'schlau_15', name: 'Schlau wall hard', kind: 'goal_wall', seed: 16 },
   { id: 'schlau_16', name: 'Schlau wall blockade', kind: 'goal_wall', seed: 3001 },
+  // the goal_turn tier (handoff 2026-10-23 Task 1, the dead-end shunt rotation): nose at a wall, goal behind
+  // it, a 12-14 m cheek corridor — the car must rotate in tight space; seeds 3002+ stay distinct from every
+  // train/holdout seed, the ramp-tier worlds use train-band seeds like the wall tier
+  { id: 'schlau_17', name: 'Schlau turn 1', kind: 'goal_turn', seed: 3002 },
+  { id: 'schlau_18', name: 'Schlau turn easy', kind: 'goal_turn', seed: 2 },
+  { id: 'schlau_19', name: 'Schlau turn medium', kind: 'goal_turn', seed: 9 },
+  { id: 'schlau_20', name: 'Schlau turn hard', kind: 'goal_turn', seed: 16 },
 ]
 
 /** Transformer id base of the per-task score stage: `<base><task index>` (one task per world: always index 0). */

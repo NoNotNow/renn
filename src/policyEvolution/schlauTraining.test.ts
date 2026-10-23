@@ -34,16 +34,18 @@ const noseOf = (task: SchlauTask): V2 => {
 const registry = (w: RennWorld) => (w.transformers ?? {}) as Record<string, { params?: Record<string, unknown> }>
 
 describe('SCHLAU_TRAINING_WORLDS: the registry', () => {
-  it('sixteen worlds: ids schlau_1..16, unique (kind, seed) tasks, the ramp tiers + goal_wall demos (user note 2026-10-23 ~03:00)', () => {
-    expect(SCHLAU_TRAINING_WORLDS.map((s) => s.id)).toEqual(Array.from({ length: 16 }, (_, i) => `schlau_${i + 1}`))
-    // unique TASKS (the same seed number may back a goal_box and a goal_wall demo — different tasks)
-    expect(new Set(SCHLAU_TRAINING_WORLDS.map((s) => `${s.kind}:${s.seed}`)).size).toBe(16)
+  it('twenty worlds: ids schlau_1..20, unique (kind, seed) tasks, the ramp tiers + goal_wall / goal_turn demos (user note 2026-10-23 ~03:00 + handoff Task 1)', () => {
+    expect(SCHLAU_TRAINING_WORLDS.map((s) => s.id)).toEqual(Array.from({ length: 20 }, (_, i) => `schlau_${i + 1}`))
+    // unique TASKS (the same seed number may back a goal_box and a goal_wall / goal_turn demo — different tasks)
+    expect(new Set(SCHLAU_TRAINING_WORLDS.map((s) => `${s.kind}:${s.seed}`)).size).toBe(20)
     for (const spec of SCHLAU_TRAINING_WORLDS) expect(spec.name.length).toBeGreaterThan(0)
     // the original six hard-tier goal_box worlds stay first (seeds 3001-3006, never trained-on / holdout)
     expect(SCHLAU_TRAINING_WORLDS.slice(0, 6).every((s) => s.kind === 'goal_box' && s.seed >= 3001 && s.seed <= 3006)).toBe(true)
     // the ramp tiers: goal_box easy -> hard over train-band seeds, goal_wall demos easy -> blockade
     expect(SCHLAU_TRAINING_WORLDS.filter((s) => s.kind === 'goal_box' && s.seed <= 16).map((s) => s.seed)).toEqual([2, 4, 7, 11, 14, 16])
     expect(SCHLAU_TRAINING_WORLDS.filter((s) => s.kind === 'goal_wall').map((s) => s.seed)).toEqual([2, 9, 16, 3001])
+    // the goal_turn tier (dead-end shunt rotation): one 3002 demo + the ramp tiers over train-band seeds
+    expect(SCHLAU_TRAINING_WORLDS.filter((s) => s.kind === 'goal_turn').map((s) => s.seed)).toEqual([3002, 2, 9, 16])
   })
 
   it('SCHLAU_SCORE pins the touch penalties (user decision 2026-10-23: wall 30, object 15 pts/s)', () => {
@@ -67,7 +69,7 @@ describe('SCHLAU_TRAINING_WORLDS: the registry', () => {
 })
 
 describe('schlauTrainingSetup: task + geodesic nose -> goal path + wall polys', () => {
-  it('over all sixteen worlds: a path from the start nose to the goal that keeps the car width off every box', () => {
+  it('over all twenty worlds: a path from the start nose to the goal that keeps the car width off every box', () => {
     for (const spec of SCHLAU_TRAINING_WORLDS) {
       const { task, path, walls } = schlauTrainingSetup(spec)
       expect(path.length).toBeGreaterThan(1)

@@ -108,6 +108,22 @@ describe('SCHLAU_MAZE_TRAINING_SET (the Schlau Mazes tab of the training dialog)
 })
 
 describe('trainingSetOfWorldId (the Builder load path picks the set)', () => {
+  it('counts and labels the goal_turn worlds of the schlau set (turn info chip, turn badge — handoff Task 1)', () => {
+    const turn = SCHLAU_TRAINING_WORLDS.filter((s) => s.kind === 'goal_turn')
+    expect(turn.map((s) => s.id)).toEqual(['schlau_17', 'schlau_18', 'schlau_19', 'schlau_20'])
+    // the set's world count includes them (the dialog header's "N runs")
+    expect(SCHLAU_TRAINING_SET.worlds).toHaveLength(SCHLAU_TRAINING_WORLDS.length)
+    expect(SCHLAU_TRAINING_SET.worlds.length).toBeGreaterThanOrEqual(20)
+    // every turn world shows the turn info chip
+    for (const spec of turn) {
+      const view = SCHLAU_TRAINING_SET.worlds.find((w) => w.id === spec.id)!
+      expect(view.info).toBe(`turn · seed ${spec.seed}`)
+    }
+    // the badge slices the kind prefix: goal_turn -> 'turn' (like goal_wall -> 'wall')
+    const meta = { id: 'schlau_17', kind: 'goal_turn' } as unknown as Parameters<typeof SCHLAU_TRAINING_SET.badge>[0]
+    expect(SCHLAU_TRAINING_SET.badge(meta)).toBe('turn')
+  })
+
   it('maps schlau_maze_* to the Schlau Mazes set and plain schlau_* to the Schlau set', () => {
     expect(trainingSetOfWorldId('schlau_maze_1')).toBe(SCHLAU_MAZE_TRAINING_SET)
     expect(trainingSetOfWorldId('schlau_maze_10')).toBe(SCHLAU_MAZE_TRAINING_SET)

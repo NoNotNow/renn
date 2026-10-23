@@ -120,6 +120,22 @@ describe('schlau episode', () => {
     expect({ ...a, wallMs: 0 }).toEqual({ ...b, wallMs: 0 })
   }, 120_000)
 
+  it('goal_turn headless smoke: the dead-end shunt task runs (a FRESH world per call — the reload rule), ends sane and deterministic', async () => {
+    const genome = freshGenome(createRng(3), 0.5, N_IN_SCHLAU, 10)
+    // every runSchlauEpisode call builds a fresh world from the task document (all entities at their document
+    // poses) — the headless-defined-start rule holds per run by construction
+    const m = await runSchlauEpisode(genome, 'goal_turn:2', { seconds: 10 })
+    expect(['timeout', 'stall', 'crash', 'offcourse', 'finish']).toContain(m.outcome)
+    expect(m.progress).toBeGreaterThanOrEqual(0)
+    // the task's drivable start distance: the route must swing around the wall — well above the euclidean band
+    expect(m.length).toBeGreaterThan(40)
+    expect(Number.isFinite(m.norm)).toBe(true)
+    expect(m.peakNorm).toBeGreaterThanOrEqual(m.norm - schlauTouchPenaltyNorm(m.touchWallFrames, m.touchObjectFrames))
+    // deterministic: the same key, run again from a fresh world, identical metrics
+    const b = await runSchlauEpisode(genome, 'goal_turn:2', { seconds: 10 })
+    expect({ ...m, wallMs: 0 }).toEqual({ ...b, wallMs: 0 })
+  }, 120_000)
+
   it('the field never undercuts the euclidean distance (goal_box seeds 1..10)', () => {
     let detours = 0
     for (let seed = 1; seed <= 10; seed++) {

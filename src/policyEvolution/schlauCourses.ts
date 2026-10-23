@@ -24,6 +24,13 @@
  *    blockade, the WF lesson of feature-policy-evolution.md), and the same 2.5 m reachability BFS accepts it.
  *    0-3 extra corridor walls (10-24 m, 3 m thick, random yaw) join with the same rejection loop as the goal_box
  *    obstacles. Same start / goal bands as `goal_box` (start +/-35 m per axis, goal 50-110 m out).
+ *  - `goal_turn` (handoff 2026-10-23 Task 1, the dead-end shunt rotation): the car starts NOSE AT A DEDICATED WALL
+ *    (11-20 m off its near face, yaw within +/-20 deg of the perpendicular) with the goal BEHIND it (4-10 m past
+ *    the far face, on the nose ray). The wall is 30-50 m long (no forward arc around its end is shorter than the
+ *    multi-point turn) and TWO cheek boxes seal a 12-14 m wide corridor around the car — open only BEHIND it, so a
+ *    2-3 shunt rotation fits but a clean forward U-turn (~20 m diameter) does not. 0-2 extra boxes join via the
+ *    same rejection loop. Variants use the relaxed GOAL_TURN_NOSE_CLEAR_M nose floor (the cheeks sit 6-7 m off the
+ *    nose by design) and never draw facing poses.
  * The rng is re-seeded by the VARIANT (`seed * 2654435761 + SCHLAU_KIND_SALT[kind] + variant * 2246822519`), so a
  * per-generation variant rotation re-jitters the whole world itself. Variant >= 1 additionally jitters the start pose
  * by +/-4 m / +/-15 deg (the hull is re-checked against every box; the canonical start is the fallback after 12 unclear
@@ -34,8 +41,11 @@ import { pointPolyGap, polyGap, rectPoly, type V2 } from '@/avEvolution/eval/geo
 import type { CourseBox } from './courses'
 import { NOSE_M } from './policy'
 
-/** The schlau task kinds: `goal_open` (free ground), `goal_box` (fenced arena with obstacles) and `goal_wall` (fenced arena whose goal sits behind a long separating wall). */
-export const SCHLAU_KINDS = ['goal_open', 'goal_box', 'goal_wall'] as const
+/**
+ * The schlau task kinds: `goal_open` (free ground), `goal_box` (fenced arena with obstacles), `goal_wall` (fenced arena
+ * whose goal sits behind a long separating wall) and `goal_turn` (dead-end shunt rotation: nose at a wall, goal behind it).
+ */
+export const SCHLAU_KINDS = ['goal_open', 'goal_box', 'goal_wall', 'goal_turn'] as const
 export type SchlauKind = (typeof SCHLAU_KINDS)[number]
 
 /** One schlau task: a start pose, a goal point and the static boxes (the 4 arena walls of `goal_box` are part of `boxes`). */
@@ -60,7 +70,7 @@ export interface SchlauTask {
 }
 
 /** Per-kind rng salt (mixed into the seed: `seed * 2654435761 + SCHLAU_KIND_SALT[kind] + variant * 2246822519`). */
-export const SCHLAU_KIND_SALT: Record<SchlauKind, number> = { goal_open: 15485867, goal_box: 32452847, goal_wall: 71522579 }
+export const SCHLAU_KIND_SALT: Record<SchlauKind, number> = { goal_open: 15485867, goal_box: 32452847, goal_wall: 71522579, goal_turn: 104729 }
 
 const SCHLAU_KEY_RE = new RegExp(`^(${SCHLAU_KINDS.join('|')}):(\\d+)(?:~(\\d+))?$`)
 
@@ -206,9 +216,13 @@ const noseOf = (start: V2, startYawDeg: number): V2 => {
   return [start[0] - Math.sin(yawRad) * NOSE_M, start[1] - Math.cos(yawRad) * NOSE_M]
 }
 
-/** The spawn-pose POISON rule: the nose keeps > INFLATE_M + NOSE_CLEAR_M off EVERY box (>= NOSE_CLEAR_M off every inflated scoring cell — a blocked-cell read is an instant offcourse, see NOSE_CLEAR_M). */
-const noseClear = (nose: V2, boxes: readonly CourseBox[]): boolean =>
-  boxes.every((b) => pointPolyGap(nose[0], nose[1], boxPoly(b)) > INFLATE_M + NOSE_CLEAR_M)
+/**
+ * The spawn-pose POISON rule: the nose keeps > INFLATE_M + NOSE_CLEAR_M off EVERY box (>= NOSE_CLEAR_M off every
+ * inflated scoring cell — a blocked-cell read is an instant offcourse, see NOSE_CLEAR_M). `floorM` narrows the margin
+ * for kinds whose DESIGN boxes sit close to the nose (`goal_turn`: its cheeks are 6-7 m off, GOAL_TURN_NOSE_CLEAR_M).
+ */
+const noseClear = (nose: V2, boxes: readonly CourseBox[], floorM = NOSE_CLEAR_M): boolean =>
+  boxes.every((b) => pointPolyGap(nose[0], nose[1], boxPoly(b)) > INFLATE_M + floorM)
 
 /** Marks the grid cells whose centre lies within INFLATE_M of the box (the inflated obstacle). */
 const blockCells = (b: CourseBox, out: Uint8Array): void => {
@@ -470,6 +484,144 @@ const goalWallBody = (rng: Rng, seed: number): SchlauBody => {
   return { boxes, start, goal, startYawDeg }
 }
 
+/**
+ * `goal_turn` (handoff 2026-10-23 Task 1, the dead-end shunt rotation): the car starts NOSE AT A DEDICATED WALL with
+ * the goal BEHIND it — the wall sits between the nose and the goal, so the head must rotate in tight space (a
+ * multi-point shunt turn) instead of freezing. Same fenced arena as `goal_box` / `goal_wall`; the construct is
+ * axis-aligned (seeded cardinal nose direction, +/-20 deg yaw jitter on the car):
+ *  - the DEDICATED WALL: perpendicular to the nose, centred ON the nose ray, 30-50 m long so no forward arc around
+ *    its end is shorter than the multi-point turn (its ends are >= 15 m off the ray);
+ *  - the nose keeps 11-20 m off the wall's near face (the handoff's 8-20 m band, floored at 11: the standing
+ *    NOSE_CLEAR_M poison rule requires the nose > INFLATE_M + NOSE_CLEAR_M = 10.5 m off EVERY box — a closer start
+ *    reads a blocked scoring cell at t=0.2 s);
+ *  - the GOAL: on the nose ray, 4-10 m past the wall's FAR face (the handoff's 2-10 m, floored at 4 m: the 2.5 m
+ *    inflation band must leave the goal cell free) — the direct start -> goal line crosses the wall at its middle;
+ *  - TWO CHEEK boxes flank the corridor, parallel to the nose, sealing against the wall's far-face plane and
+ *    extending 10-16 m behind the start: the corridor's FREE width is 12-14 m across the nose sector — enough for a
+ *    2-3 shunt rotation, NOT for a clean forward U-turn (the car's turn circle is ~10 m radius / ~20 m diameter);
+ *    the mouth is behind the car, so the drivable route exits backwards, swings around the wall's end and comes back;
+ *  - 0-2 EXTRA boxes join via the same rejection loop as the `goal_box` obstacles (reachability re-checked, so an
+ *    extra can never close the last route).
+ * Variants (>= 1) NEVER draw facing poses (the facing class would break the nose-at-the-wall geometry) and use the
+ * RELAXED goal_turn nose floor: the nose stays > INFLATE_M + GOAL_TURN_NOSE_CLEAR_M off every box — the cheeks are
+ * DESIGNED to sit 6-7 m off the nose, so the strict NOSE_CLEAR_M floor (8 m off the inflated cells) cannot apply
+ * here; the machinery floor (the nose clear of every inflated cell) still holds.
+ */
+/** dedicated wall length band (m) — the seeded difficulty axis: 30-50 m, ends >= 15 m off the nose ray */
+const TURN_WALL_MIN = 30
+const TURN_WALL_MAX = 50
+/** dedicated wall thickness (m) */
+const TURN_WALL_T = 4
+/** nose-to-wall-near-face gap (m): 11-20 (the handoff's 8-20, floored at the NOSE_CLEAR_M poison limit) */
+const TURN_NOSE_MIN = 11
+const TURN_NOSE_MAX = 20
+/** goal depth past the wall's far face (m): 4-10 (the handoff's 2-10, floored at the 2.5 m inflation + grid margin) */
+const TURN_GOAL_MIN = 4
+const TURN_GOAL_MAX = 10
+/** corridor HALF width (m): 6-7 each side => 12-14 m free width (a shunt fits, a ~20 m forward U-turn does not) */
+const TURN_HALF_W_MIN = 6
+const TURN_HALF_W_MAX = 7
+/** cheek thickness (m) */
+const TURN_CHEEK_T_MIN = 3
+const TURN_CHEEK_T_MAX = 5
+/** the cheeks extend this far (m) behind the START centre (the corridor mouth is behind the car) */
+const TURN_TAIL_MIN = 10
+const TURN_TAIL_MAX = 16
+/** canonical yaw jitter (deg) off the cardinal nose direction */
+const TURN_YAW_JITTER = 20
+/**
+ * the corridor MOUTH (m): the cheek back ends keep this far off the inner arena wall (along the nose axis) — the
+ * BFS must pass LATERALLY behind the cheeks, so the free band behind them needs >= 2 x INFLATE_M plus grid slack
+ * (a cheek back end flush against the arena wall seals the pocket: the loud guard caught exactly that on 9~2)
+ */
+const TURN_MOUTH_M = 7
+/** relaxed nose floor of goal_turn (m off the inflated cells): the nose stays > INFLATE_M + this off every box */
+export const GOAL_TURN_NOSE_CLEAR_M = 1
+/** extras: 0..2 sampled boxes (4-14 m per axis, like goal_box), up to 40 rejection attempts each */
+const TURN_EXTRA_MAX = 2
+const TURN_EXTRA_ATTEMPTS = 40
+
+/** `goal_turn` body: the fenced arena (same 4 walls) with the nose-at-wall construct of the seed. */
+const goalTurnBody = (rng: Rng, seed: number): SchlauBody => {
+  const boxes: CourseBox[] = [
+    { at: [0, ARENA_HALF + WALL_T / 2], size: [2 * (ARENA_HALF + WALL_T), WALL_T], yawDeg: 0 },
+    { at: [0, -(ARENA_HALF + WALL_T / 2)], size: [2 * (ARENA_HALF + WALL_T), WALL_T], yawDeg: 0 },
+    { at: [ARENA_HALF + WALL_T / 2, 0], size: [WALL_T, 2 * (ARENA_HALF + WALL_T)], yawDeg: 0 },
+    { at: [-(ARENA_HALF + WALL_T / 2), 0], size: [WALL_T, 2 * (ARENA_HALF + WALL_T)], yawDeg: 0 },
+  ]
+  // the seeded scalars of the construct (fully seeded — no ramp: the difficulty axis is the wall length band)
+  const gap = range(rng, TURN_NOSE_MIN, TURN_NOSE_MAX)
+  const len = range(rng, TURN_WALL_MIN, TURN_WALL_MAX)
+  const depth = range(rng, TURN_GOAL_MIN, TURN_GOAL_MAX)
+  const hw = range(rng, TURN_HALF_W_MIN, TURN_HALF_W_MAX)
+  const tc = range(rng, TURN_CHEEK_T_MIN, TURN_CHEEK_T_MAX)
+  const tailBack = range(rng, TURN_TAIL_MIN, TURN_TAIL_MAX)
+  const dir = Math.floor(rng.next() * 4)
+  // the cardinal nose direction A and its lateral Lt; the car yaw carries the +/-20 deg jitter
+  const dirs: V2[] = [
+    [0, -1],
+    [0, 1],
+    [-1, 0],
+    [1, 0],
+  ]
+  const A = dirs[dir]!
+  const Lt: V2 = [-A[1]!, A[0]!]
+  const yawBase = [0, 180, 90, 270][dir]!
+  const startYawDeg = yawBase + range(rng, -TURN_YAW_JITTER, TURN_YAW_JITTER)
+  // placement bands (all boxes' corners within the inner arena, the goal >= 10 m off the inner walls):
+  // forward extent of the goal: NOSE_M + gap + TURN_WALL_T + depth; backward extent of the cheeks: -tailBack;
+  // lateral extent of the wall: +/-len/2
+  const fGoal = NOSE_M + gap + TURN_WALL_T + depth
+  const fWallFar = NOSE_M + gap + TURN_WALL_T
+  const sF = range(rng, -(ARENA_HALF - TURN_MOUTH_M - tailBack), ARENA_HALF - 10 - fGoal)
+  const sL = range(rng, -(ARENA_HALF - 10 - len / 2), ARENA_HALF - 10 - len / 2)
+  const start: V2 = [A[0]! * sF + Lt[0]! * sL, A[1]! * sF + Lt[1]! * sL]
+  // a local (f, l) point around the start, along the nose / lateral axes
+  const at = (f: number, l: number): V2 => [start[0] + A[0]! * f + Lt[0]! * l, start[1] + A[1]! * f + Lt[1]! * l]
+  // the dedicated wall: perpendicular to the nose (long along Lt), centred on the nose ray
+  const noseAlongX = A[0] === 0
+  boxes.push(noseAlongX ? { at: at(NOSE_M + gap + TURN_WALL_T / 2, 0), size: [len, TURN_WALL_T], yawDeg: 0 } : { at: at(NOSE_M + gap + TURN_WALL_T / 2, 0), size: [TURN_WALL_T, len], yawDeg: 0 })
+  // the two cheeks: parallel to the nose, inner faces at +/-hw (free corridor 2*hw = 12-14 m), from -tailBack
+  // (behind the car: the mouth) to the wall's FAR face plane (sealed against the wall — no forward corner gap)
+  const cheekLen = tailBack + NOSE_M + gap + TURN_WALL_T
+  const cheekF = (fWallFar - tailBack) / 2
+  for (const side of [1, -1] as const) {
+    const cl = side * (hw + tc / 2)
+    boxes.push(noseAlongX ? { at: at(cheekF, cl), size: [tc, cheekLen], yawDeg: 0 } : { at: at(cheekF, cl), size: [cheekLen, tc], yawDeg: 0 })
+  }
+  const goal: V2 = at(fGoal, 0)
+  // the loud guard (the WF lesson): a generator bug must crash the run, never poison it with an unsolvable task
+  const blocked = new Uint8Array(GRID_N * GRID_N)
+  for (const b of boxes) blockCells(b, blocked)
+  if (!goalReachable(blocked, start, goal)) throw new Error(`goal_turn:${seed}: the construct left no drivable route (generator bug)`)
+  // extras: 0..2 sampled boxes (4-14 m per axis, like goal_box) — CLEAR_M off the start hull and the goal,
+  // the RELAXED nose floor, and the goal stays reachable (an extra can never close the last route)
+  const hull = rectPoly(start[0], start[1], (startYawDeg * Math.PI) / 180, CAR_W, CAR_L)
+  const nose = noseOf(start, startYawDeg)
+  const extraTarget = Math.floor(rng.next() * (1 + TURN_EXTRA_MAX))
+  for (let i = 0; i < extraTarget; i++) {
+    for (let attempt = 0; attempt < TURN_EXTRA_ATTEMPTS; attempt++) {
+      const sx = range(rng, BOX_MIN, BOX_MAX)
+      const sz = range(rng, BOX_MIN, BOX_MAX)
+      const yawDeg = range(rng, 0, 180)
+      const hd = Math.hypot(sx, sz) / 2
+      const at2: V2 = [range(rng, hd - ARENA_HALF, ARENA_HALF - hd), range(rng, hd - ARENA_HALF, ARENA_HALF - hd)]
+      const box: CourseBox = { at: at2, size: [sx, sz], yawDeg }
+      const poly = boxPoly(box)
+      if (cornerGap(hull, poly) <= CLEAR_M) continue
+      if (pointPolyGap(goal[0], goal[1], poly) <= CLEAR_M) continue
+      if (pointPolyGap(nose[0], nose[1], poly) <= INFLATE_M + GOAL_TURN_NOSE_CLEAR_M) continue
+      const trial = blocked.slice()
+      blockCells(box, trial)
+      if (!goalReachable(trial, start, goal)) continue
+      boxes.push(box)
+      blockCells(box, blocked)
+      break
+    }
+  }
+  return { boxes, start, goal, startYawDeg }
+}
+
 /** the nearest point of a convex poly to p (the closest point of every edge segment) */
 const nearestOnPoly = (poly: V2[], p: V2): { point: V2; gap: number } => {
   let best: V2 = poly[0]!
@@ -503,9 +655,21 @@ const nearestOnPoly = (poly: V2[], p: V2): { point: V2; gap: number } => {
  *    obstacle (the generators' guarantee, user decision 2026-10-23).
  * The canonical start is the fallback after 12 unclear attempts. The goal never moves. `goal_open` has no
  * boxes — its variants are always jitter poses (the facing draw is skipped, its rng sequence unchanged).
+ *
+ * `opts`: `facing` (default true) — `goal_turn` passes false (a facing pose would break its nose-at-the-wall
+ * geometry guarantee); `noseFloorM` (default NOSE_CLEAR_M) — the poison-rule margin, `goal_turn` passes its
+ * relaxed GOAL_TURN_NOSE_CLEAR_M (its cheeks are DESIGNED 6-7 m off the nose). The goal_box / goal_wall call
+ * sites are untouched, so their rng sequences and shipped worlds stay bit-identical.
  */
-const jitterStart = (rng: Rng, boxes: readonly CourseBox[], start: V2, startYawDeg: number, goal: V2): { start: V2; startYawDeg: number; poseClass: 'jitter' | 'facing' | 'canonical' } => {
-  if (boxes.length > 0 && rng.next() < FACING_SHARE) {
+const jitterStart = (
+  rng: Rng,
+  boxes: readonly CourseBox[],
+  start: V2,
+  startYawDeg: number,
+  goal: V2,
+  opts: { facing?: boolean; noseFloorM?: number } = {},
+): { start: V2; startYawDeg: number; poseClass: 'jitter' | 'facing' | 'canonical' } => {
+  if (opts.facing !== false && boxes.length > 0 && rng.next() < FACING_SHARE) {
     // the 3 boxes nearest to the canonical start, 2 clearance samples each — the relocation can clash with a
     // THIRD box's clearance, so one attempt usually fails; six tries keep the facing class populated
     const ranked = boxes
@@ -524,7 +688,7 @@ const jitterStart = (rng: Rng, boxes: readonly CourseBox[], start: V2, startYawD
         // heading: fwd = -u (straight at the box); fwd of rotation [0, yaw, 0] is [-sin, -cos] -> sin = u[0], cos = u[1]
         const yawDeg = (Math.atan2(u[0], u[1]) * 180) / Math.PI
         const hull = rectPoly(at[0], at[1], (yawDeg * Math.PI) / 180, CAR_W, CAR_L)
-        if (boxes.every((b) => cornerGap(hull, boxPoly(b)) > 0.5) && noseClear(noseOf(at, yawDeg), boxes) && schlauLineCrosses(boxes, at, goal) && goalReachable(blocked, at, goal))
+        if (boxes.every((b) => cornerGap(hull, boxPoly(b)) > 0.5) && noseClear(noseOf(at, yawDeg), boxes, opts.noseFloorM) && schlauLineCrosses(boxes, at, goal) && goalReachable(blocked, at, goal))
           return { start: at, startYawDeg: yawDeg, poseClass: 'facing' }
       }
     }
@@ -533,7 +697,7 @@ const jitterStart = (rng: Rng, boxes: readonly CourseBox[], start: V2, startYawD
     const at: V2 = [start[0] + range(rng, -JITTER_M, JITTER_M), start[1] + range(rng, -JITTER_M, JITTER_M)]
     const yaw = startYawDeg + range(rng, -JITTER_DEG, JITTER_DEG)
     const hull = rectPoly(at[0], at[1], (yaw * Math.PI) / 180, CAR_W, CAR_L)
-    if (boxes.every((b) => cornerGap(hull, boxPoly(b)) > 0.5) && (boxes.length === 0 || (noseClear(noseOf(at, yaw), boxes) && schlauLineCrosses(boxes, at, goal)))) return { start: at, startYawDeg: yaw, poseClass: 'jitter' }
+    if (boxes.every((b) => cornerGap(hull, boxPoly(b)) > 0.5) && (boxes.length === 0 || (noseClear(noseOf(at, yaw), boxes, opts.noseFloorM) && schlauLineCrosses(boxes, at, goal)))) return { start: at, startYawDeg: yaw, poseClass: 'jitter' }
   }
   return { start, startYawDeg, poseClass: 'canonical' }
 }
@@ -541,8 +705,22 @@ const jitterStart = (rng: Rng, boxes: readonly CourseBox[], start: V2, startYawD
 /** Builds the seeded task of `kind`:seed(~variant). Deterministic per key. */
 export function buildSchlauTask(kind: SchlauKind, seed: number, variant = 0): SchlauTask {
   const rng = createRng((seed * 2654435761 + SCHLAU_KIND_SALT[kind] + variant * 2246822519) >>> 0)
-  const body = kind === 'goal_open' ? goalOpenBody(rng) : kind === 'goal_box' ? goalBoxBody(rng, seed) : goalWallBody(rng, seed)
-  const pose = variant >= 1 ? jitterStart(rng, body.boxes, body.start, body.startYawDeg, body.goal) : { start: body.start, startYawDeg: body.startYawDeg, poseClass: 'canonical' as const }
+  const body =
+    kind === 'goal_open'
+      ? goalOpenBody(rng)
+      : kind === 'goal_box'
+        ? goalBoxBody(rng, seed)
+        : kind === 'goal_wall'
+          ? goalWallBody(rng, seed)
+          : goalTurnBody(rng, seed)
+  // goal_turn variants: NO facing poses (they would break the nose-at-the-wall geometry) and the RELAXED nose
+  // floor (the cheeks sit 6-7 m off the nose by design); every other kind keeps the original call bit-identical
+  const pose =
+    variant >= 1
+      ? kind === 'goal_turn'
+        ? jitterStart(rng, body.boxes, body.start, body.startYawDeg, body.goal, { facing: false, noseFloorM: GOAL_TURN_NOSE_CLEAR_M })
+        : jitterStart(rng, body.boxes, body.start, body.startYawDeg, body.goal)
+      : { start: body.start, startYawDeg: body.startYawDeg, poseClass: 'canonical' as const }
   return {
     key: schlauKey(kind, seed, variant),
     kind,
@@ -585,7 +763,7 @@ export const schlauKindsCanStage = (kinds: readonly SchlauKind[]): boolean => ki
  * all of them in 2.4-5.6 s, they carry no gradient; cut to 3 bootstrap/sanity seeds, "nur die Box-Mazes machen
  * wirklich Sinn"); goal_box / goal_wall carry the 16-seed difficulty ramps.
  */
-export const SCHLAU_TRAIN_PER_KIND: Record<SchlauKind, number> = { goal_open: 3, goal_box: 16, goal_wall: 16 }
+export const SCHLAU_TRAIN_PER_KIND: Record<SchlauKind, number> = { goal_open: 3, goal_box: 16, goal_wall: 16, goal_turn: 16 }
 /**
  * Default HOLDOUT band size per kind: 8 — the decision-grade convention (eval-candidate.ts
  * DECISION_HOLDOUT_PER_KIND). The holdout band (seeds 1001+, variant 1) sits at ramp difficulty d = 1 PLUS the

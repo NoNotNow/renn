@@ -173,7 +173,8 @@ export const WF_TRAINING_SET: TrainingSet = {
 }
 
 /**
- * The schlau training set: the six schlau worlds (all `goal_box` arena mazes since 2026-10-23 — the empty open
+ * The schlau training set: the twenty schlau worlds (all `goal_box` arena mazes and the `goal_wall` gate runs since
+ * 2026-10-23, plus the `goal_turn` dead-end shunt rotation tier of handoff 2026-10-23 Task 1 — the empty open
  * ground teaches nothing beyond driving at the goal), ONE task per world (start → goal, the geodesic path as the
  * single tile), "goal" wording. Its candidate dropdown reads the schlau candidates file and swaps the schlau
  * drive stage's weights (applySchlauCandidate).
@@ -186,13 +187,13 @@ export const SCHLAU_TRAINING_SET: TrainingSet = {
   worlds: SCHLAU_TRAINING_WORLDS.map((spec) => ({
     id: spec.id,
     name: spec.name,
-    info: `${spec.kind === 'goal_wall' ? 'wall' : 'box'} · seed ${spec.seed}`,
+    info: `${spec.kind === 'goal_wall' ? 'wall' : spec.kind === 'goal_turn' ? 'turn' : 'box'} · seed ${spec.seed}`,
   })),
   carId: schlauCarId,
   watch: { score: 'schlau.score', seg: 'schlau.seg' },
   tileCount: () => 1,
   tileText: () => ({ name: 'Goal', short: '(start → goal)', long: 'shortest vector path to the goal' }),
-  badge: (meta) => ('kind' in meta && (meta.kind === 'goal_box' || meta.kind === 'goal_wall') ? meta.kind.slice('goal_'.length) : null),
+  badge: (meta) => ('kind' in meta && meta.kind !== 'goal_open' ? meta.kind.slice('goal_'.length) : null),
   noun: 'goal',
   focus: focusSchlauGoal,
   loadLogLabel: 'Load schlau training world into builder',
