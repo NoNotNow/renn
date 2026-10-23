@@ -54,8 +54,8 @@ export interface MazeTrainingDialogProps {
   liveRun?: TrainingLiveRun | null
   /**
    * The car switch of the training section (the header row): the cars the training dialog serves (`renn` = the
-   * v3/WF sets with the tab bar, `schlau` = the schlau set without tabs). The Builder owns the state; the dialog
-   * only renders the two positions and reports a pick.
+   * v3/WF sets, `schlau` = the Schlau / Schlau Mazes sets — each car's own set tab bar rides in `tabs`). The
+   * Builder owns the state; the dialog only renders the two positions and reports a pick.
    */
   carSwitch?: {
     activeCar: TrainingCar

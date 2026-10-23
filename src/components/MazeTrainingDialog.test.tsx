@@ -2,7 +2,8 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MazeTrainingDialog, { routeTileThumbHeightPx } from './MazeTrainingDialog'
-import { CRUX_TRAINING_SET, trainingSetsOfCar, WF_TRAINING_SET } from './trainingSets'
+import { CRUX_TRAINING_SET, SCHLAU_MAZE_TRAINING_SET, trainingSetsOfCar, WF_TRAINING_SET } from './trainingSets'
+import { SCHLAU_MAZE_WORLDS, type SchlauMazeTrainingMeta } from '@/policyEvolution/schlauMaze'
 import { theme } from '@/config/theme'
 import { MAZE_TRAINING_WORLDS, type MazeTrainingMeta } from '@/policyEvolution/mazeTraining'
 import { CRUX_TRAINING_WORLDS, cruxTrainingInfo, type CruxTrainingMeta } from '@/policyEvolution/cruxTraining'
@@ -1040,5 +1041,159 @@ describe('MazeTrainingDialog (merged tabbed dialog)', () => {
     // the width share of the same width) and the 40px floor still catches extreme cases
     expect(routeTileThumbHeightPx(600, 350, 4)).toBe(77)
     expect(routeTileThumbHeightPx(600, 220, 4)).toBe(40)
+  })
+})
+
+// --- the Schlau Mazes set: the SAME parameterized dialog on SCHLAU_MAZE_TRAINING_SET (schlau car tab bar) ---------
+
+describe('MazeTrainingDialog (Schlau Mazes set)', () => {
+  beforeEach(() => {
+    stubLocalStorage()
+    clearTransformerWatchEntries()
+  })
+
+  afterEach(() => {
+    clearTransformerWatchEntries()
+    setTransformerWatchEnabled(false)
+    vi.unstubAllGlobals()
+  })
+
+  /** Schlau maze meta fixture: maze-shaped (seed + routes + tileSvg), the SCHLAU candidate identity. */
+  function makeSchlauMazeMeta(spec: (typeof SCHLAU_MAZE_WORLDS)[number]): SchlauMazeTrainingMeta {
+    const pts = TILE_PTS[0].map((p) => [...p] as [number, number])
+    return {
+      id: spec.id,
+      seed: spec.seed,
+      name: spec.name,
+      candidate: { policy: 'schlau', label: 'schlau shipped (gen 45600)', gen: 45600, source: 'shippedPolicySchlau.json' },
+      bestScore: 94.4,
+      chain: { points: 10, lengthM: 134.9 },
+      routes: { forward: 1, reversed: 1 },
+      tileSvg: { w: 206, h: 220, routes: [{ pts, score: 94.4 }, { pts, score: 36.3 }] },
+    }
+  }
+
+  /** Fetch stub serving the schlau maze metas + the SCHLAU candidates file (any schlau model drives any maze task). */
+  function stubFetchWithSchlauMazeMeta(candidates?: MazeCandidate[]): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = String(input)
+        if (url.includes('policy-evolution/schlau-candidates.json')) {
+          if (!candidates) throw new Error('offline')
+          return {
+            ok: true,
+            json: async () => ({
+              schema: 'renn.policy-evolution.candidates/1',
+              source: 'training-data/policy-evolution/schlau.json',
+              policy: 'schlau',
+              gen: 42,
+              updatedAt: '2026-10-23T00:00:00.000Z',
+              candidates,
+            }),
+          }
+        }
+        if (url.includes('policy-evolution/candidates.json')) throw new Error('offline')
+        const match = url.match(/exampleWorlds\/([^/]+)\/meta\.json$/)
+        const id = decodeURIComponent(match?.[1] ?? '')
+        const spec = SCHLAU_MAZE_WORLDS.find((s) => s.id === id)
+        if (!spec) throw new Error(`unexpected fetch: ${url}`)
+        return { ok: true, json: async () => makeSchlauMazeMeta(spec) }
+      }),
+    )
+  }
+
+  it('renders the schlau car\'s tab bar (Schlau / Schlau Mazes) and the set\'s own rows, seeds and ways badges', async () => {
+    stubFetchWithSchlauMazeMeta()
+    render(
+      <MazeTrainingDialog
+        trainingSet={SCHLAU_MAZE_TRAINING_SET}
+        tabs={{ sets: trainingSetsOfCar('schlau'), activeKey: 'schlauMaze', onSelect: () => {} }}
+        onPlayExampleWorld={() => {}}
+      />,
+    )
+    // the schlau car now carries its own two-set tab bar; Schlau Mazes is active
+    expect(screen.getByTestId('training-tab-schlau')).toHaveTextContent('Schlau')
+    expect(screen.getByTestId('training-tab-schlauMaze')).toHaveTextContent('Schlau Mazes')
+    expect(screen.getByTestId('training-tab-schlauMaze')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('training-tab-schlau')).toHaveAttribute('aria-selected', 'false')
+    // the set's own title + testid prefix + rows (maze-style info chip and ways badge)
+    expect(screen.getByTestId('schlauMaze-training-panel')).toHaveAttribute('aria-label', 'Schlau Mazes')
+    expect(screen.getByTestId('schlauMaze-training-panel-header')).toHaveTextContent('Schlau Mazes')
+    expect(screen.getByText(`${SCHLAU_MAZE_WORLDS.length} runs`)).toBeInTheDocument()
+    expect(screen.queryByTestId('maze-training-panel')).not.toBeInTheDocument()
+    await screen.findAllByText('1 ways · 1 reversed')
+    for (const spec of SCHLAU_MAZE_WORLDS) {
+      expect(screen.getByTestId(`schlauMaze-training-card-${spec.id}`)).toBeInTheDocument()
+      expect(screen.getByText(spec.name)).toBeInTheDocument()
+      expect(screen.getByText(`seed ${spec.seed}`)).toBeInTheDocument()
+    }
+  })
+
+  it('expands forward + reversed way tiles; a tile click starts the run on that way', async () => {
+    const user = userEvent.setup()
+    stubFetchWithSchlauMazeMeta()
+    const onPlay = vi.fn()
+    render(<MazeTrainingDialog trainingSet={SCHLAU_MAZE_TRAINING_SET} onPlayExampleWorld={onPlay} />)
+    await screen.findAllByText('Best: 94.4 pts')
+    await user.click(screen.getByTestId('schlauMaze-training-row-schlau_maze_1'))
+    expect(screen.getByTestId('schlauMaze-training-route-tile-schlau_maze_1-0')).toHaveAttribute(
+      'aria-label',
+      'Schlau Maze 1 way 1 (forward)',
+    )
+    expect(screen.getByTestId('schlauMaze-training-route-tile-schlau_maze_1-1')).toHaveAttribute(
+      'aria-label',
+      'Schlau Maze 1 way 2 (reversed)',
+    )
+    expect(screen.getByTestId('schlauMaze-training-thumb-schlau_maze_1-1')).toHaveAttribute(
+      'src',
+      expect.stringContaining('route_1.svg'),
+    )
+    // per-route scores under the thumbnails
+    expect(screen.getByText('Score: 94.4 pts')).toBeInTheDocument()
+    expect(screen.getByText('Score: 36.3 pts')).toBeInTheDocument()
+    // a tile click starts the run on that way
+    await user.click(screen.getByTestId('schlauMaze-training-route-tile-schlau_maze_1-1'))
+    expect(onPlay).toHaveBeenCalledWith('schlau_maze_1', 1, null)
+  })
+
+  it('reads the SCHLAU candidates file (not candidates.json): a pick persists per set and the next tile start carries it', async () => {
+    const user = userEvent.setup()
+    const candidates = [makeCandidate('best', 'schlau best')]
+    stubFetchWithSchlauMazeMeta(candidates)
+    const onPlay = vi.fn()
+    render(<MazeTrainingDialog trainingSet={SCHLAU_MAZE_TRAINING_SET} onPlayExampleWorld={onPlay} />)
+    const trigger = await screen.findByTestId('schlauMaze-training-candidates')
+    expect(trigger).toHaveTextContent('Deployed (export)')
+    await pickModel(user, 'milestones', 'best', 'schlauMaze')
+    expect(trigger).toHaveTextContent('schlau best')
+    // the pick persists in the SET\'s own slot (the schlau set\'s slot stays untouched)
+    expect(window.localStorage.getItem('schlauMazeTrainingPanelCandidate')).toBe(JSON.stringify('best'))
+    expect(window.localStorage.getItem('schlauTrainingPanelCandidate')).toBeNull()
+    // the next tile start carries the picked schlau model (the Builder swaps every schlau_drive_* stage)
+    await user.click(screen.getByTestId('schlauMaze-training-row-schlau_maze_2'))
+    await user.click(screen.getByTestId('schlauMaze-training-route-tile-schlau_maze_2-0'))
+    expect(onPlay).toHaveBeenCalledWith('schlau_maze_2', 0, expect.objectContaining({ id: 'best' }))
+  })
+
+  it('renders the live score of the focused route car (schlau.* watch labels, per-copy car id)', async () => {
+    setTransformerWatchEnabled(true)
+    // the focused route copy's car id: schlau_maze_car_1 (the set's carId of routeIndex 1)
+    publishTransformerWatchEntry({ entityId: 'schlau_maze_car_1', configStackIndex: 2, label: 'schlau.score', value: '77 pts' })
+    publishTransformerWatchEntry({ entityId: 'schlau_maze_car_1', configStackIndex: 2, label: 'schlau.seg', value: '2' })
+    const user = userEvent.setup()
+    stubFetchWithSchlauMazeMeta()
+    render(
+      <MazeTrainingDialog
+        trainingSet={SCHLAU_MAZE_TRAINING_SET}
+        onPlayExampleWorld={() => {}}
+        liveRun={{ worldId: 'schlau_maze_1', routeIndex: 1 }}
+      />,
+    )
+    await screen.findAllByText('Best: 94.4 pts')
+    await user.click(screen.getByTestId('schlauMaze-training-row-schlau_maze_1'))
+    expect(screen.getByText('Live: 77 pts')).toBeInTheDocument()
+    expect(screen.getByTestId('schlauMaze-training-live-vector-schlau_maze_1-1')).toBeInTheDocument()
+    expect(screen.queryByTestId('schlauMaze-training-live-vector-schlau_maze_1-0')).not.toBeInTheDocument()
   })
 })

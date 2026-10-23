@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { RennWorld } from '@/types/world'
 import { createRng } from '@/avEvolution/core/rng'
 import { MAZE_TRAINING_WORLDS, buildMazeTrainingWorld, mazeTrainingRoutes } from './mazeTraining'
 import { freshGenome } from './islands'
@@ -10,7 +11,7 @@ import {
   SCHLAU_GOAL_VECTOR_COLOR,
   SCHLAU_STAGE_BODY,
 } from './schlauPolicy'
-import { SCHLAU_SCORE_STAGE_CODE, placeholderSchlauGenome } from './schlauTraining'
+import { SCHLAU_SCORE_STAGE_CODE, applySchlauCandidate, placeholderSchlauGenome } from './schlauTraining'
 import {
   SCHLAU_MAZE_STAGE_BODY,
   SCHLAU_MAZE_STAGE_CODE,
@@ -18,6 +19,7 @@ import {
   SCHLAU_MAZE_WAYPOINT_REACH_M,
   SCHLAU_MAZE_WORLDS,
   buildSchlauMazeWorld,
+  focusSchlauMazeRoute,
   schlauMazeCarId,
   schlauMazeDriveStageId,
   schlauMazeGoalId,
@@ -263,5 +265,68 @@ describe('buildSchlauMazeWorld', () => {
     // the car hull + ray constants the stage relies on: 14 rays, nose 4.1 m
     expect(N_RAYS).toBe(14)
     expect(NOSE_M).toBe(4.1)
+  })
+})
+
+// --- the training-dialog helpers over the built worlds (focus + candidate swap) --------------------------------------------
+
+describe('focusSchlauMazeRoute (the training dialog\'s route focus of the maze worlds)', () => {
+  const genome = placeholderSchlauGenome()
+  type MazeWorldView = {
+    world: { camera: { target?: string }; debugTargetLineEntityId?: string }
+    transformers: Record<string, { params?: Record<string, unknown> }>
+  }
+  const worldOf = (spec: (typeof SCHLAU_MAZE_WORLDS)[number]) => buildSchlauMazeWorld(spec, genome)
+  const viewOf = (world: RennWorld) => world as unknown as MazeWorldView
+
+  it('focuses the clicked route copy: its car becomes the camera + visualize target, only its score stage writes the HUD', () => {
+    const world = worldOf(SCHLAU_MAZE_WORLDS[0]!)
+    const view = viewOf(world)
+    const copies = Object.keys(view.transformers).filter((id) => /^schlau_maze_score_(\d+)$/.test(id)).length
+    expect(copies).toBeGreaterThanOrEqual(2)
+    const focused = viewOf(focusSchlauMazeRoute(world, 1))
+    expect(focused.world.camera.target).toBe(schlauMazeCarId(1))
+    expect(focused.world.debugTargetLineEntityId).toBe(schlauMazeCarId(1))
+    for (let i = 0; i < copies; i++) {
+      expect(focused.transformers[schlauMazeScoreStageId(i)]!.params!.hud).toBe(i === 1)
+    }
+    // pure JSON transform: the input world stays neutral (focused on route 0)
+    expect(view.world.camera.target).toBe(schlauMazeCarId(0))
+    expect(view.transformers[schlauMazeScoreStageId(0)]!.params!.hud).toBe(true)
+  })
+
+  it('an out-of-range route index is a no-op (the same world reference returns)', () => {
+    const world = worldOf(SCHLAU_MAZE_WORLDS[1]!)
+    expect(focusSchlauMazeRoute(world, -1)).toBe(world)
+    expect(focusSchlauMazeRoute(world, 99)).toBe(world)
+  })
+})
+
+describe('applySchlauCandidate on a multi-car maze world (any schlau model drives any maze task)', () => {
+  it('swaps params.w of EVERY per-copy schlau_drive_* stage and touches nothing else', () => {
+    const genome = placeholderSchlauGenome()
+    const world = buildSchlauMazeWorld(SCHLAU_MAZE_WORLDS[0]!, genome)
+    const view = world as unknown as { transformers: Record<string, { params?: Record<string, unknown> }> }
+    const replacement = freshGenome(createRng(1234), 0.3, N_IN_SCHLAU, 10)
+    const swapped = applySchlauCandidate(world, replacement) as unknown as typeof view
+    const driveIds = Object.keys(view.transformers).filter((id) => id.startsWith('schlau_drive_'))
+    expect(driveIds.length).toBeGreaterThanOrEqual(2)
+    for (const id of driveIds) {
+      expect(swapped.transformers[id]!.params!.w).toEqual(replacement)
+      // the rest of the drive params (chain, gain) survives the swap
+      expect(swapped.transformers[id]!.params!.chain).toEqual(view.transformers[id]!.params!.chain)
+    }
+    // the per-copy score stages and actuators carry no weights — untouched
+    for (const [id, transformer] of Object.entries(swapped.transformers)) {
+      if (id.startsWith('schlau_drive_')) continue
+      expect(transformer).toEqual(view.transformers[id]!)
+    }
+    // pure JSON transform: the loaded world on disk keeps the baked-in genome
+    for (const id of driveIds) expect(view.transformers[id]!.params!.w).toEqual(genome)
+  })
+
+  it('rejects a non-schlau-shaped genome (a v3 genome is length-identical but wired differently)', () => {
+    const world = buildSchlauMazeWorld(SCHLAU_MAZE_WORLDS[0]!, placeholderSchlauGenome())
+    expect(() => applySchlauCandidate(world, [1, 2, 3])).toThrow(/not schlau-shaped/)
   })
 })

@@ -253,12 +253,12 @@ export function buildSchlauMazeWorld(spec: SchlauMazeWorldSpec, genome: number[]
 
 // --- meta ----------------------------------------------------------------------------------------------------------------
 
-/** meta.json of one schlau maze world (documentation next to world.json; the File menu needs no meta). */
-export function schlauMazeMeta(
-  spec: SchlauMazeWorldSpec,
-  bestScore: number | null,
-  candidate: SchlauTrainingCandidate,
-): {
+/**
+ * meta.json of one schlau maze world as the training dialog reads it (maze-shaped: seed + routes + tileSvg — the
+ * exporter's scoring driver adds the per-route tile data, same shape as `MazeTrainingMeta` so the shared
+ * `MazeTrainingDialog` handles it; the `candidate` is the SCHLAU candidate identity, policy 'schlau').
+ */
+export interface SchlauMazeTrainingMeta {
   id: string
   seed: number
   name: string
@@ -266,7 +266,21 @@ export function schlauMazeMeta(
   bestScore: number | null
   chain: { points: number; lengthM: number }
   routes: { forward: number; reversed: number }
-} {
+  /**
+   * Dialog tile data, aligned with the tile order (forward routes first, then reversed): `w`/`h` = the shared
+   * pixel size of every route_<i>.svg, `pts` = that route's chain polyline in svg pixel space (the dialog's live
+   * active-vector overlay rides on it), `score` = the route's own best headless score. Optional: older exports
+   * predate it (same contract as the maze meta's tileSvg).
+   */
+  tileSvg?: { w: number; h: number; routes: Array<{ pts: Array<[number, number]>; score: number | null }> }
+}
+
+/** meta.json of one schlau maze world (documentation next to world.json; the training dialog cards read it). */
+export function schlauMazeMeta(
+  spec: SchlauMazeWorldSpec,
+  bestScore: number | null,
+  candidate: SchlauTrainingCandidate,
+): SchlauMazeTrainingMeta {
   const { routes, chains } = mazeTrainingRoutes(spec as Parameters<typeof mazeTrainingRoutes>[0])
   const primary = chains[0]!
   let lengthM = 0
@@ -280,4 +294,26 @@ export function schlauMazeMeta(
     chain: { points: primary.length, lengthM: Math.round(lengthM * 10) / 10 },
     routes: { forward: routes.filter((r) => !r.reversed).length, reversed: routes.filter((r) => r.reversed).length },
   }
+}
+
+/**
+ * Focus a loaded schlau maze world on ONE route copy (the tile clicked in the training dialog = the run's target
+ * vector): the copy's car becomes the camera target and the visualizeLine display entity, and only its score stage
+ * writes the HUD score — the mirror of `focusMazeRoute` (mazeTraining.ts) over the schlau maze ids. Pure JSON
+ * transform, applied by the Builder before opening the world; an out-of-range index is a no-op. The world on disk
+ * stays neutral (focused on route 0).
+ */
+export function focusSchlauMazeRoute(world: RennWorld, routeIndex: number): RennWorld {
+  const scoreIds = Object.keys((world as { transformers?: Record<string, unknown> }).transformers ?? {})
+    .filter((id) => /^schlau_maze_score_(\d+)$/.test(id))
+    .sort((a, b) => Number(a.slice('schlau_maze_score_'.length)) - Number(b.slice('schlau_maze_score_'.length)))
+  if (scoreIds.length === 0 || routeIndex < 0 || routeIndex >= scoreIds.length) return world
+  const w = JSON.parse(JSON.stringify(world)) as {
+    world: { camera: { target?: string }; debugTargetLineEntityId?: string }
+    transformers: Record<string, { params?: Record<string, unknown> }>
+  }
+  w.world.camera.target = schlauMazeCarId(routeIndex)
+  w.world.debugTargetLineEntityId = schlauMazeCarId(routeIndex)
+  for (const id of scoreIds) w.transformers[id]!.params!.hud = id === schlauMazeScoreStageId(routeIndex)
+  return w as unknown as RennWorld
 }

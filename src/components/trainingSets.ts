@@ -23,10 +23,21 @@ import {
   schlauTrainingMeta,
 } from '@/policyEvolution/schlauTraining'
 import { fetchSchlauCandidates } from '@/policyEvolution/schlauCandidates'
+import {
+  focusSchlauMazeRoute,
+  SCHLAU_MAZE_WORLDS,
+  schlauMazeCarId,
+  type SchlauMazeTrainingMeta,
+} from '@/policyEvolution/schlauMaze'
 import type { MazeCandidate, MazeCandidatesFile } from '@/policyEvolution/mazeCandidates'
 
 /** Meta.json of any training set (the shared dialog reads the common fields; the per-set helpers narrow the rest). */
-export type TrainingMeta = MazeTrainingMeta | CruxTrainingMeta | WfTrainingMeta | ReturnType<typeof schlauTrainingMeta>
+export type TrainingMeta =
+  | MazeTrainingMeta
+  | CruxTrainingMeta
+  | WfTrainingMeta
+  | ReturnType<typeof schlauTrainingMeta>
+  | SchlauMazeTrainingMeta
 
 /** One world row of a training set (the parameterized view of a spec: id, name and the secondary info chip). */
 export interface TrainingWorldView {
@@ -43,12 +54,12 @@ export interface TrainingWorldView {
  * slots (the candidate slot is per set), `testid` prefixes every data-testid (`${testid}-training-...`).
  */
 export interface TrainingSet {
-  key: 'maze' | 'crux' | 'wf' | 'schlau'
+  key: 'maze' | 'crux' | 'wf' | 'schlau' | 'schlauMaze'
   /** panel title and aria label ("Training Mazes" / "Training Crux") */
   title: string
   /** tab label of the merged training dialog's tab bar ("Mazes" / "Crux" / "Widen-freeze" / "Schlau") */
   tab: string
-  testid: 'maze' | 'crux' | 'wf' | 'schlau'
+  testid: 'maze' | 'crux' | 'wf' | 'schlau' | 'schlauMaze'
   worlds: TrainingWorldView[]
   /** car entity id of copy i (mazeCarId / cruxCarId — the live watch + focus target) */
   carId: (copy: number) => string
@@ -81,12 +92,22 @@ const isMazeMeta = (meta: TrainingMeta): meta is MazeTrainingMeta => 'seed' in m
 const isCruxMeta = (meta: TrainingMeta): meta is CruxTrainingMeta => 'setupKey' in meta && !('kind' in meta)
 const isWfMeta = (meta: TrainingMeta): meta is WfTrainingMeta => 'kind' in meta
 
-/** "3 ways · 1 reversed"; null when an older meta.json predates the routes field. */
-function routesLabel(meta: MazeTrainingMeta): string | null {
+/**
+ * Routes block of the maze-shaped metas (maze + schlau maze): forward + reversed route counts; null when an
+ * older meta.json predates the routes field. One place for the discrimination so the maze and schlau maze sets
+ * cannot drift apart.
+ */
+function metaRoutes(meta: TrainingMeta): { forward: number; reversed: number } | null {
+  if (!('routes' in meta)) return null
   const routes = meta.routes
   if (!routes || typeof routes.forward !== 'number') return null
-  const reversed = typeof routes.reversed === 'number' ? routes.reversed : 0
-  return `${routes.forward} ways · ${reversed} reversed`
+  return { forward: routes.forward, reversed: typeof routes.reversed === 'number' ? routes.reversed : 0 }
+}
+
+/** "3 ways · 1 reversed"; null when an older meta.json predates the routes field. */
+function routesLabel(meta: TrainingMeta): string | null {
+  const routes = metaRoutes(meta)
+  return routes ? `${routes.forward} ways · ${routes.reversed} reversed` : null
 }
 
 /** The training-maze set: the ten maze worlds, forward + reversed route tiles, "way" wording. */
@@ -179,10 +200,48 @@ export const SCHLAU_TRAINING_SET: TrainingSet = {
 }
 
 /**
- * All training sets of the merged training dialog (File → "Training…"), in tab-bar order: Mazes / Crux /
- * Widen-freeze / Schlau. The Builder mounts ONE dialog; its tab bar switches the active set via `trainingSetByKey`.
+ * The schlau maze set: the ten maze-bridge worlds (`schlau_maze_1..10` — the SAME maze geometry + routes as the
+ * v3 maze worlds, one schlau car per route copy driving its chain through the waypoint-sequential goal feed),
+ * forward + reversed route tiles, "way" wording like the maze set. ANY schlau model drives ANY maze task: the
+ * candidate dropdown reads the SAME schlau candidates file as the schlau set and `applySchlauCandidate` swaps
+ * EVERY `schlau_drive_*` stage of the loaded world (one per route copy) to the picked genome.
  */
-export const TRAINING_SETS: TrainingSet[] = [MAZE_TRAINING_SET, CRUX_TRAINING_SET, WF_TRAINING_SET, SCHLAU_TRAINING_SET]
+export const SCHLAU_MAZE_TRAINING_SET: TrainingSet = {
+  key: 'schlauMaze',
+  title: 'Schlau Mazes',
+  tab: 'Schlau Mazes',
+  testid: 'schlauMaze',
+  worlds: SCHLAU_MAZE_WORLDS.map((spec) => ({ id: spec.id, name: spec.name, info: `seed ${spec.seed}` })),
+  carId: schlauMazeCarId,
+  watch: { score: 'schlau.score', seg: 'schlau.seg' },
+  tileCount: (meta) => {
+    const routes = metaRoutes(meta)
+    return routes ? routes.forward + routes.reversed : 0
+  },
+  tileText: (meta, i) => {
+    const routes = metaRoutes(meta)
+    const reversed = routes != null && i >= routes.forward
+    return { name: `Way ${i + 1}`, short: reversed ? '(rev)' : '(fwd)', long: reversed ? 'reversed' : 'forward' }
+  },
+  badge: (meta) => routesLabel(meta),
+  noun: 'way',
+  focus: focusSchlauMazeRoute,
+  loadLogLabel: 'Load schlau maze world into builder',
+  candidates: { fetch: fetchSchlauCandidates, apply: (world, candidate) => applySchlauCandidate(world, candidate.genome) },
+}
+
+/**
+ * All training sets of the merged training dialog (File → "Training…"), in tab-bar order: Mazes / Crux /
+ * Widen-freeze (the renn car) and Schlau / Schlau Mazes (the schlau car). The Builder mounts ONE dialog; the
+ * car's tab bar switches the active set via `trainingSetByKey`.
+ */
+export const TRAINING_SETS: TrainingSet[] = [
+  MAZE_TRAINING_SET,
+  CRUX_TRAINING_SET,
+  WF_TRAINING_SET,
+  SCHLAU_TRAINING_SET,
+  SCHLAU_MAZE_TRAINING_SET,
+]
 
 /** The training set of a tab key (the merged dialog's active tab; unknown keys fall back to the mazes). */
 export function trainingSetByKey(key: TrainingSet['key']): TrainingSet {
@@ -190,18 +249,19 @@ export function trainingSetByKey(key: TrainingSet['key']): TrainingSet {
 }
 
 /**
- * The training set a world id belongs to (world-id prefix: `crux_*` → crux, `wf_*` → widen-freeze, `schlau_*` →
- * schlau, everything else → the mazes, like the pre-seam Builder cascade). ONE place for the discrimination so the
- * Builder's load path never re-spells it.
+ * The training set a world id belongs to (world-id prefix: `crux_*` → crux, `wf_*` → widen-freeze, `schlau_maze_*` →
+ * schlau mazes, `schlau_*` → schlau, everything else → the mazes, like the pre-seam Builder cascade). ONE place for
+ * the discrimination so the Builder's load path never re-spells it.
  */
 export function trainingSetOfWorldId(worldId: string): TrainingSet {
   if (worldId.startsWith('crux_')) return CRUX_TRAINING_SET
   if (worldId.startsWith('wf_')) return WF_TRAINING_SET
+  if (worldId.startsWith('schlau_maze_')) return SCHLAU_MAZE_TRAINING_SET
   if (worldId.startsWith('schlau_')) return SCHLAU_TRAINING_SET
   return MAZE_TRAINING_SET
 }
 
-/** The cars of the training dialog's car switch: `renn` (the v3/WF policy sets) and `schlau` (the schlau set). */
+/** The cars of the training dialog's car switch: `renn` (the v3/WF policy sets) and `schlau` (the schlau sets). */
 export type TrainingCar = 'renn' | 'schlau'
 
 /** The car switch's two positions (the dialog header renders one button per car). */
@@ -210,12 +270,27 @@ export const TRAINING_CARS: readonly { key: TrainingCar; label: string }[] = [
   { key: 'schlau', label: 'Schlau' },
 ]
 
-/** The car a training set belongs to (only the schlau set is the schlau car; everything else is the renn car). */
+/**
+ * The car a training set belongs to (the schlau sets — "Schlau" and "Schlau Mazes" — are the schlau car; everything
+ * else is the renn car).
+ */
 export function trainingCarOfSet(key: TrainingSet['key']): TrainingCar {
-  return key === 'schlau' ? 'schlau' : 'renn'
+  return key === 'schlau' || key === 'schlauMaze' ? 'schlau' : 'renn'
 }
 
-/** The training sets of one car (the tab bar of the renn car; the schlau car shows its single set without tabs). */
+/**
+ * The training sets of one car (that car's tab bar; a car with a single set renders it without tabs).
+ */
 export function trainingSetsOfCar(car: TrainingCar): TrainingSet[] {
   return TRAINING_SETS.filter((set) => trainingCarOfSet(set.key) === car)
 }
+
+/**
+ * EVERY world id the training dialog's sets own — the SINGLE SOURCE of the File → "Example Worlds" menu exclusion:
+ * the BuilderHeader hides these ids from BOTH menu sources (the build glob AND the dev agent-list merge; the two
+ * feed one id list), while the worlds STAY on disk and load through the same example-world path the dialog uses.
+ * Derived from `TRAINING_SETS` so a new set's worlds can never drift into the menu.
+ */
+export const TRAINING_SET_EXAMPLE_WORLD_IDS: ReadonlySet<string> = new Set(
+  TRAINING_SETS.flatMap((set) => set.worlds.map((world) => world.id)),
+)

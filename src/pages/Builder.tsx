@@ -14,6 +14,7 @@ import PerformanceBoosterDialog from '@/components/PerformanceBoosterDialog'
 import SaveDialog from '@/components/SaveDialog'
 import MazeTrainingDialog, { type TrainingLiveRun } from '@/components/MazeTrainingDialog'
 import {
+  TRAINING_SETS,
   trainingSetByKey,
   trainingSetOfWorldId,
   trainingSetsOfCar,
@@ -87,6 +88,16 @@ import { useGlobalLibraryUpgrade } from '@/hooks/useGlobalLibraryUpgrade'
 import { useScreenWakeLock } from '@/hooks/useScreenWakeLock'
 
 const EDITOR_HISTORY_MAX_DEPTH = 80
+
+/**
+ * The training section's live-run record with EVERY set's slot cleared (the overlay follows the world's own set —
+ * derived from `TRAINING_SETS` so a new set's slot cannot be forgotten).
+ */
+const emptyTrainingLive = (): Record<TrainingSet['key'], TrainingLiveRun | null> =>
+  Object.fromEntries(TRAINING_SETS.map((set) => [set.key, null])) as Record<
+    TrainingSet['key'],
+    TrainingLiveRun | null
+  >
 
 export default function Builder() {
   // The Builder viewport simulates live, so keep the display awake while it is visible.
@@ -167,24 +178,27 @@ export default function Builder() {
   const [editNavigationMode, setEditNavigationMode] = useLocalStorageState('builderEditNavigationMode', false)
   const [gameFrozen, setGameFrozen] = useState(false)
   const [performanceBoosterOpen, setPerformanceBoosterOpen] = useState(false)
-  /** Active set of the training section in the right sidebar (File → "Training…"): Mazes / Crux / Widen-freeze (the renn car). */
-  const [trainingSetKey, setTrainingSetKey] = useState<TrainingSet['key']>('maze')
   /**
-   * The car of the training section's car switch: `renn` (the v3/WF sets, shown with the tab bar) or `schlau`
-   * (the schlau set, one task per world, without tabs). Persisted; the active set of the schlau car is always the
-   * schlau set.
+   * Active set of the training section per car (File → "Training…"): the renn car's Mazes / Crux / Widen-freeze
+   * tab, the schlau car's Schlau / Schlau Mazes tab. Persisted per car (one record), so a car switch restores its
+   * own tab; a stale stored key of another car falls back to the car's first set.
+   */
+  const [trainingSetKeyByCar, setTrainingSetKeyByCar] = useLocalStorageState<Record<TrainingCar, TrainingSet['key']>>(
+    'builderTrainingSetKey',
+    { renn: 'maze', schlau: 'schlau' },
+  )
+  /**
+   * The car of the training section's car switch: `renn` (the v3/WF sets) or `schlau` (the Schlau / Schlau Mazes
+   * sets). Persisted; each car keeps its own active set key above.
    */
   const [trainingCar, setTrainingCar] = useLocalStorageState<TrainingCar>('builderTrainingCar', 'renn')
   /**
    * Per training set: the world+route currently loaded and driving in the builder (live active-vector overlay of
    * that set's tab). ONE record replaces the three parallel live states; the overlay follows the world's own set.
    */
-  const [trainingLive, setTrainingLive] = useState<Record<TrainingSet['key'], TrainingLiveRun | null>>({
-    maze: null,
-    crux: null,
-    wf: null,
-    schlau: null,
-  })
+  const [trainingLive, setTrainingLive] = useState<Record<TrainingSet['key'], TrainingLiveRun | null>>(
+    emptyTrainingLive,
+  )
   const [avEvolutionOpen, setAvEvolutionOpen] = useState(false)
   useEffect(() => installAvEvolutionAgentApi(getAvEvolutionStore()), [])
   const [transformerDocsOpen, setTransformerDocsOpen] = useState(false)
@@ -468,7 +482,7 @@ export default function Builder() {
   // it right after the load call, in the same synchronous flow (so its set wins).
   const handleOpenExampleWorld = useCallback(
     (worldJson: Parameters<typeof handleOpenExampleWorldBase>[0], name: string, assets?: Map<string, Blob>) => {
-      setTrainingLive({ maze: null, crux: null, wf: null, schlau: null })
+      setTrainingLive(emptyTrainingLive())
       handleOpenExampleWorldBase(worldJson, name, assets)
     },
     [handleOpenExampleWorldBase],
@@ -730,8 +744,15 @@ export default function Builder() {
 
   const traceActive = selectedEntityIds.length === 1 && workspaceOpen
   const watchActive = (selectedEntityIds.length === 1 && workspaceOpen) || trainingTabActive
-  /** The active set of the training section: the schlau car always shows the schlau set; the renn car shows the active tab. */
-  const activeTrainingSetKey = trainingCar === 'schlau' ? 'schlau' : trainingSetKey
+  /**
+   * The active set of the training section: the ACTIVE car's own tab (each car keeps its own set key; a stored key
+   * that does not belong to the car falls back to the car's first set).
+   */
+  const trainingSetsOfActiveCar = trainingSetsOfCar(trainingCar)
+  const storedSetKey = trainingSetKeyByCar[trainingCar]
+  const activeTrainingSetKey = trainingSetsOfActiveCar.some((set) => set.key === storedSetKey)
+    ? storedSetKey
+    : trainingSetsOfActiveCar[0]!.key
   /** Live run of the ACTIVE set (the dialog's live overlay only matches worlds of the open set). */
   const activeTrainingLive = trainingLive[activeTrainingSetKey]
   useEffect(() => {
@@ -781,21 +802,22 @@ export default function Builder() {
       : undefined
 
   // The training section of the right sidebar ("Training" tab): ONE panel whose header carries the car
-  // switch (Renn / Schlau). The renn car shows a set tab bar (Mazes / Crux / Widen-freeze) switching the
-  // TrainingSet; the schlau car shows its single schlau set without tabs. The key remounts the panel per
-  // car+set so per-set state (fetched metas, candidate chips, world selection) is fresh. PropertySidebar
-  // renders this node while the training tab is active. The live overlay follows the world's own set.
+  // switch (Renn / Schlau). EVERY car with more than one set shows its own set tab bar (renn: Mazes / Crux /
+  // Widen-freeze; schlau: Schlau / Schlau Mazes) switching the TrainingSet; a single-set car shows its set
+  // without tabs. The key remounts the panel per car+set so per-set state (fetched metas, candidate chips,
+  // world selection) is fresh. PropertySidebar renders this node while the training tab is active. The live
+  // overlay follows the world's own set.
   const trainingPanelNode = (
     <MazeTrainingDialog
       key={`${trainingCar}:${activeTrainingSetKey}`}
       trainingSet={trainingSetByKey(activeTrainingSetKey)}
       tabs={
-        trainingCar === 'renn'
+        trainingSetsOfActiveCar.length > 1
           ? {
-              sets: trainingSetsOfCar('renn'),
-              activeKey: trainingSetKey,
+              sets: trainingSetsOfActiveCar,
+              activeKey: activeTrainingSetKey,
               onSelect: (key) => {
-                setTrainingSetKey(key)
+                setTrainingSetKeyByCar((prev) => ({ ...prev, [trainingCar]: key }))
                 uiLogger.click('Builder', 'Switch training section tab', { tab: key })
               },
             }

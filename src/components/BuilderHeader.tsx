@@ -1,4 +1,4 @@
-import { useRef, useState, useLayoutEffect, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useRef, useState, useLayoutEffect, useCallback, useEffect, useSyncExternalStore } from 'react'
 import MenuBar from './MenuBar'
 import DropdownMenu, { type MenuItemConfig } from './DropdownMenu'
 import type { RennWorld, Vec3 } from '@/types/world'
@@ -22,9 +22,7 @@ import { agentDevExampleWorldsListApiPath } from '@/agent/agentDevBootstrapParam
 import { discoverExampleWorldIdsFromBuild } from '@/utils/discoverExampleWorldIds'
 import { loadExampleWorldFromPublicBase } from '@/utils/loadExampleWorldFromPublicBase'
 import { setExampleWorldUrlParam } from '@/utils/exampleWorldUrlParam'
-import { MAZE_TRAINING_WORLDS } from '@/policyEvolution/mazeTraining'
-import { CRUX_TRAINING_WORLDS } from '@/policyEvolution/cruxTraining'
-import { SCHLAU_TRAINING_WORLDS } from '@/policyEvolution/schlauTraining'
+import { TRAINING_SET_EXAMPLE_WORLD_IDS } from './trainingSets'
 import { isWfCandidateWorldId } from '@/policyEvolution/wfCandidates'
 
 const BUILDER_BASE_URL = import.meta.env.BASE_URL || '/'
@@ -191,17 +189,15 @@ export default function BuilderHeader({
     [onOpenExampleWorld],
   )
 
-  // Pure training worlds (policy_* exports) and the maze / crux / schlau training worlds (own dialog) stay
-  // out of the generic Example Worlds submenu. The widen-freeze candidate worlds (wf_*) live in the
-  // Widen-freeze Worlds dialog only (same pattern as the training worlds — never in the global menu).
-  // (The schlau EXAMPLE worlds — schlau_open / schlau_box, drivable outside the dialog — are NOT training
-  // worlds and stay in the menu.)
-  const exampleWorldExcludedIds = useMemo(
-    () => new Set([...MAZE_TRAINING_WORLDS, ...CRUX_TRAINING_WORLDS, ...SCHLAU_TRAINING_WORLDS].map((spec) => spec.id)),
-    [],
-  )
+  // Pure training worlds (policy_* exports) and every TRAINING-SET world — the maze / crux / wf / schlau and the
+  // schlau MAZE worlds (schlau_maze_*) — stay out of the generic Example Worlds submenu: they live in the Training
+  // dialog only. The exclusion set is derived from the training sets themselves (TRAINING_SET_EXAMPLE_WORLD_IDS,
+  // single source — it cannot drift when a set gains worlds), and because both menu sources (the build glob and
+  // the dev agent list) merge into `exampleWorldIds` BEFORE this filter, it covers BOTH.
+  // (The schlau EXAMPLE worlds — schlau_open / schlau_box, drivable outside the dialog — are NOT training worlds
+  // and stay in the menu.)
   const visibleExampleWorldIds = exampleWorldIds.filter(
-    (id) => !id.startsWith('policy_') && !isWfCandidateWorldId(id) && !exampleWorldExcludedIds.has(id),
+    (id) => !id.startsWith('policy_') && !isWfCandidateWorldId(id) && !TRAINING_SET_EXAMPLE_WORLD_IDS.has(id),
   )
   const exampleWorldsMenuItems: MenuItemConfig[] = visibleExampleWorldIds.map((id) => ({
     type: 'item' as const,

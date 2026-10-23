@@ -29,6 +29,8 @@ vi.mock('@/utils/discoverExampleWorldIds', () => ({
     'maze_train_1',
     'policy_chains_maze',
     'policy_v3_free',
+    'schlau_1',
+    'schlau_maze_1',
     'wf_maze_1',
     'world1',
   ],
@@ -64,7 +66,7 @@ describe('BuilderHeader example worlds menu', () => {
     vi.unstubAllGlobals()
   })
 
-  it('hides training worlds (maze/crux/wf/policy) from the Example Worlds submenu; only non-training examples stay', async () => {
+  it('hides training worlds (maze/crux/wf/schlau/schlau_maze/policy) from the Example Worlds submenu; only non-training examples stay', async () => {
     // DEV-mode example world list API: fail so the menu falls back to build discovery (mocked above).
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
     render(
@@ -75,11 +77,38 @@ describe('BuilderHeader example worlds menu', () => {
     expect(screen.getByText('hunt')).toBeInTheDocument()
     expect(screen.queryByText('policy_chains_maze')).not.toBeInTheDocument()
     expect(screen.queryByText('policy_v3_free')).not.toBeInTheDocument()
-    // every playable training world lives in the Training dialog only, never in the global menu
+    // every playable training world lives in the Training dialog only, never in the global menu — the
+    // schlau MAZE worlds (schlau_maze_*) moved into the dialog's "Schlau Mazes" tab, same exclusion set
     expect(screen.queryByText('maze_train_1')).not.toBeInTheDocument()
     expect(screen.queryByText('crux_train_1')).not.toBeInTheDocument()
     expect(screen.queryByText('crux_holdout_1')).not.toBeInTheDocument()
     expect(screen.queryByText('wf_maze_1')).not.toBeInTheDocument()
+    expect(screen.queryByText('schlau_1')).not.toBeInTheDocument()
+    expect(screen.queryByText('schlau_maze_1')).not.toBeInTheDocument()
+  })
+
+  it('hides the schlau maze worlds from the DEV agent-list source too (both menu sources share the exclusion)', async () => {
+    // DEV-mode agent example-world list API serves ids the build glob does not know; the merged menu must
+    // still filter the training-set worlds out (the exclusion applies to the merged list, not just the glob).
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = String(input)
+        if (url.includes('/__renn-agent/dev/example-worlds')) {
+          return { ok: true, json: async () => ({ ids: ['schlau_maze_7', 'schlau_9', 'agent_only_world'] }) }
+        }
+        throw new Error(`unexpected fetch: ${url}`)
+      }),
+    )
+    render(
+      <BuilderHeader {...baseProps} gizmoMode="translate" onGizmoModeChange={noop} />,
+    )
+    await openExampleWorldsSubmenu()
+    // the agent-only non-training world joined the menu through the merge
+    expect(await screen.findByText('agent_only_world')).toBeInTheDocument()
+    // the merged-in training worlds (schlau maze + schlau set) stay hidden
+    expect(screen.queryByText('schlau_maze_7')).not.toBeInTheDocument()
+    expect(screen.queryByText('schlau_9')).not.toBeInTheDocument()
   })
 
   it('offers ONE merged "Training…" entry which calls onOpenTraining (no per-set entries)', async () => {
