@@ -8,7 +8,7 @@
     "gen": 45600,
     "source": "shippedPolicySchlau.json"
   },
-  "bestScore": 161.9,
+  "bestScore": 160.9,
   "chain": {
     "points": 10,
     "lengthM": 143.1
@@ -64,7 +64,7 @@
             10
           ]
         ],
-        "score": 161.9
+        "score": 160.9
       },
       {
         "pts": [
@@ -109,7 +109,7 @@
             193.7
           ]
         ],
-        "score": 159.5
+        "score": 159.3
       }
     ]
   }
