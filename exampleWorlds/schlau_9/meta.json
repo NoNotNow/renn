@@ -5,11 +5,11 @@
   "kind": "goal_box",
   "candidate": {
     "policy": "schlau",
-    "label": "schlau (untrained placeholder)",
-    "gen": null,
-    "source": "placeholder"
+    "label": "schlau shipped (gen 45600)",
+    "gen": 45600,
+    "source": "shippedPolicySchlau.json"
   },
-  "bestScore": 0.5,
+  "bestScore": 86.5,
   "chain": {
     "points": 11,
     "lengthM": 74.2
@@ -65,7 +65,7 @@
             188.2
           ]
         ],
-        "score": 0.5
+        "score": 86.5
       }
     ]
   }
