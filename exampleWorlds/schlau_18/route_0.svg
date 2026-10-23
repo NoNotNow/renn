@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220" viewBox="0 0 220 220">
+<rect x="0" y="0" width="220" height="220" fill="#10131a"/>
+<rect x="10" y="206.8" width="200" height="3.2" fill="#444a55"/>
+<rect x="10" y="10" width="200" height="3.2" fill="#444a55"/>
+<rect x="206.8" y="10" width="3.2" height="200" fill="#444a55"/>
+<rect x="10" y="10" width="3.2" height="200" fill="#444a55"/>
+<rect x="169" y="30.6" width="6.5" height="56.4" fill="#444a55"/>
+<rect x="120.7" y="69.5" width="54.8" height="7.7" fill="#444a55"/>
+<rect x="120.7" y="40.4" width="54.8" height="7.7" fill="#444a55"/>
+<rect x="111.9" y="22.2" width="14.5" height="10.3" fill="#444a55"/>
+<polyline points="144.7,60.8 131.8,61.6 118.8,62.5 117.6,63 116.5,63.8 115.6,64.8 114.6,66.6 114.2,68.1 114,69.7 114.2,79.3 114.8,80.6 115.6,81.8 116.8,82.7 118.1,83.3 119.5,83.6 128.1,84.3 136.6,85 137.3,85.2 148.7,88.3 160.1,91.3 171.4,94.4 172.8,94.4 174.1,94.2 178.5,92.9 179.3,92.3 183.4,88.2 185,73.7 186.6,59.2" fill="none" stroke="#44aaff" stroke-width="1.5" stroke-opacity="0.9"/>
+<circle cx="144.7" cy="60.8" r="5" fill="#44ff77"/>
+<circle cx="186.6" cy="59.2" r="5" fill="#ff4444"/>
+</svg>
