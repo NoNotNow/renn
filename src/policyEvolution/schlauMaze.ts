@@ -2,9 +2,13 @@
  * MAZE-BRIDGE of the "schlau" policy (L2A task chunk, user decision 2026-10-23): the schlau car drives the MAZE
  * worlds of renn. The maze worlds guide the v3 policy with a waypoint CHAIN (the policy-input stage walks it and
  * feeds two lookahead points); the schlau head has no chain input — it gets ONE goal vector (x[23..25]). The
- * bridge: a WAYPOINT-SEQUENTIAL goal feed — the schlau drive stage walks the maze chain itself and hands the head
- * the NEXT waypoint as its single goal; when the car reaches a waypoint the goal advances to the next one; the
- * chain end is the finish. The head never sees the whole chain, only the current goal.
+ * bridge: an IN-SIGHT goal feed (the carrot fix, user report 2026-10-23) — the schlau drive stage walks the maze
+ * chain itself (reach / arc-pass cursor) and hands the head the BEST (FURTHEST) chain point that is IN SIGHT:
+ * the straight nose -> point segment clears every static obstacle box inflated by the car half width, so the
+ * goal (and the drawn target line) never points through a wall. The goal index is a high-water (advances as
+ * corners open up, never regresses on occlusion flicker); when nothing ahead is in sight the nearest unreached
+ * waypoint stays the goal (toward the corridor mouth); the chain end is the finish. The head never sees the
+ * whole chain, only the current goal.
  *
  * Worlds: `schlau_maze_1..10` — the SAME maze geometry + chains as the maze_train worlds (same seeds, both built
  * from mazeTrainingRoutes — the geometry is equal by construction), with a schlau car per route copy. The
@@ -27,6 +31,7 @@ import {
   MAZE_TRAINING_WORLDS,
   mazeTrainingRoutes,
 } from './mazeTraining'
+import { CAR_HALF_WIDTH } from './chains'
 import { CAR2_PARAMS, CAR_BODY, CAR_SIZE, CAR_START_Y, POLICY_GROUND } from './episode'
 import { NOSE_M, STAGE_NET } from './policy'
 import { SCHLAU_STAGE_BODY, SCHLAU_STAGE_HEAD, SCHLAU_STAGE_ID, SCHLAU_STAGE_PRIORITY, hiddenOfSchlau, N_IN_SCHLAU } from './schlauPolicy'
@@ -59,7 +64,7 @@ export function schlauMazeWorldSpecsEqualMazeTrain(): boolean {
   )
 }
 
-// --- waypoint-sequential goal feed (the maze bridge of the schlau drive stage) --------------------------------------------
+// --- in-sight goal feed (the maze bridge of the schlau drive stage — the carrot fix) --------------------------------------
 
 /**
  * Waypoint advance reach (m): when the car NOSE comes this close to the CURRENT goal waypoint, the goal advances
@@ -77,18 +82,38 @@ export const SCHLAU_MAZE_WAYPOINT_PASS_M = 2
 /** The single goal assignment of the original schlau stage body — the one line the maze bridge replaces. */
 const SCHLAU_MAZE_GOAL_MARKER = 'var g = params.goal || [pos[0], pos[2]]'
 
-/** The waypoint-sequential goal block: walks params.chain, feeds the head ONE goal (the next waypoint). */
+/** The waypoint-sequential goal block: walks params.chain, feeds the head the best IN-SIGHT chain point. */
 const SCHLAU_MAZE_WAYPOINT_GOAL_JS = `var g
-  // MAZE BRIDGE — waypoint-sequential goal feed (user decision 2026-10-23): the head gets ONE goal, the NEXT
-  // waypoint of params.chain; state.wpc walks the chain — the goal advances when the car NOSE comes within
-  // ${SCHLAU_MAZE_WAYPOINT_REACH_M} m of the current waypoint or when the nose arc projection passes it by
-  // ${SCHLAU_MAZE_WAYPOINT_PASS_M} m (a wide overshoot never parks the goal behind the car); the LAST waypoint
-  // (the chain end = the finish) never advances. Without params.chain the stage keeps the static params.goal feed.
+  // MAZE BRIDGE — IN-SIGHT goal feed (the carrot fix, user report 2026-10-23): the head gets ONE goal, the
+  // BEST (FURTHEST) chain point that is IN SIGHT — the straight segment from the car NOSE to the point clears
+  // every static obstacle box of params.walls inflated by the car half width (${CAR_HALF_WIDTH} m), so the goal
+  // vector (and the drawn lila target line) never points through a wall. The reach (${SCHLAU_MAZE_WAYPOINT_REACH_M} m)
+  // and arc-pass (${SCHLAU_MAZE_WAYPOINT_PASS_M} m) rules advance the reached cursor state.wpc.wp exactly as
+  // before; the goal index state.wpc.gi is a HIGH-WATER: it advances to the furthest in-sight point ahead of
+  // the cursor as corners open up and NEVER REGRESSES when the old goal gets occluded (flicker hysteresis).
+  // When NOTHING ahead is in sight (corner pocket / nose against a wall) the nearest unreached waypoint
+  // stays the goal (the pre-fix feed — the car keeps moving toward the corridor mouth); the goal is never
+  // fed behind the reached cursor. The LAST waypoint (the chain end = the finish) never advances. Without
+  // params.walls sight cannot be judged: the goal stays the next unreached waypoint (the pre-fix sequential
+  // feed). Without params.chain the stage keeps the static params.goal feed.
   if (params.chain && params.chain.length > 1) {
     if (!state.wpc) {
       var wcum = [0]
       for (var wq = 1; wq < params.chain.length; wq++) wcum.push(wcum[wq - 1] + Math.hypot(params.chain[wq][0] - params.chain[wq - 1][0], params.chain[wq][1] - params.chain[wq - 1][1]))
-      state.wpc = { ch: params.chain, cum: wcum, wp: 1, seg: 0, s: 0 }
+      // obstacle cache (once, init-style): the static wall polys with their AABBs for the sight test's
+      // quick reject — the boxes are the world's static box entities (convex polys, axis-aligned or yawed)
+      var wWalls = params.walls || [], wBoxes = []
+      for (var wBI = 0; wBI < wWalls.length; wBI++) {
+        var wPoly = wWalls[wBI], wMNx = Infinity, wMXx = -Infinity, wMNz = Infinity, wMXz = -Infinity
+        for (var wVI = 0; wVI < wPoly.length; wVI++) {
+          if (wPoly[wVI][0] < wMNx) wMNx = wPoly[wVI][0]
+          if (wPoly[wVI][0] > wMXx) wMXx = wPoly[wVI][0]
+          if (wPoly[wVI][1] < wMNz) wMNz = wPoly[wVI][1]
+          if (wPoly[wVI][1] > wMXz) wMXz = wPoly[wVI][1]
+        }
+        wBoxes.push({ p: wPoly, x0: wMNx, x1: wMXx, z0: wMNz, z1: wMXz })
+      }
+      state.wpc = { ch: params.chain, cum: wcum, wp: 1, seg: 0, s: 0, gi: 1, boxes: wBoxes }
     }
     var wS = state.wpc
     var wpx = pos[0] + fwd[0] * ${NOSE_M}, wpz = pos[2] + fwd[2] * ${NOSE_M}
@@ -105,14 +130,76 @@ const SCHLAU_MAZE_WAYPOINT_GOAL_JS = `var g
     wS.seg = wbSeg
     if (wbS > wS.s) wS.s = wbS
     while (wS.wp < wS.ch.length - 1 && wS.s > wS.cum[wS.wp] + ${SCHLAU_MAZE_WAYPOINT_PASS_M}) wS.wp++
-    g = wS.ch[wS.wp]
+    // the in-sight search: EXACT segment <-> box gap (the same convention as the schlau field's line of
+    // sight — no grid-sample slack), boxes inflated by the car half width; a per-box AABB pre-reject keeps
+    // the per-frame cost sane (dozens of chain points, ~90 static boxes, cached once above)
+    if (wS.boxes.length) {
+      var wCl = ${CAR_HALF_WIDTH}
+      var wPtSeg = function (px, pz, ax, az, bx, bz) {
+        var dx = bx - ax, dz = bz - az
+        var u = ((px - ax) * dx + (pz - az) * dz) / (dx * dx + dz * dz || 1)
+        u = u < 0 ? 0 : u > 1 ? 1 : u
+        return Math.hypot(px - (ax + u * dx), pz - (az + u * dz))
+      }
+      var wLos = function (bx, bz) {
+        var lx0 = (wpx < bx ? wpx : bx) - wCl, lx1 = (wpx > bx ? wpx : bx) + wCl
+        var lz0 = (wpz < bz ? wpz : bz) - wCl, lz1 = (wpz > bz ? wpz : bz) + wCl
+        for (var wI = 0; wI < wS.boxes.length; wI++) {
+          var wB = wS.boxes[wI], wPly = wB.p
+          if (wB.x1 < lx0 || wB.x0 > lx1 || wB.z1 < lz0 || wB.z0 > lz1) continue
+          for (var wE = 0; wE < wPly.length; wE++) {
+            var wP = wPly[wE], wQ = wPly[wE + 1] || wPly[0]
+            var wUx = bx - wpx, wUz = bz - wpz, wVx = wQ[0] - wP[0], wVz = wQ[1] - wP[1]
+            var wD = wUx * wVz - wUz * wVx, wDmin
+            if (wD !== 0) {
+              var wRx = wP[0] - wpx, wRz = wP[1] - wpz
+              var wWs = (wRx * wVz - wRz * wVx) / wD, wWt = (wRx * wUz - wRz * wUx) / wD
+              wDmin = wWs >= 0 && wWs <= 1 && wWt >= 0 && wWt <= 1 ? 0 : Math.min(
+                wPtSeg(wpx, wpz, wP[0], wP[1], wQ[0], wQ[1]),
+                wPtSeg(bx, bz, wP[0], wP[1], wQ[0], wQ[1]),
+                wPtSeg(wP[0], wP[1], wpx, wpz, bx, bz),
+                wPtSeg(wQ[0], wQ[1], wpx, wpz, bx, bz))
+            } else {
+              wDmin = Math.min(
+                wPtSeg(wpx, wpz, wP[0], wP[1], wQ[0], wQ[1]),
+                wPtSeg(bx, bz, wP[0], wP[1], wQ[0], wQ[1]),
+                wPtSeg(wP[0], wP[1], wpx, wpz, bx, bz),
+                wPtSeg(wQ[0], wQ[1], wpx, wpz, bx, bz))
+            }
+            if (wDmin < wCl) return false
+          }
+          // both endpoints deep inside the box: the edge gaps above measured to the boundary, not 0 —
+          // explicit inside test (convex poly, any winding: a sign flip of the edge cross products)
+          for (var wE2 = 0; wE2 < 2; wE2++) {
+            var wIx = wE2 ? bx : wpx, wIz = wE2 ? bz : wpz, wSgn = 0, wInside = true
+            for (var wE3 = 0; wE3 < wPly.length; wE3++) {
+              var wP2 = wPly[wE3], wQ2 = wPly[wE3 + 1] || wPly[0]
+              var wC2 = (wQ2[0] - wP2[0]) * (wIz - wP2[1]) - (wQ2[1] - wP2[1]) * (wIx - wP2[0])
+              if (wC2 !== 0) { var wSc = wC2 > 0 ? 1 : -1; if (wSgn === 0) wSgn = wSc; else if (wSgn !== wSc) { wInside = false; break } }
+            }
+            if (wInside) return false
+          }
+        }
+        return true
+      }
+      var wvis = -1
+      for (var wk = wS.wp; wk < wS.ch.length; wk++) {
+        if (wLos(wS.ch[wk][0], wS.ch[wk][1])) wvis = wk
+      }
+      if (wvis >= wS.gi) wS.gi = wvis
+      else if (wvis < 0) wS.gi = wS.wp
+    } else {
+      wS.gi = wS.wp
+    }
+    if (wS.gi < wS.wp) wS.gi = wS.wp
+    g = wS.ch[wS.gi]
   } else {
     g = params.goal || [pos[0], pos[2]]
   }`
 
 /**
  * The maze schlau stage BODY: the shared schlau body with ONLY the goal assignment replaced by the
- * waypoint-sequential block — rays, movement memory, drawn trail and net stay byte-identical by construction
+ * in-sight goal block — rays, movement memory, drawn trail and net stay byte-identical by construction
  * (the splice is positional; a changed schlau body without the marker fails loudly instead of drifting silently).
  */
 export const SCHLAU_MAZE_STAGE_BODY: string = (() => {
@@ -139,7 +226,7 @@ export const schlauMazeGoalId = (i: number) => `schlau_maze_goal_${i}`
 /** Prefix of the goal slabs (the headless scorer locates them by this prefix). */
 export const SCHLAU_MAZE_GOAL_PREFIX = 'schlau_maze_goal_'
 
-/** Transformer config of the maze schlau drive stage (params: w, chain, gain). */
+/** Transformer config of the maze schlau drive stage (params: w, chain, walls, gain). */
 export function schlauMazeDriveStage(params: Record<string, unknown>): Record<string, unknown> {
   return { type: 'custom', priority: SCHLAU_STAGE_PRIORITY, enabled: true, name: 'Schlau maze drive', code: SCHLAU_MAZE_STAGE_CODE, params }
 }
@@ -149,7 +236,7 @@ export function schlauMazeDriveStage(params: Record<string, unknown>): Record<st
 /**
  * One playable schlau maze world: the maze geometry + routes + tapered chains of the maze training world of the
  * same seed (one copy per route at x = i * MAZE_TRAIN_ROUTES.spacingM), every copy driven by a schlau car on its
- * own chain through the waypoint-sequential goal feed, plus the shared schlau score stage per car (car 0 writes
+ * own chain through the in-sight goal feed, plus the shared schlau score stage per car (car 0 writes
  * the HUD score and draws). The genome is handed in (the browser bundle must not read genomes from disk).
  * Throws on an empty / non-schlau-shaped genome (hiddenOfSchlau; a v3 genome has the SAME length — never bake one).
  */
@@ -209,6 +296,7 @@ export function buildSchlauMazeWorld(spec: SchlauMazeWorldSpec, genome: number[]
     transformers[schlauMazeDriveStageId(i)] = schlauMazeDriveStage({
       w: genome,
       chain: chainsShifted[i]!,
+      walls: wallsShifted[i]!,
       gain: CAR2_PARAMS.power / CAR_BODY.mass,
     })
     transformers[schlauMazeActuatorId(i)] = { type: 'car2', priority: 11, enabled: true, params: CAR2_PARAMS }

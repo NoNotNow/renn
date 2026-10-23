@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { RennWorld } from '@/types/world'
 import { createRng } from '@/avEvolution/core/rng'
+import { polyGap, type V2 } from '@/avEvolution/eval/geometry'
 import { MAZE_TRAINING_WORLDS, buildMazeTrainingWorld, mazeTrainingRoutes } from './mazeTraining'
+import { CAR_HALF_WIDTH } from './chains'
 import { freshGenome } from './islands'
 import { shippedGenomeV3 } from './exampleWorld'
 import { N_RAYS, NOSE_M } from './policy'
@@ -175,6 +177,127 @@ describe('schlau maze stage code', () => {
   })
 })
 
+// --- the in-sight goal feed (the carrot fix: the goal never points through a wall) ------------------------------------------
+
+/** An axis-aligned wall box as the stage takes it: one convex poly [x, z] (the maze worlds' box entities). */
+const wall = (x0: number, z0: number, x1: number, z1: number): V2[] => [
+  [x0, z0],
+  [x1, z0],
+  [x1, z1],
+  [x0, z1],
+]
+/** The high-water goal index of the stage's chain cursor (state.wpc.gi). */
+const goalIndex = (state: Record<string, unknown>) => (state.wpc as { gi: number }).gi
+
+describe('schlau maze in-sight goal feed (the carrot fix)', () => {
+  it('a wall between the car and the next waypoint: the fed goal is the FURTHEST IN-SIGHT chain point, not the occluded waypoint', () => {
+    const chain: V2[] = [
+      [0, 0],
+      [0, 15],
+      [0, 30],
+      [20, 30],
+    ]
+    // the wall crosses the straight corridor (x -3..3, z 14..16): the sight lines to chain[1] (0,15) and
+    // chain[2] (0,30) pass through it, but the line to chain[3] (20,30) bends past its right edge (gap > 4 m)
+    const walls = [wall(-3, 14, 3, 16)]
+    const { goal, state } = runMazeStage({ w: placeholderSchlauGenome(), gain: 1200, chain, walls }, () => ({}), 1)
+    expect(goal[0]).toEqual(chain[3]!)
+    expect(goalIndex(state)).toBe(3)
+  })
+
+  it('the goal ADVANCES to the now-visible furthest point as the corner opens (the car advances past the occluder)', () => {
+    const chain: V2[] = [
+      [0, 0],
+      [0, 12],
+      [0, 24],
+      [0, 36],
+      [0, 48],
+    ]
+    // frame 0 (nose z 4.1): only chain[1] is in sight, chain[2..4] sit behind the wall (z 24..26)
+    // frame 1 (car advanced to z 25, nose z 29.1): the wall is behind the nose — chain[3] and chain[4]
+    // open up (gap 4.3 m) and the goal advances to the furthest visible point chain[4]
+    const walls = [wall(-3, 24, 3, 26)]
+    const { goal, state } = runMazeStage(
+      { w: placeholderSchlauGenome(), gain: 1200, chain, walls },
+      (f) => (f === 1 ? { position: [0, 0, 25], velocity: [0, 0, 5] } : {}),
+      2,
+    )
+    expect(goal[0]).toEqual(chain[1]!)
+    expect(goal[1]).toEqual(chain[4]!)
+    expect(goalIndex(state)).toBe(4)
+  })
+
+  it('occlusion flicker: the goal index NEVER REGRESSES when the old goal gets occluded (hysteresis)', () => {
+    const chain: V2[] = [
+      [0, 0],
+      [0, 12],
+      [0, 26],
+      [0, 40],
+    ]
+    // a long wall right of the corridor (x 3..6, z 12..60): from the axis every chain point keeps 3 m of
+    // clearance (in sight); from x = 4 the line to chain[3] cuts the wall (occluded) — the goal STAYS chain[3]
+    // (the fed goal index is a high-water; the furthest in-sight point flickers 3 -> 1 -> 3, the goal does not)
+    const walls = [wall(3, 12, 6, 60)]
+    const { goal, state } = runMazeStage(
+      { w: placeholderSchlauGenome(), gain: 1200, chain, walls },
+      (f) => (f === 1 ? { position: [4, 0, 0] } : {}),
+      3,
+    )
+    for (const g of goal) expect(g).toEqual(chain[3]!)
+    expect(goalIndex(state)).toBe(3)
+  })
+
+  it('NOTHING ahead is in sight (corner pocket): the goal falls back to the nearest unreached waypoint (the pre-fix feed)', () => {
+    const chain: V2[] = [
+      [0, 0],
+      [0, 12],
+      [0, 26],
+    ]
+    // the wall (x -3..3, z 8..10) crosses EVERY ahead sight line — nothing is in sight, so the goal is the
+    // nearest unreached waypoint chain[1] (today's behavior: the car keeps moving toward the corridor mouth)
+    const walls = [wall(-3, 8, 3, 10)]
+    const { goal, state } = runMazeStage({ w: placeholderSchlauGenome(), gain: 1200, chain, walls }, () => ({}), 1)
+    expect(goal[0]).toEqual(chain[1]!)
+    expect(goalIndex(state)).toBe(1)
+  })
+
+  it('without params.walls sight cannot be judged: the goal stays the next unreached waypoint (the pre-fix sequential feed)', () => {
+    const chain: V2[] = [
+      [0, 0],
+      [0, 20],
+      [0, 40],
+    ]
+    const { goal, state } = runMazeStage({ w: placeholderSchlauGenome(), gain: 1200, chain }, () => ({}), 1)
+    expect(goal[0]).toEqual(chain[1]!)
+    expect(goalIndex(state)).toBe(1)
+  })
+
+  it('on a REAL maze world the fed goal is IN SIGHT from the route start pose (the stage JS sight == the TS polyGap sight)', () => {
+    const spec = SCHLAU_MAZE_WORLDS[0]!
+    const world = buildSchlauMazeWorld(spec, placeholderSchlauGenome()) as unknown as {
+      transformers: Record<string, { params: Record<string, unknown> }>
+    }
+    const drive = world.transformers[schlauMazeDriveStageId(0)]!.params as { chain: V2[]; walls: V2[][] }
+    expect(drive.walls!.length).toBeGreaterThan(0)
+    const { routes } = mazeTrainingRoutes(spec)
+    const start = routes[0]!
+    // the harness car faces +z (fixed); park it so its NOSE sits at the real route start's nose
+    const yaw = (start.startYawDeg * Math.PI) / 180
+    const heading = [-Math.sin(yaw), -Math.cos(yaw)] as V2
+    const nose: V2 = [start.startAt[0] + heading[0] * NOSE_M, start.startAt[1] + heading[1] * NOSE_M]
+    const { goal } = runMazeStage(
+      { w: placeholderSchlauGenome(), gain: 1200, chain: drive.chain, walls: drive.walls },
+      () => ({ position: [nose[0], 0, nose[1] - NOSE_M] }),
+      1,
+    )
+    // the fed goal is a chain point whose straight nose -> goal segment clears every wall by the car half width
+    expect(drive.chain).toContainEqual(goal[0])
+    for (const w of drive.walls) {
+      expect(polyGap([nose, goal[0]], w)).toBeGreaterThanOrEqual(CAR_HALF_WIDTH - 1e-6)
+    }
+  })
+})
+
 // --- world builder ---------------------------------------------------------------------------------------------------------
 
 describe('buildSchlauMazeWorld', () => {
@@ -221,6 +344,9 @@ describe('buildSchlauMazeWorld', () => {
       expect(scoreParams.idx).toBe(i)
       expect((scoreParams.cars as string[])[i]).toBe(schlauMazeCarId(i))
       expect((scoreParams.chain as number[][])[0]).toEqual(chains[i]!.map((p) => [p[0] + i * spacing, p[1]])[0])
+      // the drive stage carries the SAME static wall polys the score stage scores against — the obstacles
+      // the in-sight goal feed must clear (the carrot fix)
+      expect((drive.params as { walls?: number[][][] }).walls).toEqual(scoreParams.walls)
     })
   })
 

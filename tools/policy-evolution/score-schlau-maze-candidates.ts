@@ -106,7 +106,7 @@ function writeResults(results: ResultsFile, candidates: TrialCandidate[]): void 
 
 function resultsMarkdown(results: ResultsFile, candidates: TrialCandidate[]): string {
   const lines: string[] = [
-    '# Schlau on the renn mazes — headless trial (waypoint-sequential goal feed)',
+    '# Schlau on the renn mazes — headless trial (in-sight goal feed: the furthest chain point in line of sight, sequential fallback)',
     '',
     'Every candidate drives all ten `schlau_maze_*` worlds (the maze_train geometry + chains, a schlau car per route',
     'copy, the head fed the NEXT chain waypoint as its single goal; reaching a waypoint advances it, the chain end',
