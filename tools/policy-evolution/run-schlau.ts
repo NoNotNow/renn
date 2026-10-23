@@ -48,6 +48,9 @@
  *   --out FILE (test-results/policy-evolution/schlau.json) --seed N (1) --islands N (3) --epoch N (25) --mature N (75)
  *   --p-cross P (0.5) --hidden N (10, creation only) --warm FILE --freeze-old --unfreeze --resume
  *   --kinds a,b,c (creation only, default goal_open,goal_box) --train-per-kind N (per-kind default: open 3, box/wall 16) --holdout-per-kind N (8) --batch N (1)
+ *   --fit min|mean (creation only, persisted; default min — 'mean' is the dense-gradient aggregate for the dedicated
+ *   goal_wall runs: with every candidate at 0 finishes the MIN is flat 0 and the ES has no gradient, the MEAN
+ *   differentiates partial progress toward the gate; the island ranking stays the ascending lex vector either way)
  *   --no-stage --no-variants --speed-cap M (creation only, persisted) --sigma --lr --stats-every N (20) --latest-best FILE --latest-stats FILE
  *
  * The best policy by TRAIN FINISH COUNT (the ascending lex train vector as the tie-break, beatsBestSchlau —
@@ -96,6 +99,8 @@ interface RunFile {
   stage?: StageState | null
   /** the run's kind band (creation-only --kinds, persisted; absent = die Basis-Band goal_open,goal_box) */
   kinds?: SchlauKind[]
+  /** the ES scalar fitness aggregate (creation-only --fit, persisted; absent = 'min' — the weakest-link design) */
+  fit?: 'min' | 'mean'
   /** opt-in training speed cap (m/s), persisted so --resume keeps it; absent = uncapped */
   speedCap?: number
   config: EsConfig
@@ -222,6 +227,15 @@ async function main() {
     throw new Error(`--kinds is a creation flag (the run file stores kinds: ${(file!.kinds ?? SCHLAU_BASE_KINDS).join(',')}; a plain --resume continues them)`)
   if (args.kinds === true) throw new Error('--kinds needs a comma list of schlau kinds (e.g. --kinds goal_wall)')
   const kinds: SchlauKind[] = resumed ? file!.kinds ?? SCHLAU_BASE_KINDS : args.kinds !== undefined ? parseSchlauKinds(String(args.kinds)) : SCHLAU_BASE_KINDS
+  // --fit min|mean (creation only, PERSISTED wie --kinds): die skalare ES-Fitness. Default 'min' (weakest link —
+  // das Basis-Design); 'mean' für die dedizierten Wall-Runs (WF-Lektion: bei 0-Finishes aller Kandidaten ist die
+  // MIN flach 0 und der ES hat keinen Gradienten — die MEAN differenziert den Teil-Fortschritt Richtung Gate;
+  // die Insel-Rangordnung bleibt der aufsteigende lex Vektor).
+  if (resumed && args.fit !== undefined)
+    throw new Error(`--fit is a creation flag (the run file stores fit: ${file!.fit ?? 'min'}; a plain --resume continues it)`)
+  if (args.fit !== undefined && args.fit !== 'min' && args.fit !== 'mean') throw new Error(`--fit must be min or mean, got ${String(args.fit)}`)
+  const fit: 'min' | 'mean' = resumed ? file!.fit ?? 'min' : args.fit === 'mean' ? 'mean' : 'min'
+  if (!resumed && fit === 'mean') console.log('fitness aggregate: MEAN (dense gradient for the wall runs) — the island ranking stays the lex vector')
   // die Stage ist ein goal_open -> Rest-Ramp: eine Single-Kind-Band (die Wall-Runs) oder eine Band ohne goal_open
   // stagt NIE — die aktive Kind-Band ist dann von Anfang an voll (implizites --no-stage)
   const canStage = schlauKindsCanStage(kinds)
@@ -256,8 +270,11 @@ async function main() {
   for (const k of train) (trainByKind[parseSchlauKey(k).kind] ??= []).push(k)
   // --speed-cap only at creation (persisted); a resume uses the stored value, so a resume without the flag behaves as before
   const speedCap = resumed ? file!.speedCap : args['speed-cap'] !== undefined ? num(args['speed-cap'], 0) || undefined : undefined
-  // Fitness: weakest link (MIN über alle Episode-Werte des Batches); der Vektor (aufsteigend) ist die Rangordnung (ES step, islands, best)
-  const fitness: FitnessFn = (m) => aggregateKindMin(m, speedCap)
+  // Fitness: weakest link (MIN über alle Episode-Werte des Batches) oder — bei --fit mean (Wall-Runs) — der
+  // Mittelwert derselben Werte (dichter Gradient); der Vektor (aufsteigend) ist die Rangordnung (ES step, islands, best)
+  const fitness: FitnessFn = fit === 'mean'
+    ? (m) => { const v = episodeValues(m, speedCap); return v.reduce((a, b) => a + b, 0) / v.length }
+    : (m) => aggregateKindMin(m, speedCap)
   const fitnessVec: FitnessVecFn = (m) => episodeValues(m, speedCap)
 
   if (!resumed) {
@@ -285,6 +302,7 @@ async function main() {
       islands,
       ...(speedCap ? { speedCap } : {}),
       kinds,
+      ...(fit === 'mean' ? { fit } : {}),
       stage: args['no-stage'] === undefined && canStage ? initialStage(SCHLAU_STAGE) : null,
       state: initialIslands(config, islands, warm),
       history: [],

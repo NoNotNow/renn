@@ -99,9 +99,59 @@ describe('run-schlau --kinds', () => {
       expect(fs.existsSync(out)).toBe(false)
 
       const bare = run(['--kinds', '--gens', '0', '--workers', '2', '--out', out])
-      expect(bare.status).not.toBe(0)
+      expect(bad.status).not.toBe(0)
       expect(bare.stderr).toMatch(/--kinds needs a comma list/)
       expect(fs.existsSync(out)).toBe(false)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  }, 130_000)
+})
+
+describe('run-schlau --fit', () => {
+  const run = (args: string[]) =>
+    spawnSync('npx', ['tsx', 'tools/policy-evolution/run-schlau.ts', ...args], {
+      encoding: 'utf8',
+      timeout: 120_000,
+    })
+
+  it('--fit mean creates (MEAN log line), persists fit, and is rejected on resume (creation flag)', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'schlau-fit-'))
+    const out = path.join(dir, 'wall.json')
+    try {
+      const r = run(['--kinds', 'goal_wall', '--fit', 'mean', '--gens', '1', '--islands', '1', '--pairs', '1', '--batch', '1', '--workers', '2', '--out', out])
+      expect(r.status, r.stderr).toBe(0)
+      expect(r.stdout).toMatch(/fitness aggregate: MEAN/)
+      const file = JSON.parse(fs.readFileSync(out, 'utf8')) as { fit?: 'min' | 'mean'; kinds?: string[] }
+      expect(file.fit).toBe('mean')
+      expect(file.kinds).toEqual(['goal_wall'])
+
+      const onResume = run(['--resume', '--fit', 'mean', '--gens', '0', '--workers', '2', '--out', out])
+      expect(onResume.status).not.toBe(0) // --fit is creation-only, even with the stored value
+      expect(onResume.stderr).toMatch(/--fit is a creation flag/)
+
+      const plainResume = run(['--resume', '--gens', '0', '--workers', '2', '--out', out])
+      expect(plainResume.status, plainResume.stderr).toBe(0) // a plain resume continues the stored fit: 'mean'
+      const stillMean = JSON.parse(fs.readFileSync(out, 'utf8')) as { fit?: 'min' | 'mean' }
+      expect(stillMean.fit).toBe('mean')
+
+      const badValue = run(['--fit', 'median', '--gens', '0', '--workers', '2', '--out', path.join(dir, 'y.json')])
+      expect(badValue.status).not.toBe(0)
+      expect(badValue.stderr).toMatch(/--fit must be min or mean/)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  }, 130_000)
+
+  it('a default creation stays min: no fit field, no MEAN log line', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'schlau-fit-'))
+    const out = path.join(dir, 'base.json')
+    try {
+      const r = run(['--gens', '1', '--islands', '1', '--pairs', '1', '--batch', '1', '--workers', '2', '--out', out])
+      expect(r.status, r.stderr).toBe(0)
+      expect(r.stdout).not.toMatch(/fitness aggregate: MEAN/)
+      const file = JSON.parse(fs.readFileSync(out, 'utf8')) as { fit?: 'min' | 'mean' }
+      expect(file.fit).toBeUndefined()
     } finally {
       fs.rmSync(dir, { recursive: true, force: true })
     }
