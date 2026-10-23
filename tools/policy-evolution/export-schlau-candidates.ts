@@ -21,6 +21,16 @@
  *                                                                          # export. tools/policy-evolution/watch-schlau-best.ts
  *                                                                          # runs this on every latest-best change.
  *
+ *   npx tsx tools/policy-evolution/export-schlau-candidates.ts --deep evalA.json [evalB.json ...]
+ *                                                                          # DEEP path: merges the DECISION-EVAL bests
+ *                                                                          # (eval-schlau-candidate.ts --out reports, schema
+ *                                                                          # renn.policy-evolution.schlau-candidate-eval/1) into
+ *                                                                          # the existing candidates file as their own entries
+ *                                                                          # (id = the eval's candidate label, net-tagged, the
+ *                                                                          # decision band in `holdout` + detail) and scores
+ *                                                                          # them headlessly over the training worlds —
+ *                                                                          # existing entries (the shipped best etc.) untouched.
+ *
  * Without a run file (nothing trained yet) the file still ships with the single placeholder candidate, so the
  * dialog's model dropdown works from the first deploy on.
  */
@@ -84,6 +94,12 @@ interface ExportedCandidate {
   net?: 'schlau' | 'schlau2'
   scores?: Record<string, TrainingCandidateWorldScores>
   scoredGen?: number | null
+  /**
+   * DECISION-BAND holdout finishes of THIS genome (baked from the --deep path's eval report): total finishes
+   * over the band plus the per-kind split. The dialog shows the total as the entry's score badge; the full
+   * split rides in the detail tooltip. Absent = no decision eval ran for this genome.
+   */
+  holdout?: { finished: number; total: number; perKind?: Record<string, { finished: number; total: number }> }
 }
 
 /** latest-best.json of the ACTIVE run (schema renn.policy-evolution.latest-best/1) — the fast path's input. */
@@ -92,6 +108,26 @@ export interface SchlauLatestBestFile {
   source?: string
   policy?: string
   best?: { gen?: number; island?: number; genome?: number[] }
+}
+
+/** One per-kind slice of the decision band as the eval report carries it (eval-schlau-candidate.ts). */
+export interface SchlauEvalKindReport {
+  kind: string
+  episodes: number
+  finished: number
+}
+
+/**
+ * A decision-eval report file (schema renn.policy-evolution.schlau-candidate-eval/1) — the --deep path's input:
+ * the eval'd candidate (label/gen/genome/source) plus the per-kind holdout finishes of the band.
+ */
+export interface SchlauEvalReport {
+  schema?: string
+  /** net tag of the eval'd genome — must match the genome length (schlauNetOf); a contradiction is refused. */
+  net?: 'schlau' | 'schlau2'
+  candidate: { id?: string; label?: string; gen?: number | null; source?: string; genome: number[] }
+  perKind?: SchlauEvalKindReport[]
+  total?: { finishes?: number }
 }
 
 /** The exported candidates file (the shape main() writes and the training dialog's picker reads). */
@@ -151,6 +187,82 @@ export function mergeFastBest(
     const tail = candidates.findIndex((c) => c.id === 'shipped' || c.id === 'placeholder')
     if (tail >= 0) candidates.splice(tail, 0, best)
     else candidates.push(best)
+  }
+  return { ...existing, candidates, updatedAt: now.toISOString() }
+}
+
+/**
+ * Pure merge of the --deep path: splices the DECISION-EVAL bests (eval-schlau-candidate.ts reports, one entry per
+ * report) into an existing candidates file — their genome (either net, tagged honestly via schlauNetOf), their
+ * gen, and their DECISION-BAND holdout finishes (the `holdout` field + the full band in the detail). The entry
+ * updates IN PLACE when the file already has the same id (label), else inserts before the shipped/placeholder
+ * tail; every other entry rides along untouched and the file-level `source`/`gen` keep describing the last full
+ * export (only `updatedAt` moves). The merged entries carry NO scores — the --deep CLI run scores them headlessly
+ * right after this merge. Reserved ids (best/shipped/placeholder/island-*) are refused: the deep bests get their
+ * own stable ids (the eval's candidate label, e.g. 'schlau2-boxturn-g100').
+ */
+export function mergeDeepEvalBests(
+  existing: SchlauCandidatesFile | null,
+  reports: SchlauEvalReport[],
+  now: Date = new Date(),
+): SchlauCandidatesFile {
+  const entries: ExportedCandidate[] = reports.map((report, i) => {
+    if (report.schema !== 'renn.policy-evolution.schlau-candidate-eval/1')
+      throw new Error(`report ${i}: schema '${String(report.schema)}' is not 'renn.policy-evolution.schlau-candidate-eval/1' — the --deep path only merges decision evals`)
+    const label = report.candidate.label
+    const genome = report.candidate.genome
+    if (!label || typeof label !== 'string') throw new Error(`report ${i}: no candidate.label (the entry id)`)
+    if (label === 'best' || label === 'shipped' || label === 'placeholder' || label.startsWith('island-'))
+      throw new Error(`report ${i}: candidate label '${label}' is reserved (best/shipped/placeholder/island-*) — a deep best needs its own stable id (e.g. 'schlau2-boxturn-g100')`)
+    if (!Array.isArray(genome) || genome.length === 0 || !genome.every((w) => typeof w === 'number' && Number.isFinite(w)))
+      throw new Error(`report ${i} (${label}): no usable candidate.genome (non-empty finite number array)`)
+    ensureSchlauGenome(genome)
+    const net = schlauNetOf(genome.length)
+    if (!net) throw new Error(`report ${i} (${label}): genome of ${genome.length} numbers is no schlau net (1-layer: 29 H + 2; deep: H^2 + 30 H + 2)`)
+    if (report.net != null && report.net !== net)
+      throw new Error(`report ${i} (${label}): net tag '${report.net}' contradicts the genome length ${genome.length} (decides '${net}') — never export a mismatched tag`)
+    const perKindList = report.perKind ?? []
+    if (perKindList.length === 0 || perKindList.some((k) => !k.kind || !Number.isFinite(k.episodes) || !Number.isFinite(k.finished)))
+      throw new Error(`report ${i} (${label}): no usable perKind band (kind/episodes/finished per kind)`)
+    const perKind: Record<string, { finished: number; total: number }> = {}
+    for (const k of perKindList) perKind[k.kind] = { finished: k.finished, total: k.episodes }
+    const total = perKindList.reduce((a, k) => a + k.episodes, 0)
+    const finished = report.total?.finishes
+    if (!Number.isFinite(finished)) throw new Error(`report ${i} (${label}): no total.finishes (the band total)`)
+    const band = perKindList.map((k) => `${k.kind.replace('goal_', '')} ${k.finished}/${k.episodes}`).join(', ')
+    const base = label.replace(/-g\d+$/, '')
+    return {
+      id: label,
+      label: net === 'schlau2' ? base.replace(/^schlau2-/, 'S2 ') : base,
+      gen: report.candidate.gen ?? null,
+      genome,
+      net,
+      holdout: { finished: finished!, total, perKind },
+      detail: `${net === 'schlau2' ? 'deep schlau2 net' : '1-layer schlau net'} · decision band ${finished}/${total} (${band}) · ${report.candidate.source ?? 'unknown source'}`,
+    }
+  })
+  const firstSource = reports.find((r) => r.candidate.source)?.candidate.source
+  if (existing == null) {
+    return {
+      schema: 'renn.policy-evolution.candidates/1',
+      source: firstSource ?? 'unknown (deep eval export before the first full export)',
+      policy: 'schlau',
+      gen: null,
+      updatedAt: now.toISOString(),
+      candidates: entries,
+    }
+  }
+  if (existing.policy != null && existing.policy !== 'schlau')
+    throw new Error(`existing candidates file policy '${existing.policy}' is not 'schlau' — the deep path never merges into another policy's file`)
+  const candidates = existing.candidates.map((c) => ({ ...c }))
+  for (const entry of entries) {
+    const at = candidates.findIndex((c) => c.id === entry.id)
+    if (at >= 0) candidates[at] = entry
+    else {
+      const tail = candidates.findIndex((c) => c.id === 'shipped' || c.id === 'placeholder')
+      if (tail >= 0) candidates.splice(tail, 0, entry)
+      else candidates.push(entry)
+    }
   }
   return { ...existing, candidates, updatedAt: now.toISOString() }
 }
@@ -306,6 +418,46 @@ async function main(): Promise<void> {
   console.log(`scores (${((Date.now() - t0) / 1000).toFixed(1)} s): ${scoreRows.join(' · ')}`)
 }
 
+/**
+ * One --deep run: reads decision-eval reports (eval-schlau-candidate.ts --out files), merges their bests into the
+ * exported candidates file (mergeDeepEvalBests) and then headlessly scores the freshly merged entries over the
+ * CURRENT schlau training worlds — the same measurement as the full export, so the dialog's health dots and the
+ * 'unscored' marking work for the deep bests too. Existing entries (the shipped 1-layer best, islands, a fast-path
+ * best) ride along untouched with their own scores. Writes ATOMICALLY (tmp + rename) like the fast path.
+ */
+async function runDeepExport(opts: { evalPaths: string[]; outPath: string }): Promise<string> {
+  const reports: SchlauEvalReport[] = opts.evalPaths.map((p) => JSON.parse(readFileSync(p, 'utf8')) as SchlauEvalReport)
+  const existing = existsSync(opts.outPath) ? (JSON.parse(readFileSync(opts.outPath, 'utf8')) as SchlauCandidatesFile) : null
+  const merged = mergeDeepEvalBests(existing, reports)
+  const t0 = Date.now()
+  const scoreRows: string[] = []
+  for (const candidate of merged.candidates) {
+    // only the freshly merged entries (they carry the decision band and no scores yet — a fast-path best stays unscored by design)
+    if (!candidate.holdout || candidate.scores) continue
+    const scores: Record<string, TrainingCandidateWorldScores> = {}
+    for (const spec of SCHLAU_TRAINING_WORLDS) {
+      scores[spec.id] = await scoreTrainingWorldStages(buildSchlauTrainingWorld(spec, candidate.genome), {
+        scoreStageBase: SCHLAU_SCORE_STAGE_BASE,
+        carId: schlauCarId,
+        goalPrefix: SCHLAU_GOAL_PREFIX,
+        goalReachM: SCHLAU_GOAL_REACH_M,
+        watchLabel: 'schlau.score',
+        maxSimS: MAX_SIM_S,
+      })
+    }
+    candidate.scores = scores
+    candidate.scoredGen = candidate.gen
+    const worlds = Object.keys(scores)
+    const sumBest = worlds.reduce((a, id) => a + scores[id]!.best, 0)
+    scoreRows.push(`${candidate.label}: Σ Best ${Math.round(sumBest)} · band ${candidate.holdout.finished}/${candidate.holdout.total}`)
+  }
+  mkdirSync(dirname(opts.outPath), { recursive: true })
+  const tmp = `${opts.outPath}.tmp-${process.pid}`
+  writeFileSync(tmp, JSON.stringify(merged))
+  renameSync(tmp, opts.outPath)
+  return `deep bests -> ${opts.outPath.slice(root.length + 1)} (${reports.length} evals, ${((Date.now() - t0) / 1000).toFixed(1)} s scoring): ${scoreRows.join(' · ')}`
+}
+
 // main() runs only when this file is the executed script — the fast path (watch-schlau-best.ts) and the unit
 // tests import the pure functions above without triggering a full (minutes-slow) export.
 const invokedDirectly = process.argv[1] != null && import.meta.url === pathToFileURL(resolve(process.argv[1])).href
@@ -319,8 +471,25 @@ if (invokedDirectly) {
     console.log(`${result.status}: ${result.detail}`)
     process.exit(result.status === 'skipped' ? 1 : 0)
   }
-  main().catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
+  if (process.argv.includes('--deep')) {
+    const args = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+    if (args.length === 0) {
+      console.error('--deep needs at least one decision-eval report (schema renn.policy-evolution.schlau-candidate-eval/1, eval-schlau-candidate.ts --out)')
+      process.exit(1)
+    }
+    runDeepExport({ evalPaths: args.map((a) => resolve(root, a)), outPath })
+      .then((detail) => {
+        console.log(detail)
+        process.exit(0)
+      })
+      .catch((e) => {
+        console.error(e)
+        process.exit(1)
+      })
+  } else {
+    main().catch((e) => {
+      console.error(e)
+      process.exit(1)
+    })
+  }
 }

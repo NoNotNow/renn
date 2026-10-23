@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { mergeFastBest, runFastExport, type SchlauCandidatesFile, type SchlauLatestBestFile } from './export-schlau-candidates'
+import { mergeDeepEvalBests, mergeFastBest, runFastExport, type SchlauCandidatesFile, type SchlauEvalReport, type SchlauLatestBestFile } from './export-schlau-candidates'
 
 /** A valid schlau genome: len = 29 H + 2 with H = 1 (the smallest shape ensureSchlauGenome accepts). */
 function genome(fill = 0): number[] {
@@ -150,5 +150,107 @@ describe('runFastExport', () => {
     expect((JSON.parse(readFileSync(outPath, 'utf8')) as SchlauCandidatesFile).candidates.map((c) => c.id)).toEqual(['shipped'])
     // a missing latest-best is a skip too (a one-shot --fast run reports it instead of crashing)
     expect(runFastExport({ latestBestPath: join(d, 'missing.json'), outPath }).status).toBe('skipped')
+  })
+})
+
+// --- the --deep path: decision-eval bests of the deep schlau2 runs as selectable candidates ---------------------------
+
+describe('mergeDeepEvalBests (the --deep path)', () => {
+  /** A valid DEEP schlau genome: len = H^2 + 30 H + 2 with H = 2 (66 numbers, disjoint from every 29 H + 2). */
+  const deepGenome = (fill = 0.5): number[] =>
+    Array.from({ length: 2 * 2 + 30 * 2 + 2 }, (_, i) => (i % 7 === 0 ? fill : i / 100))
+
+  /** One decision-eval report (schema renn.policy-evolution.schlau-candidate-eval/1) as eval-schlau-candidate writes it. */
+  const report = (label: string, gen: number, finishes: number): SchlauEvalReport => ({
+    schema: 'renn.policy-evolution.schlau-candidate-eval/1',
+    net: 'schlau2',
+    candidate: {
+      id: 'best',
+      label,
+      gen,
+      source: `test-results/policy-evolution/schlau2-deep/${label.replace(/^schlau2-/, '')}.json`,
+      genome: deepGenome(),
+    },
+    perKind: [
+      { kind: 'goal_open', episodes: 8, finished: 8 },
+      { kind: 'goal_box', episodes: 8, finished: Math.max(0, finishes - 15) },
+      { kind: 'goal_wall', episodes: 8, finished: 1 },
+      { kind: 'goal_turn', episodes: 8, finished: 6 },
+    ],
+    total: { finishes },
+  })
+
+  it('splices the deep bests before the shipped tail: net tag, holdout band, chip label; existing entries untouched', () => {
+    const existing = existingFile([
+      { ...ISLAND },
+      { id: 'best', label: 'Best', gen: 40, genome: genome(), detail: 'latest best by train fitness' },
+      { ...SHIPPED },
+    ])
+    const merged = mergeDeepEvalBests(existing, [report('schlau2-boxturn-g100', 100, 22), report('schlau2-release3-g250', 250, 17)], new Date('2026-10-23T03:00:00.000Z'))
+    expect(merged.candidates.map((c) => c.id)).toEqual(['island-0', 'best', 'schlau2-boxturn-g100', 'schlau2-release3-g250', 'shipped'])
+    const deep = merged.candidates[2]!
+    expect(deep.net).toBe('schlau2')
+    expect(deep.gen).toBe(100)
+    expect(deep.holdout).toEqual({
+      finished: 22,
+      total: 32,
+      perKind: {
+        goal_open: { finished: 8, total: 8 },
+        goal_box: { finished: 7, total: 8 },
+        goal_wall: { finished: 1, total: 8 },
+        goal_turn: { finished: 6, total: 8 },
+      },
+    })
+    // a short chip label (the gen rides in its own badge); the detail carries the full band + provenance
+    expect(deep.label).toBe('S2 boxturn')
+    expect(deep.detail).toContain('deep schlau2 net')
+    expect(deep.detail).toContain('22/32')
+    expect(deep.detail).toContain('open 8/8')
+    expect(deep.detail).toContain('boxturn-g100') // the run file of the eval'd best (provenance)
+    // the merged entry is unscored here (the CLI scores it right after); the existing entries ride along untouched
+    expect(deep.scores).toBeUndefined()
+    expect(merged.candidates[0]).toEqual(ISLAND)
+    expect(merged.candidates[1]!.gen).toBe(40)
+    expect(merged.candidates[4]).toEqual(SHIPPED)
+    expect(merged.updatedAt).toBe('2026-10-23T03:00:00.000Z')
+    // the input file is not mutated
+    expect(existing.candidates.map((c) => c.id)).toEqual(['island-0', 'best', 'shipped'])
+  })
+
+  it('updates an existing deep entry IN PLACE (same id): stale scores dropped, order kept', () => {
+    const stale = {
+      id: 'schlau2-boxturn-g100',
+      label: 'S2 boxturn',
+      gen: 90,
+      genome: deepGenome(0.1),
+      net: 'schlau2' as const,
+      detail: 'deep schlau2 net · decision band 18/32',
+      scores: { schlau_1: { best: 10, routes: [1] } },
+      scoredGen: 90,
+    }
+    const merged = mergeDeepEvalBests(existingFile([stale, { ...SHIPPED }]), [report('schlau2-boxturn-g100', 100, 22)])
+    expect(merged.candidates.map((c) => c.id)).toEqual(['schlau2-boxturn-g100', 'shipped'])
+    const updated = merged.candidates[0]!
+    expect(updated.gen).toBe(100)
+    expect(updated.genome).toEqual(deepGenome())
+    expect(updated.scores).toBeUndefined()
+    expect(updated.scoredGen).toBeUndefined()
+    expect(updated.holdout!.finished).toBe(22)
+  })
+
+  it('creates a fresh schlau candidates file when nothing is exported yet', () => {
+    const merged = mergeDeepEvalBests(null, [report('schlau2-boxturn-g100', 100, 22)], new Date('2026-10-23T03:00:00.000Z'))
+    expect(merged.schema).toBe('renn.policy-evolution.candidates/1')
+    expect(merged.policy).toBe('schlau')
+    expect(merged.candidates.map((c) => c.id)).toEqual(['schlau2-boxturn-g100'])
+  })
+
+  it('refuses a wrong-schema report, a net tag that contradicts the genome, a non-schlau genome and reserved ids', () => {
+    expect(() => mergeDeepEvalBests(existingFile([]), [{ ...report('schlau2-x-g1', 1, 1), schema: 'renn.policy-evolution.schlau-candidate-eval/2' }])).toThrow(/schlau-candidate-eval\/1/)
+    // a 1-layer genome tagged deep (and vice versa) is a dishonest export — refuse
+    const oneLayer = { ...report('schlau2-x-g1', 1, 1), candidate: { ...report('schlau2-x-g1', 1, 1).candidate, genome: genome() } }
+    expect(() => mergeDeepEvalBests(existingFile([]), [oneLayer])).toThrow(/net/)
+    expect(() => mergeDeepEvalBests(existingFile([]), [{ ...report('schlau2-x-g1', 1, 1), candidate: { ...report('schlau2-x-g1', 1, 1).candidate, genome: [1, 2, 3] } }])).toThrow(/no schlau net|fits neither net/)
+    expect(() => mergeDeepEvalBests(existingFile([]), [{ ...report('best', 1, 1), net: 'schlau', candidate: { ...report('best', 1, 1).candidate, genome: genome() } }])).toThrow(/reserved/)
   })
 })

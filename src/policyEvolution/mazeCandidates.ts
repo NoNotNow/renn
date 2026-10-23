@@ -38,6 +38,17 @@ export interface MazeCandidate {
   scores?: Record<string, { best: number; routes: Array<number | null> }>
   /** Generation the scores were measured at (the genomes move every gen; scores belong to the snapshot they shipped with). */
   scoredGen?: number | null
+  /**
+   * DECISION-BAND holdout finishes of THIS genome (the eval-schlau-candidate.ts report the exporter's --deep
+   * path bakes in): total finishes over the band plus the per-kind split (e.g. 22/32: open 8/8, box 7/8,
+   * wall 1/8, turn 6/8). Only the schlau candidates file carries it; the dialog shows the total as a small
+   * score badge next to the gen badge. Absent = no decision eval ran for this genome.
+   */
+  holdout?: {
+    finished: number
+    total: number
+    perKind?: Record<string, { finished: number; total: number }>
+  }
 }
 
 /** Shape of `public/policy-evolution/candidates.json` (schema `renn.policy-evolution.candidates/1`). */

@@ -229,3 +229,51 @@ describe.skipIf(process.env.SCHLAU_TRAIN_SIM !== '1')('schlau training worlds: h
     )
   }
 })
+
+// --- env-gated deep-candidate swap (SCHLAU_TRAIN_SIM=1): the dialog path on a goal_turn world, end to end ---------
+
+describe.skipIf(process.env.SCHLAU_TRAIN_SIM !== '1')('schlau training worlds: headless deep-candidate swap (SCHLAU_TRAIN_SIM=1)', () => {
+  it(
+    'schlau_17 (goal_turn): the exported on-disk world drives with a deep schlau2 candidate swapped in (the dialog pick path)',
+    async () => {
+      // the dialog's own plumbing, end to end: the EXPORTED candidates file's deep entry + applySchlauCandidate on
+      // the on-disk world (fresh read = every entity at its document pose — the defined-start rule), then the
+      // same smoke gate as the baked-candidate runs above
+      const file = JSON.parse(readFileSync('public/policy-evolution/schlau-candidates.json', 'utf8')) as {
+        candidates: Array<{ id: string; net?: string; genome: number[] }>
+      }
+      const deep = file.candidates.find((c) => c.net === 'schlau2')
+      if (!deep) throw new Error('public/policy-evolution/schlau-candidates.json has no net:schlau2 candidate — export one with --deep first')
+      const world = applySchlauCandidate(
+        JSON.parse(readFileSync(join('public/exampleWorlds', 'schlau_17', 'world.json'), 'utf8')) as never,
+        deep.genome,
+      )
+      const carId = schlauCarId(0)
+      const start = (world as { entities: { id: string; position: number[] }[] }).entities.find((e) => e.id === carId)!.position
+      setAgentObservationWatchActive(true)
+      const sim = await WorldSimulator.create(world, 0)
+      try {
+        let t = 0
+        for (let f = 0; f < Math.round(MAX_SIM_S / DEFAULT_DT); f++) {
+          sim.runFrames(1)
+          t = (f + 1) * DEFAULT_DT
+          const p = sim.getPosition(carId)
+          if (Math.hypot(p[0] - start[0]!, p[2] - start[2]!) > 5) break
+        }
+        const p = sim.getPosition(carId)
+        expect(Math.hypot(p[0] - start[0]!, p[2] - start[2]!)).toBeGreaterThan(5)
+        let score: number | null = null
+        for (const e of getTransformerWatchEntries().values()) {
+          if (e.entityId === carId && e.label === 'schlau.score') score = Number(/([\d.]+)/.exec(String(e.value))![1])
+        }
+        console.log(`[schlau-deep] ${deep.id} on schlau_17: moved after ${t.toFixed(1)} s, score ${score}`)
+        expect(score).not.toBeNull()
+        expect(Number.isFinite(score)).toBe(true)
+      } finally {
+        sim.dispose()
+        setAgentObservationWatchActive(false)
+      }
+    },
+    600_000,
+  )
+})

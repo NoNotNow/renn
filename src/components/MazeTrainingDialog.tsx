@@ -233,6 +233,11 @@ interface CandidateMenuEntry {
   title: string
   /** Small right-aligned gen badge (e.g. "g6000"); null hides the badge. */
   genBadge: string | null
+  /**
+   * Small right-aligned score badge of the candidate's DECISION-BAND holdout finishes (e.g. "22/32" — the
+   * `holdout` field the --deep exporter path bakes in); null hides the badge (no decision eval ran).
+   */
+  scoreBadge: string | null
 }
 
 /** The always-first menu entry: the deployed candidate baked into the exported worlds. */
@@ -241,6 +246,7 @@ const DEPLOYED_MENU_ENTRY: CandidateMenuEntry = {
   label: 'Deployed (export)',
   title: 'Drive with the candidate baked into the exported world files (the on-disk best).',
   genBadge: null,
+  scoreBadge: null,
 }
 
 /** Menu entry of one exported candidate (label + provenance tooltip + gen badge). */
@@ -254,6 +260,7 @@ function candidateMenuEntry(candidate: MazeCandidate): CandidateMenuEntry {
       candidate.scoredGen != null ? ` · scored gen ${candidate.scoredGen}` : ''
     }`,
     genBadge: candidate.gen != null ? `g${candidate.gen}` : null,
+    scoreBadge: candidate.holdout ? `${candidate.holdout.finished}/${candidate.holdout.total}` : null,
   }
 }
 
@@ -421,6 +428,8 @@ const CANDIDATE_MENU_SECTIONS: ReadonlyArray<Omit<CandidateMenuSection, 'entries
 /** Group of one candidate id by shape (islands, milestones, widen-freeze ships, run checkpoints, other). */
 function candidateGroupKey(id: string): string {
   if (id.startsWith('island-')) return 'islands'
+  // the deep schlau2 decision-eval bests (the --deep export path, ids like 'schlau2-boxturn-g100') are milestones
+  if (id.startsWith('schlau2-')) return 'milestones'
   if (id === 'best' || id === 'shipped') return 'milestones'
   if (/^wf\d+_(final|base|recovery)$/.test(id)) return 'wf-ships'
   if (id.startsWith('wf')) return 'wf-runs'
@@ -1251,9 +1260,12 @@ export default function MazeTrainingDialog({ trainingSet = MAZE_TRAINING_SET, ta
                                 >
                                   {entry.label}
                                 </span>
-                                {entry.genBadge != null ? (
-                                  <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text.muted, whiteSpace: 'nowrap' }}>
-                                    {entry.genBadge}
+                                {entry.genBadge != null || entry.scoreBadge != null ? (
+                                  <span
+                                    style={{ marginLeft: 'auto', display: 'flex', gap: 4, fontSize: 10, color: theme.text.muted, whiteSpace: 'nowrap' }}
+                                  >
+                                    {entry.scoreBadge != null ? <span>{entry.scoreBadge}</span> : null}
+                                    {entry.genBadge != null ? <span>{entry.genBadge}</span> : null}
                                   </span>
                                 ) : null}
                               </button>

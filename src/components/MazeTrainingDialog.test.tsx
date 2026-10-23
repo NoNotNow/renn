@@ -1176,6 +1176,48 @@ describe('MazeTrainingDialog (Schlau Mazes set)', () => {
     expect(onPlay).toHaveBeenCalledWith('schlau_maze_2', 0, expect.objectContaining({ id: 'best' }))
   })
 
+  it('lists the deep schlau2 bests with their decision band (score badge) and carries a pick to the tile start', async () => {
+    const user = userEvent.setup()
+    const deep: MazeCandidate = {
+      id: 'schlau2-boxturn-g100',
+      label: 'S2 boxturn',
+      gen: 100,
+      genome: Array.from({ length: 66 }, (_, i) => i / 100),
+      net: 'schlau2',
+      detail: 'deep schlau2 net · decision band 22/32 (open 8/8, box 7/8, wall 1/8, turn 6/8) · schlau2-boxturn.json',
+      scores: { schlau_maze_1: { best: 90, routes: [90] }, schlau_maze_2: { best: 40, routes: [40] } },
+      scoredGen: 100,
+      holdout: {
+        finished: 22,
+        total: 32,
+        perKind: {
+          goal_open: { finished: 8, total: 8 },
+          goal_box: { finished: 7, total: 8 },
+          goal_wall: { finished: 1, total: 8 },
+          goal_turn: { finished: 6, total: 8 },
+        },
+      },
+    }
+    stubFetchWithSchlauMazeMeta([deep, makeCandidate('shipped', 'Shipped')])
+    const onPlay = vi.fn()
+    render(<MazeTrainingDialog trainingSet={SCHLAU_MAZE_TRAINING_SET} onPlayExampleWorld={onPlay} />)
+    await user.click(await screen.findByTestId('schlauMaze-training-candidates'))
+    // the deep best sits in the MILESTONES tab (next to Best/Shipped, not the 'other' rest bucket)
+    await user.click(screen.getByTestId('schlauMaze-training-candidates-tab-milestones'))
+    const option = screen.getByTestId('schlauMaze-training-candidate-option-schlau2-boxturn-g100')
+    expect(option).toHaveTextContent('S2 boxturn')
+    // the decision band shows as a score badge next to the gen badge; the full per-kind split rides in the tooltip
+    expect(option).toHaveTextContent('22/32')
+    expect(option).toHaveTextContent('g100')
+    expect(option).toHaveAttribute('title', expect.stringContaining('decision band 22/32'))
+    await user.click(option)
+    await user.click(screen.getByTestId('schlauMaze-training-candidates-menu-close'))
+    // the picked deep model drives the next tile start (the Builder swaps every schlau_drive_* stage to it)
+    await user.click(screen.getByTestId('schlauMaze-training-row-schlau_maze_2'))
+    await user.click(screen.getByTestId('schlauMaze-training-route-tile-schlau_maze_2-0'))
+    expect(onPlay).toHaveBeenCalledWith('schlau_maze_2', 0, expect.objectContaining({ id: 'schlau2-boxturn-g100', net: 'schlau2' }))
+  })
+
   it('renders the live score of the focused route car (schlau.* watch labels, per-copy car id)', async () => {
     setTransformerWatchEnabled(true)
     // the focused route copy's car id: schlau_maze_car_1 (the set's carId of routeIndex 1)
