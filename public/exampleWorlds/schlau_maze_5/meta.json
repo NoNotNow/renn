@@ -4,9 +4,9 @@
   "name": "Schlau Maze 5",
   "candidate": {
     "policy": "schlau",
-    "label": "schlau base best (gen 45600)",
+    "label": "schlau shipped (gen 45600)",
     "gen": 45600,
-    "source": "test-results/policy-evolution/schlau.json"
+    "source": "shippedPolicySchlau.json"
   },
   "bestScore": 210.3,
   "chain": {
