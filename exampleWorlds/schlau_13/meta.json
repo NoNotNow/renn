@@ -1,0 +1,72 @@
+{
+  "id": "schlau_13",
+  "seed": 2,
+  "name": "Schlau wall easy",
+  "kind": "goal_wall",
+  "candidate": {
+    "policy": "schlau",
+    "label": "schlau (untrained placeholder)",
+    "gen": null,
+    "source": "placeholder"
+  },
+  "bestScore": 0.3,
+  "chain": {
+    "points": 11,
+    "lengthM": 63.2
+  },
+  "tileSvg": {
+    "w": 220,
+    "h": 220,
+    "routes": [
+      {
+        "pts": [
+          [
+            110.8,
+            106
+          ],
+          [
+            105.2,
+            95.2
+          ],
+          [
+            99.6,
+            84.5
+          ],
+          [
+            94,
+            73.7
+          ],
+          [
+            88.4,
+            63
+          ],
+          [
+            87.7,
+            62.1
+          ],
+          [
+            86.8,
+            61.3
+          ],
+          [
+            76.7,
+            53.5
+          ],
+          [
+            66.5,
+            45.7
+          ],
+          [
+            56.4,
+            38
+          ],
+          [
+            46.3,
+            30.2
+          ]
+        ],
+        "score": 0.3
+      }
+    ]
+  }
+}

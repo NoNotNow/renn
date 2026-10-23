@@ -4,7 +4,7 @@
 <rect x="10" y="10" width="200" height="3.2" fill="#444a55"/>
 <rect x="206.8" y="10" width="3.2" height="200" fill="#444a55"/>
 <rect x="10" y="10" width="3.2" height="200" fill="#444a55"/>
-<rect x="116.2" y="97.4" width="22" height="6.5" fill="#444a55"/>
+<rect x="99" y="97.4" width="56.4" height="6.5" fill="#444a55"/>
 <rect x="77.1" y="18.4" width="9.7" height="21.1" fill="#444a55"/>
 <rect x="136.4" y="177.2" width="8" height="15.8" fill="#444a55"/>
 <rect x="134.3" y="40.9" width="19.6" height="16.3" fill="#444a55"/>
@@ -13,7 +13,9 @@
 <rect x="32.3" y="98.2" width="11.4" height="14.2" fill="#444a55"/>
 <rect x="143.5" y="154" width="11.8" height="15.3" fill="#444a55"/>
 <rect x="76.5" y="189.5" width="15.1" height="13.6" fill="#444a55"/>
-<polyline points="85,80.2 97.5,80.6 110,81 122.4,81.4 134.9,81.9 136.4,82.3 137.7,83.1 138.9,84 148.9,94 158.9,104 168.9,114" fill="none" stroke="#44aaff" stroke-width="1.5" stroke-opacity="0.9"/>
+<rect x="78.1" y="35.4" width="17.9" height="13.5" fill="#444a55"/>
+<rect x="190.7" y="156.8" width="12.2" height="10.5" fill="#444a55"/>
+<polyline points="85,80.2 95.2,75.9 105.4,71.6 115.7,67.3 116.4,67.1 121.9,66.2 123.5,66.5 124.9,67.1 126.1,68.1 128.5,70.5 128.7,70.6 138.7,81.5 148.8,92.3 158.8,103.2 168.9,114" fill="none" stroke="#44aaff" stroke-width="1.5" stroke-opacity="0.9"/>
 <circle cx="85" cy="80.2" r="5" fill="#44ff77"/>
 <circle cx="168.9" cy="114" r="5" fill="#ff4444"/>
 </svg>
