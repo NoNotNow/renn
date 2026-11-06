@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, type RefObject } from 'react'
 import type {
+  RawDriveTouchState,
   RawInput,
   RawKeyboardState,
   RawWheelState,
@@ -215,10 +216,12 @@ export function useRawWheelInput(
 /**
  * Get current raw input snapshot.
  * For wheel, this also resets the accumulated deltas.
+ * `touch` (optional): held HUD steering-wheel axes — copied, not reset (lift resets it).
  */
 export function getRawInputSnapshot(
   keyboard: RefObject<RawKeyboardState>,
   wheel: RefObject<RawWheelState>,
+  touch?: RawDriveTouchState | null,
 ): RawInput {
   const keys = keyboard.current ?? DEFAULT_KEYBOARD_STATE
   const wheelState = wheel.current ?? DEFAULT_WHEEL_STATE
@@ -232,6 +235,9 @@ export function getRawInputSnapshot(
       pinchDelta: wheelState.pinchDelta,
       mouseWheelDelta: wheelState.mouseWheelDelta,
     },
+  }
+  if (touch) {
+    snapshot.touch = { ...touch }
   }
 
   // Reset wheel deltas for next frame

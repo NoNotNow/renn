@@ -74,6 +74,26 @@ export function applyInputMappingInto(
       out[actionName] = normalizeWheelDelta(rawInput.wheel.deltaY, wheelSensitivity)
     }
   }
+
+  // Touch drive (HUD steering-wheel drag): analog values written onto the SAME actions the
+  // keys press, so saved worlds drive too. Forward/backward action names come from the saved
+  // keyboard mapping (`w`/`s`); `steering_angle` is car2's analog steer action (positive =
+  // left, like key `a`), consumed with rate limiting; 0 is absent so car2's binary path
+  // self-centers the wheel. Non-car transformers ignore unknown action names.
+  const touch = rawInput.touch
+  if (touch) {
+    if (touch.steer !== 0) {
+      out.steering_angle = touch.steer
+    }
+    const forwardAction = mapping.keyboard?.w
+    if (forwardAction && touch.drive > 0) {
+      out[forwardAction] = touch.drive
+    }
+    const backwardAction = mapping.keyboard?.s
+    if (backwardAction && touch.drive < 0) {
+      out[backwardAction] = -touch.drive
+    }
+  }
 }
 
 /**

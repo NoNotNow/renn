@@ -140,6 +140,7 @@ export function scheduleSceneRuntimeFrameLoop(ctx: SceneRuntimeFrameLoopContext)
         activeDebugForcesRef: handles.activeDebugForcesRef,
         registryRef: handles.registryRef,
         rawKeyboardRef: handles.rawKeyboardRef,
+        touchDriveRef: handles.touchDriveRef,
         worldRef: handles.worldRef,
         scriptRunnerRef: handles.scriptRunnerRef,
         runScripts: handles.runScriptsRef.current,

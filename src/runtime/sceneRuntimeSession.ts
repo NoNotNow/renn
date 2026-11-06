@@ -1,5 +1,5 @@
 import type { MutableRefObject, RefObject } from 'react'
-import type { RawKeyboardState, RawWheelState } from '@/types/transformer'
+import type { RawDriveTouchState, RawKeyboardState, RawWheelState } from '@/types/transformer'
 import type { FreeFlyKeys } from '@/types/camera'
 import type { RawMouseDragState } from '@/input/rawMouseDrag'
 import * as THREE from 'three'
@@ -122,6 +122,8 @@ export interface SceneRuntimeHandleBag {
   runScriptsRef: MutableRefObject<boolean>
   rawKeyboardRef: RefObject<RawKeyboardState>
   rawWheelRef: RefObject<RawWheelState>
+  /** Optional: HUD steering-wheel touch axes (null/ref-with-null when the HUD is hidden). */
+  touchDriveRef?: MutableRefObject<RawDriveTouchState | null>
   timeRef: MutableRefObject<number>
   recordFrameStatsOverlayRef: MutableRefObject<boolean>
   activeDebugForcesRef: MutableRefObject<ActiveDebugForce[]>

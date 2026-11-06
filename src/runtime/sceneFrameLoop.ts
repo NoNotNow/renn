@@ -7,7 +7,7 @@ import type * as THREE from 'three'
 import type { RefObject, MutableRefObject } from 'react'
 import type { RennWorld, Vec3, EditorFreePose } from '@/types/world'
 import { resolveDistanceCullingSettings } from '@/types/world'
-import type { RawInput, RawKeyboardState, RawWheelState } from '@/types/transformer'
+import type { RawDriveTouchState, RawInput, RawKeyboardState, RawWheelState } from '@/types/transformer'
 import { wheelZoomLog } from '@/input/wheelZoom'
 import type { FreeFlyKeys } from '@/types/camera'
 import type { PhysicsWorld } from '@/physics/rapierPhysics'
@@ -102,6 +102,8 @@ export interface SceneFrameLoopInputs {
   activeDebugForcesRef: MutableRefObject<ActiveDebugForce[]>
   registryRef: MutableRefObject<SimulationFramePort | null>
   rawKeyboardRef: RefObject<RawKeyboardState>
+  /** Optional: held HUD steering-wheel touch axes; null/absent = no touch drive. */
+  touchDriveRef?: RefObject<RawDriveTouchState | null>
   worldRef: MutableRefObject<RennWorld>
   scriptRunnerRef: MutableRefObject<ScriptRunner | null>
   runScripts: boolean
@@ -159,6 +161,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     activeDebugForcesRef,
     registryRef,
     rawKeyboardRef,
+    touchDriveRef,
     worldRef,
     scriptRunnerRef,
     runScripts,
@@ -242,7 +245,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
 
       if (!editNav) {
         if (registryRef.current) {
-          const rawInput: RawInput = getRawInputSnapshot(rawKeyboardRef, rawWheelRef)
+          const rawInput: RawInput = getRawInputSnapshot(rawKeyboardRef, rawWheelRef, touchDriveRef?.current ?? null)
           registryRef.current.setRawInputGetter(() => rawInput)
           const wind = worldRef.current.world.wind
           registryRef.current.executeTransformers(dt, wind)

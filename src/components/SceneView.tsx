@@ -56,7 +56,7 @@ import {
 } from '@/input/rawInput'
 import { useRawMouseDrag } from '@/input/rawMouseDrag'
 import { useTouchCameraGestures } from '@/input/touchCameraGestures'
-import type { TransformerConfig, TransformerDef, TransformerPipe } from '@/types/transformer'
+import type { RawDriveTouchState, TransformerConfig, TransformerDef, TransformerPipe } from '@/types/transformer'
 import {
   BUILDER_SCENE_CANVAS_HOST_ATTR,
   SUPPRESS_ESCAPE_SCENE_FOCUS_ATTR,
@@ -277,6 +277,8 @@ function SceneViewInner({
   const freeFlyKeysRef = useKeyboardInput()
   const rawKeyboardRef = useRawKeyboardInput()
   const rawWheelRef = useRawWheelInput(containerRef)
+  /** HUD steering-wheel touch axes; written by GameHud's touch strip, read per frame. */
+  const touchDriveRef = useRef<RawDriveTouchState>({ steer: 0, drive: 0 })
   const rawMouseDragRef = useRawMouseDrag(containerRef)
   const orbitWheelRef = useRef({ deltaX: 0, deltaY: 0, zoomLog: 0 })
   const lastEditorPoseWriteTimeRef = useRef(0)
@@ -688,6 +690,7 @@ function SceneViewInner({
       runScriptsRef,
       rawKeyboardRef,
       rawWheelRef,
+      touchDriveRef,
       timeRef,
       recordFrameStatsOverlayRef,
       activeDebugForcesRef,
@@ -741,6 +744,7 @@ function SceneViewInner({
       runScriptsRef,
       rawKeyboardRef,
       rawWheelRef,
+      touchDriveRef,
       timeRef,
       recordFrameStatsOverlayRef,
       activeDebugForcesRef,
@@ -965,7 +969,7 @@ function SceneViewInner({
       ) : null}
       {scriptSnackbarMessage !== null ? <ScriptSnackbar message={scriptSnackbarMessage} /> : null}
       {showGameHud ? (
-        <GameHud score={hudScore} damage={hudDamage} speedMs={hudDrive.speedMs} wheelAngle={hudDrive.wheelAngle} />
+        <GameHud score={hudScore} damage={hudDamage} speedMs={hudDrive.speedMs} wheelAngle={hudDrive.wheelAngle} touchDriveRef={touchDriveRef} />
       ) : null}
       {showFrameStatsOverlay ? (
         <FrameStatsOverlay frameTimingRef={frameTimingRef} onClose={handleFrameStatsClose} />

@@ -10,6 +10,7 @@ import type { RawInput } from '@/types/transformer'
 function createRawInput(overrides?: {
   keys?: Partial<RawInput['keys']>
   wheel?: Partial<RawInput['wheel']>
+  touch?: NonNullable<RawInput['touch']>
 }): RawInput {
   return {
     keys: {
@@ -28,6 +29,7 @@ function createRawInput(overrides?: {
       mouseWheelDelta: 0,
       ...overrides?.wheel,
     },
+    ...(overrides?.touch ? { touch: overrides.touch } : {}),
   } as RawInput
 }
 
@@ -133,5 +135,60 @@ describe('applyInputMapping', () => {
 
     expect(actions.forward).toBeUndefined()
     expect(Object.keys(actions)).toHaveLength(0)
+  })
+
+  test('touch drive: steer writes steering_angle, drive splits into throttle/brake', () => {
+    const raw = createRawInput({ touch: { steer: -0.5, drive: 0.8 } })
+
+    const actions = applyInputMapping(raw, CAR_PRESET)
+
+    // CAR_PRESET: w → throttle, s → brake. Analog values pass through untouched.
+    expect(actions.throttle).toBe(0.8)
+    expect(actions.brake).toBeUndefined()
+    expect(actions.steering_angle).toBe(-0.5)
+  })
+
+  test('touch drive: dragging down maps to the brake action', () => {
+    const raw = createRawInput({ touch: { steer: 0.25, drive: -0.6 } })
+
+    const actions = applyInputMapping(raw, CAR_PRESET)
+
+    expect(actions.brake).toBe(0.6)
+    expect(actions.throttle).toBeUndefined()
+    expect(actions.steering_angle).toBe(0.25)
+  })
+
+  test('touch drive: zero axes write nothing (car2 self-centers via its binary path)', () => {
+    const raw = createRawInput({ touch: { steer: 0, drive: 0 } })
+
+    const actions = applyInputMapping(raw, CAR_PRESET)
+
+    expect(actions.steering_angle).toBeUndefined()
+    expect(actions.throttle).toBeUndefined()
+    expect(actions.brake).toBeUndefined()
+  })
+
+  test('touch drive works for saved worlds whose mapping predates the touch block', () => {
+    // A CAR_PRESET snapshot persisted before touch existed: no touch field, keyboard intact.
+    const savedMapping = {
+      keyboard: { w: 'throttle', s: 'brake', a: 'steer_left', d: 'steer_right', space: 'jump' },
+      sensitivity: { keyboard: 1.0, wheel: 1.0 },
+    }
+    const raw = createRawInput({ touch: { steer: -1, drive: 1 } })
+
+    const actions = applyInputMapping(raw, savedMapping)
+
+    expect(actions.throttle).toBe(1)
+    expect(actions.steering_angle).toBe(-1)
+  })
+
+  test('touch drive: action names derive from the entity mapping, not the car preset', () => {
+    const raw = createRawInput({ touch: { steer: 1, drive: 0.5 } })
+
+    const actions = applyInputMapping(raw, { keyboard: { w: 'thrust', s: 'reverse' } })
+
+    expect(actions.thrust).toBe(0.5)
+    expect(actions.reverse).toBeUndefined()
+    expect(actions.steering_angle).toBe(1)
   })
 })

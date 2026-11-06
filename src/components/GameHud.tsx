@@ -1,5 +1,7 @@
-import type { CSSProperties } from 'react'
-import { memo, useId } from 'react'
+import type { CSSProperties, RefObject } from 'react'
+import { memo, useId, useRef } from 'react'
+import type { RawDriveTouchState } from '@/types/transformer'
+import { useTouchDriveStrip } from '@/input/touchDriveInput'
 
 import steeringWheelImg from '@/assets/game-hud-steering-wheel.png'
 
@@ -10,6 +12,8 @@ export interface GameHudProps {
   speedMs: number
   /** Car2 wheel angle −1…1; visual rotation scales this. */
   wheelAngle: number
+  /** When set, dragging the wheel strip writes analog touch axes into it. */
+  touchDriveRef?: RefObject<RawDriveTouchState>
 }
 
 const cardBase: CSSProperties = {
@@ -285,7 +289,10 @@ function SteeringWheelHud({ wheelAngle }: { wheelAngle: number }) {
 /**
  * Play-mode overlay: score (green), damage (red); tach bottom-left, wheel bottom-center (lower 40% clipped).
  */
-export const GameHud = memo(function GameHud({ score, damage, speedMs, wheelAngle }: GameHudProps) {
+export const GameHud = memo(function GameHud({ score, damage, speedMs, wheelAngle, touchDriveRef }: GameHudProps) {
+  /** Touch strip: touch-only analog steering wheel (offset from touch-down; lift = release). */
+  const wheelStripRef = useRef<HTMLDivElement | null>(null)
+  useTouchDriveStrip(wheelStripRef, touchDriveRef)
   return (
     <>
       <style>
@@ -416,6 +423,8 @@ export const GameHud = memo(function GameHud({ score, damage, speedMs, wheelAngl
           </div>
         </div>
         <div
+          ref={wheelStripRef}
+          aria-hidden
           style={{
             position: 'absolute',
             left: '50%',
@@ -425,6 +434,11 @@ export const GameHud = memo(function GameHud({ score, damage, speedMs, wheelAngl
             minWidth: 0,
             transform: 'translateX(-50%)',
             overflow: 'hidden',
+            /* Touch-only: this strip converts wheel touches into drive axes. */
+            pointerEvents: 'auto',
+            touchAction: 'none',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
             filter: 'drop-shadow(0 10px 18px rgba(0,0,0,0.35))',
           }}
         >

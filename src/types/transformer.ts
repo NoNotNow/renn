@@ -43,11 +43,29 @@ export interface RawWheelState {
 export interface RawInput {
   keys: RawKeyboardState
   wheel: RawWheelState
+  /** Held state from the HUD steering-wheel touch strip (drag steering / throttle). */
+  touch?: RawDriveTouchState
 }
 
-/** True if any tracked key in {@link RawKeyboardState} is down. Used to wake sleeping drive bodies before transformer pass. */
+/**
+ * Touch drive axes from the HUD steering wheel, each −1…1 (offset from the finger's
+ * touch-down point, clamped). Sign conventions follow car2:
+ * `steer` positive = left (holding key `a`), `drive` positive = forward (`w`),
+ * negative = backward (`s`). Zero when no finger is down.
+ */
+export interface RawDriveTouchState {
+  steer: number
+  drive: number
+}
+
+/**
+ * True when any tracked key is down OR the touch drive axes are active. Used to wake
+ * sleeping drive bodies before the transformer pass.
+ */
 export function hasTrackedKeyboardActivity(raw: RawInput | null | undefined): boolean {
   if (!raw) return false
+  const t = raw.touch
+  if (t && (t.steer !== 0 || t.drive !== 0)) return true
   const k = raw.keys
   return k.w || k.a || k.s || k.d || k.space || k.shift
 }

@@ -225,4 +225,33 @@ describe('getRawInputSnapshot', () => {
     expect(wheelRef.current.pinchDelta).toBe(0)
     expect(wheelRef.current.mouseWheelDelta).toBe(0)
   })
+
+  test('touch drive axes are copied into the snapshot (held, not reset)', () => {
+    const keyboardRef = { current: { w: false, a: false, s: false, d: false, space: false, shift: false } }
+    const wheelRef = { current: { deltaX: 0, deltaY: 0, pinchDelta: 0, mouseWheelDelta: 0 } }
+    const touch = { steer: -0.4, drive: 0.9 }
+
+    const snapshot = getRawInputSnapshot(
+      keyboardRef as RefObject<RawKeyboardState>,
+      wheelRef as RefObject<RawWheelState>,
+      touch,
+    )
+
+    expect(snapshot.touch).toEqual({ steer: -0.4, drive: 0.9 })
+    // Held state: the next snapshot still carries it until the finger lifts.
+    expect(touch.steer).toBe(-0.4)
+    expect(touch.drive).toBe(0.9)
+  })
+
+  test('snapshot has no touch field when the state is absent (headless path)', () => {
+    const keyboardRef = { current: { w: false, a: false, s: false, d: false, space: false, shift: false } }
+    const wheelRef = { current: { deltaX: 0, deltaY: 0, pinchDelta: 0, mouseWheelDelta: 0 } }
+
+    const snapshot = getRawInputSnapshot(
+      keyboardRef as RefObject<RawKeyboardState>,
+      wheelRef as RefObject<RawWheelState>,
+    )
+
+    expect(snapshot.touch).toBeUndefined()
+  })
 })
