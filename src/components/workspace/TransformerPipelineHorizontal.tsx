@@ -461,7 +461,7 @@ function TransformerTraceItem({
 
   const enabled = (transformer.enabled ?? true) && ancestorEnabled
   const toggleEnabledDisabled = !ancestorEnabled
-  const showSelectedChrome = Boolean(isSelected && !isDragging && transformer.type === 'custom')
+  const showSelectedChrome = Boolean(isSelected && !isDragging)
   const inputLit = Boolean(step && !step.skipped && hasNonZeroSemanticActions(step.inputBefore, step.channelsIn))
   const outputLit = Boolean(step && !step.skipped && step.outputLedActive)
 
@@ -573,7 +573,7 @@ function TransformerTraceItem({
       }}
       onDragEnd={onDragEnd}
       onClick={(e) => {
-        if (transformer.type !== 'custom' || !onSelectCode) return
+        if (!onSelectCode) return
         const target = e.target as HTMLElement
         if (target.closest('button, input, textarea, [contenteditable="true"]')) return
         onSelectCode()
