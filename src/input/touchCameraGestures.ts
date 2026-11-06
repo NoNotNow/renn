@@ -283,11 +283,22 @@ export function useTouchCameraGestures(
     window.addEventListener('pointerup', onPointerEnd)
     window.addEventListener('pointercancel', onPointerEnd)
 
+    // Belt and braces for iOS Safari: browsers may still take over a canvas touch as a page
+    // gesture (and pointercancel it) when some ancestor re-enables panning. A non-passive
+    // `touchmove` preventDefault on the container kills that take-over in every version.
+    // Only `touchmove` is touched — `touchstart` preventDefault would kill the tap-to-select
+    // click, and nothing inside the scene container needs native panning.
+    const onContainerTouchMove = (e: TouchEvent): void => {
+      e.preventDefault()
+    }
+    container.addEventListener('touchmove', onContainerTouchMove, { passive: false })
+
     return () => {
       container.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerEnd)
       window.removeEventListener('pointercancel', onPointerEnd)
+      container.removeEventListener('touchmove', onContainerTouchMove)
     }
   }, [containerRef])
 }
