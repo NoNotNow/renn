@@ -236,6 +236,11 @@ export function executeSceneRuntimeLoadPath(
   rend.setPixelRatio(resolvedPixelRatio(config.world.world))
   rend.shadowMap.enabled = config.shadowsEnabled
   rend.shadowMap.type = THREE.PCFSoftShadowMap
+  // Touch-action is not inherited: the canvas itself must disable browser take-over, or iOS
+  // fires pointercancel on the first move and the camera gesture recognizer never sees it.
+  rend.domElement.style.touchAction = 'none'
+  rend.domElement.style.overscrollBehavior = 'none'
+  rend.domElement.style.userSelect = 'none'
   config.container.appendChild(rend.domElement)
   host.setRenderer(rend)
 
