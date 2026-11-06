@@ -13,7 +13,6 @@ function makeCameraMock() {
     orbitYaw: 0,
     orbitPitch: 0,
     orbitDistance: 10,
-    effectiveFovDegrees: 50,
   }
   return {
     captureAvatarFocusState: vi.fn(() => ({ ...snap, target: snap.target })),
@@ -83,8 +82,7 @@ describe('AvatarSession', () => {
       orbitYaw: 0.1,
       orbitPitch: 0.2,
       orbitDistance: 11,
-      effectiveFovDegrees: 50,
-    })
+      })
     session.setCurrentAvatar('b')
     expect(cam.captureAvatarFocusState).toHaveBeenCalled()
     session.setCurrentAvatar('a')

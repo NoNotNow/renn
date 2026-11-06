@@ -14,6 +14,7 @@ import type { PhysicsWorld } from '@/physics/rapierPhysics'
 import type { SimulationFramePort } from '@/runtime/renderItemRegistryPorts'
 import type { ScriptRunner } from '@/scripts/scriptRunner'
 import type { CameraController } from '@/camera/cameraController'
+import { applyCameraFov } from '@/camera/fov'
 import { getRawInputSnapshot } from '@/input/rawInput'
 import type { RawMouseDragState } from '@/input/rawMouseDrag'
 import { averageUnlockedSelectionWorldPosition } from '@/editor/transformGizmoController'
@@ -314,6 +315,7 @@ export function runSceneFrame(input: SceneFrameLoopInputs): void {
     } else {
       ctrl.setEditNavigationOrbitPivot(null)
     }
+    if (cam) applyCameraFov(cam, worldRef.current.world.fovDegrees)
     ctrl.update(logicDt)
 
     const poseSink = editorFreePoseRef

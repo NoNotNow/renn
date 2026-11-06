@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import * as THREE from 'three'
-import { CameraController, DEFAULT_PERSPECTIVE_FOV_DEGREES } from './cameraController'
+import { CameraController } from './cameraController'
 import { DEFAULT_FREE_FLY_KEYS } from '@/types/camera'
 
 function createTestSetup() {
@@ -1059,34 +1059,32 @@ describe('CameraController', () => {
       expect(after.dot(before)).toBeLessThan(0.999)
     })
 
-    it('setOrbitDistanceDelta adjusts FOV in first person', () => {
+    it('setOrbitDistanceDelta dollies along the car in first person', () => {
       const { camera, controller } = makeFirstPersonController()
-      expect(camera.fov).toBe(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+      controller.update(0.016)
+      expect(camera.position.z).toBeCloseTo(0)
 
-      controller.setOrbitDistanceDelta(-5)
-      expect(camera.fov).toBeLessThan(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+      controller.setOrbitDistanceDelta(-100)
+      controller.update(0.016)
+      expect(camera.position.z).toBeCloseTo(-3)
 
-      controller.setOrbitDistanceDelta(10000)
-      expect(camera.fov).toBe(75)
-
-      controller.setOrbitDistanceDelta(-10000)
-      expect(camera.fov).toBe(35)
+      controller.setOrbitDistanceDelta(200)
+      controller.update(0.016)
+      expect(camera.position.z).toBeCloseTo(20)
     })
 
-    it('leaving first person restores default FOV', () => {
+    it('zoomByLog dollies along the car in first person', () => {
       const { camera, controller } = makeFirstPersonController()
-      controller.setOrbitDistanceDelta(-20)
-      expect(camera.fov).not.toBe(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+      controller.update(0.016)
 
-      controller.setConfig({
-        control: 'follow',
-        mode: 'thirdPerson',
-        target: 'player',
-        distance: 10,
-        height: 0,
-      })
+      controller.zoomByLog(-0.12) // zoom in → toward the nose
+      controller.update(0.016)
+      expect(camera.position.z).toBeGreaterThan(-1.5)
+      expect(camera.position.z).toBeLessThanOrEqual(0)
 
-      expect(camera.fov).toBe(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+      controller.zoomByLog(1) // zoom out → trailing behind the car
+      controller.update(0.016)
+      expect(camera.position.z).toBeGreaterThan(0)
     })
   })
 
@@ -1191,7 +1189,7 @@ describe('CameraController', () => {
       expect(camera.position.distanceTo(entityPositions.player)).toBeGreaterThan(150)
     })
 
-    it('setOrbitDistanceDelta still adjusts FOV in first person when force free fly is on', () => {
+    it('setOrbitDistanceDelta dollies in first person even when force free fly is on', () => {
       const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
       camera.position.set(0, 5, 10)
       camera.lookAt(0, 0, 0)
@@ -1214,12 +1212,12 @@ describe('CameraController', () => {
         getEntityQuaternion,
       })
       controller.setForceFreeFlyNavigation(true)
-      expect(camera.fov).toBe(DEFAULT_PERSPECTIVE_FOV_DEGREES)
 
       controller.setOrbitDistanceDelta(-5)
-      controller.update(0.016)
+      expect(controller.captureAvatarFocusState().orbitDistance).toBeCloseTo(-3, 5)
 
-      expect(camera.fov).toBeLessThan(DEFAULT_PERSPECTIVE_FOV_DEGREES)
+      controller.setOrbitDistanceDelta(200)
+      expect(controller.captureAvatarFocusState().orbitDistance).toBeCloseTo(20, 5)
     })
   })
 })

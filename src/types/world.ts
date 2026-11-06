@@ -58,6 +58,11 @@ export function cycleCameraMode(current: CameraMode): CameraMode {
 
 export type CameraControl = 'free' | 'follow' | 'top' | 'front' | 'right'
 
+/** Camera field of view: horizontal span (deg) shared by the editor viewport and every play mode. */
+export const DEFAULT_HORIZONTAL_FOV_DEG = 90
+export const HORIZONTAL_FOV_MIN_DEG = 20
+export const HORIZONTAL_FOV_MAX_DEG = 360
+
 /** Last Builder free-fly / edit-navigation pose for restore after reload or save. */
 export interface EditorFreePose {
   position: Vec3
@@ -85,7 +90,6 @@ export interface CameraConfig {
   cameraTargetLag?: number
   /** Follow modes: camera position lag (0 = instant, higher = slower). Default {@link DEFAULT_CAMERA_POSITION_LAG}. */
   cameraPositionLag?: number
-  fov?: number
   defaultPosition?: Vec3
   defaultRotation?: Rotation
   editorFreePose?: EditorFreePose
@@ -101,12 +105,9 @@ export interface AvatarFocusSnapshot {
   target: string
   distance?: number
   height?: number
-  fov?: number
   orbitYaw: number
   orbitPitch: number
   orbitDistance: number
-  /** Live PerspectiveCamera.fov in degrees (first person); kept for restore. */
-  effectiveFovDegrees: number
   /** Degrees; vertical framing vs target pivot (−45…45). */
   targetVerticalAngle?: number
 }
@@ -267,6 +268,8 @@ export interface WorldSettings {
   /** Linear distance fog. Omitted or `false` = disabled. */
   fog?: false | FogSettings
   camera?: CameraConfig
+  /** Horizontal camera FOV in degrees ({@link HORIZONTAL_FOV_MIN_DEG}–{@link HORIZONTAL_FOV_MAX_DEG}). Omitted → {@link DEFAULT_HORIZONTAL_FOV_DEG}. */
+  fovDegrees?: number
   /** Semi-fixed timestep (accumulator); omit for {@link DEFAULT_SIMULATION}. */
   simulation?: SimulationSettings
   /** When true, show last-frame ms / fps overlay on the scene canvas. */

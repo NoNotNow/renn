@@ -6,7 +6,6 @@ import type {
   Entity,
   EntityPreferredCamera,
 } from '@/types/world'
-import { DEFAULT_PERSPECTIVE_FOV_DEGREES } from '@/camera/cameraController'
 
 /** First letter for avatar roster chips (name or id). Uses `charAt` for a stable hot path (fewer JIT bailouts on key handlers). */
 export function avatarEntityIconLetter(entity: Entity): string {
@@ -63,11 +62,6 @@ export function buildAvatarFocusSnapshotFromPreferred(
   const height = p.height ?? w?.height ?? 2
   const mode = p.mode ?? w?.mode ?? DEFAULT_MODE
   const control = p.control ?? w?.control ?? DEFAULT_CONTROL
-  const fovConfig = p.fov ?? w?.fov
-  const effectiveFov =
-    mode === 'firstPerson'
-      ? (fovConfig ?? DEFAULT_PERSPECTIVE_FOV_DEGREES)
-      : DEFAULT_PERSPECTIVE_FOV_DEGREES
 
   const orbitYaw = typeof p.orbitYaw === 'number' ? p.orbitYaw : 0
   const orbitPitch = typeof p.orbitPitch === 'number' ? p.orbitPitch : 0
@@ -87,11 +81,9 @@ export function buildAvatarFocusSnapshotFromPreferred(
     target: targetId,
     distance,
     height,
-    fov: fovConfig,
     orbitYaw,
     orbitPitch,
     orbitDistance,
-    effectiveFovDegrees: effectiveFov,
     targetVerticalAngle,
   }
 }

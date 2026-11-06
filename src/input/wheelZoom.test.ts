@@ -79,16 +79,22 @@ describe('zoomByLog in the other camera modes', () => {
     return { c, camera, target }
   }
 
-  test('first person: a notch changes the FOV by a few degrees, many notches are needed for the full range', () => {
-    const { c, camera } = setup({ control: 'follow', mode: 'firstPerson' })
-    const start = camera.fov
+  test('first person: a notch dollies ≈1.2 units along the car; in → nose, out → behind', () => {
+    const { c, camera, target } = setup({ control: 'follow', mode: 'firstPerson' })
+    c.update(0.016)
+    expect(camera.position.distanceTo(target)).toBeCloseTo(1.6) // driver's seat (eye height)
+
     c.zoomByLog(wheelZoomLog(-WHEEL_NOTCH_PX, 0))
-    expect(start - camera.fov).toBeGreaterThan(3)
-    expect(start - camera.fov).toBeLessThan(6)
+    c.update(0.016)
+    expect(camera.position.distanceTo(target)).toBeGreaterThan(1.6) // slid toward the nose
+    expect(camera.position.distanceTo(target)).toBeLessThan(3)
+
     for (let i = 0; i < 40; i++) c.zoomByLog(wheelZoomLog(-WHEEL_NOTCH_PX, 0))
-    expect(camera.fov).toBe(35)
+    c.update(0.016)
+    expect(camera.position.distanceTo(target)).toBeCloseTo(Math.hypot(3, 1.6), 1) // clamped at the nose
     for (let i = 0; i < 40; i++) c.zoomByLog(wheelZoomLog(WHEEL_NOTCH_PX, 0))
-    expect(camera.fov).toBe(75)
+    c.update(0.016)
+    expect(camera.position.distanceTo(target)).toBeCloseTo(Math.hypot(20, 1.6), 1) // trailing behind
   })
 
   test('edit navigation: multiplicative dolly towards the pivot, no upper clamp', () => {

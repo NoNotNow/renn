@@ -9,12 +9,15 @@ import {
   CAMERA_LAG_MIN,
   CAMERA_MODE_CYCLE_ORDER,
   CAMERA_MODE_LABELS,
+  DEFAULT_HORIZONTAL_FOV_DEG,
   FLUID_ORBIT_DISTANCE_MAX,
   FLUID_ORBIT_DISTANCE_MIN,
   FLUID_ORBIT_HEIGHT_MAX,
   FLUID_ORBIT_HEIGHT_MIN,
   FLUID_ORBIT_SPEED_MAX_DEG,
   FLUID_ORBIT_SPEED_MIN_DEG,
+  HORIZONTAL_FOV_MAX_DEG,
+  HORIZONTAL_FOV_MIN_DEG,
 } from '@/types/world'
 import { uiLogger } from '@/utils/uiLogger'
 import { theme } from '@/config/theme'
@@ -143,6 +146,12 @@ export default function EntityCameraPanel({
     return avatarRosterEntityIds[0] ?? null
   }, [cameraTarget, avatarRosterEntityIds])
 
+  const fovDegrees = world.world.fovDegrees ?? DEFAULT_HORIZONTAL_FOV_DEG
+  const applyFov = (deg: number) => {
+    uiLogger.change('Builder', 'Change field of view', { deg })
+    onWorldChange({ ...world, world: { ...world.world, fovDegrees: deg } })
+  }
+
   return (
     <>
       <CopyableArea
@@ -157,9 +166,60 @@ export default function EntityCameraPanel({
           fluidOrbitDistance,
           cameraTargetLag,
           cameraPositionLag,
+          fovDegrees,
         }}
       >
         <>
+          <div style={sidebarRowStyle}>
+            <label
+              htmlFor="camera-fov"
+              style={{ ...sidebarLabelStyle, cursor: 'help' }}
+              title="Horizontal field of view in degrees (left-to-right span). Applies to the editor viewport and every play camera mode; scroll zoom changes distance, never the FOV."
+            >
+              Field of view
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+              <input
+                id="camera-fov"
+                type="range"
+                min={HORIZONTAL_FOV_MIN_DEG}
+                max={HORIZONTAL_FOV_MAX_DEG}
+                step={1}
+                value={fovDegrees}
+                onChange={(e) => {
+                  const next = Number(e.target.value)
+                  uiLogger.change('Builder', 'Change field of view', { deg: next })
+                  applyFov(next)
+                }}
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              <span style={{ fontSize: 12, color: theme.text.muted, width: 36, textAlign: 'right' }}>
+                {fovDegrees}°
+              </span>
+            </div>
+          </div>
+          {fovDegrees !== DEFAULT_HORIZONTAL_FOV_DEG && (
+            <button
+              type="button"
+              onClick={() => {
+                uiLogger.change('Builder', 'Reset field of view', { deg: DEFAULT_HORIZONTAL_FOV_DEG })
+                applyFov(DEFAULT_HORIZONTAL_FOV_DEG)
+              }}
+              style={{
+                marginTop: -6,
+                marginBottom: 8,
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+                color: theme.text.muted,
+                fontSize: 11,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              Reset field of view
+            </button>
+          )}
           <div style={sidebarRowStyle}>
             <label
               htmlFor="camera-control"

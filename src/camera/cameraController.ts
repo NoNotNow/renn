@@ -36,14 +36,14 @@ const EDIT_NAV_FOCUS_FALLBACK_DISTANCE = 12
 /** Min polar angle from +Y (rad) to avoid gimbal flip when orbiting in edit mode. */
 const EDIT_NAV_POLAR_EPS = 0.08
 
-/** Matches SceneView `PerspectiveCamera(50, …)`; restored when leaving first person. */
-export const DEFAULT_PERSPECTIVE_FOV_DEGREES = 50
-const FIRST_PERSON_FOV_MIN = 35
-const FIRST_PERSON_FOV_MAX = 75
-/** Maps wheel/pinch distance delta to FOV change (degrees per unit delta). */
-const FIRST_PERSON_FOV_PER_DISTANCE_DELTA = 0.8
-/** First-person zoom: FOV degrees per unit of ln(distance ratio) — a mouse notch (0.12) is ≈ 4.8° of the 35–75° range. */
-const FIRST_PERSON_FOV_DEGREES_PER_LOG_ZOOM = 40
+/** First person: signed camera dolly from the driver's seat along the car's forward axis (positive = farther behind the car, negative = toward the nose). */
+export const FIRST_PERSON_DOLLY_SEAT = 0
+export const FIRST_PERSON_DOLLY_MIN = -3
+export const FIRST_PERSON_DOLLY_MAX = 20
+/** Maps wheel/pinch distance delta to dolly change (units per unit delta). */
+export const FIRST_PERSON_DOLLY_PER_DISTANCE_DELTA = 0.8
+/** First-person zoom: dolly units per unit of ln(distance ratio) — a mouse notch (0.12) is ≈ 1.2 units of the −3…20 range. */
+export const FIRST_PERSON_DOLLY_PER_LOG_ZOOM = 10
 
 /** Maps lag slider 1–5000 to catch-up rate (higher lag → slower / heavier). */
 const CAMERA_LAG_RESPONSE_SCALE = 800
@@ -120,7 +120,7 @@ export class CameraController {
       height: 2,
     }
     this.config = cam
-    this.orbitDistance = cam.distance ?? 10
+    this.orbitDistance = cam.mode === 'firstPerson' ? FIRST_PERSON_DOLLY_SEAT : (cam.distance ?? 10)
     this.syncFluidOrbitDistanceFromConfig(cam)
     this.applyPresetIfControl()
   }
@@ -139,20 +139,16 @@ export class CameraController {
   setConfig(config: CameraConfig): void {
     const prevControl = this.config.control
     const prevMode = this.config.mode
-    if (prevMode === 'firstPerson' && config.mode !== 'firstPerson') {
-      this.camera.fov = DEFAULT_PERSPECTIVE_FOV_DEGREES
-      this.camera.updateProjectionMatrix()
-    }
     this.config = config
     if (config.control !== prevControl) {
       this.orbitYaw = 0
       this.orbitPitch = 0
-      this.orbitDistance = config.distance ?? 10
+      this.orbitDistance = config.mode === 'firstPerson' ? FIRST_PERSON_DOLLY_SEAT : (config.distance ?? 10)
     }
     if (config.mode === 'firstPerson' && prevMode !== 'firstPerson') {
       this.orbitYaw = 0
       this.orbitPitch = 0
-      this.orbitDistance = config.distance ?? 10
+      this.orbitDistance = FIRST_PERSON_DOLLY_SEAT
     }
     if (config.mode === 'fluid') {
       this.syncFluidOrbitDistanceFromConfig(config)
@@ -180,12 +176,11 @@ export class CameraController {
   /** Adjust the orbit distance (zoom). delta > 0 = zoom out, delta < 0 = zoom in. */
   setOrbitDistanceDelta(delta: number): void {
     if (this.config.mode === 'firstPerson') {
-      this.camera.fov = THREE.MathUtils.clamp(
-        this.camera.fov + delta * FIRST_PERSON_FOV_PER_DISTANCE_DELTA,
-        FIRST_PERSON_FOV_MIN,
-        FIRST_PERSON_FOV_MAX,
+      this.orbitDistance = THREE.MathUtils.clamp(
+        this.orbitDistance + delta * FIRST_PERSON_DOLLY_PER_DISTANCE_DELTA,
+        FIRST_PERSON_DOLLY_MIN,
+        FIRST_PERSON_DOLLY_MAX,
       )
-      this.camera.updateProjectionMatrix()
       return
     }
     if (this.forceFreeFlyNavigation) {
@@ -200,18 +195,18 @@ export class CameraController {
 
   /**
    * Multiplicative zoom: the camera distance is scaled by `exp(logDelta)` (> 0 zoom out, < 0 zoom in), so each wheel step
-   * changes the view by the same percentage whether the camera is 1 m or 100 m away. First person changes the FOV instead.
+   * changes the view by the same percentage whether the camera is 1 m or 100 m away. First person dollies along the car
+   * instead (toward the nose, then trailing behind).
    * Prefer this over `setOrbitDistanceDelta` for input devices (mouse wheel, pinch).
    */
   zoomByLog(logDelta: number): void {
     if (logDelta === 0 || !Number.isFinite(logDelta)) return
     if (this.config.mode === 'firstPerson') {
-      this.camera.fov = THREE.MathUtils.clamp(
-        this.camera.fov + logDelta * FIRST_PERSON_FOV_DEGREES_PER_LOG_ZOOM,
-        FIRST_PERSON_FOV_MIN,
-        FIRST_PERSON_FOV_MAX,
+      this.orbitDistance = THREE.MathUtils.clamp(
+        this.orbitDistance + logDelta * FIRST_PERSON_DOLLY_PER_LOG_ZOOM,
+        FIRST_PERSON_DOLLY_MIN,
+        FIRST_PERSON_DOLLY_MAX,
       )
-      this.camera.updateProjectionMatrix()
       return
     }
     if (this.forceFreeFlyNavigation) {
@@ -315,10 +310,15 @@ export class CameraController {
 
     switch (this.config.mode as CameraMode) {
       case 'firstPerson': {
+        const entityQ = this.getEntityQuaternion(targetId) ?? IDENTITY_QUATERNION
+        // Signed dolly from the driver's seat along the car's forward axis (negative = toward the nose).
         this.desiredCameraPosition.copy(this.currentTarget)
         this.desiredCameraPosition.y += FIRST_PERSON_EYE_HEIGHT
+        if (entityQ) {
+          this.forward.set(0, 0, -1).applyQuaternion(entityQ).normalize()
+          this.desiredCameraPosition.addScaledVector(this.forward, -this.orbitDistance)
+        }
         this.applySmoothedCameraPosition(this.desiredCameraPosition, dt)
-        const entityQ = this.getEntityQuaternion(targetId) ?? IDENTITY_QUATERNION
         // Vehicle-local yaw (orbitYaw) then pitch (orbitPitch), then entity orientation — same idea as third/follow.
         this.forward.set(0, 0, -1)
         this.forward.applyAxisAngle(this.up, this.orbitYaw)
@@ -634,11 +634,9 @@ export class CameraController {
       target: c.target,
       distance: c.distance,
       height: c.height,
-      fov: c.fov,
       orbitYaw: this.orbitYaw,
       orbitPitch: this.orbitPitch,
       orbitDistance: this.orbitDistance,
-      effectiveFovDegrees: this.camera.fov,
       targetVerticalAngle: c.targetVerticalAngle ?? 0,
     }
   }
@@ -648,29 +646,16 @@ export class CameraController {
    * Mutates `this.config` (typically the same object as `scene.userData.camera`).
    */
   applyAvatarFocusState(state: AvatarFocusSnapshot): void {
-    const prevMode = this.config.mode
-
-    if (prevMode === 'firstPerson' && state.mode !== 'firstPerson') {
-      this.camera.fov = DEFAULT_PERSPECTIVE_FOV_DEGREES
-      this.camera.updateProjectionMatrix()
-    }
-
     this.config.control = state.control
     this.config.mode = state.mode
     this.config.target = state.target
     this.config.distance = state.distance
     this.config.height = state.height
-    if (state.fov !== undefined) this.config.fov = state.fov
     this.config.targetVerticalAngle = state.targetVerticalAngle ?? 0
 
     this.orbitYaw = state.orbitYaw
     this.orbitPitch = state.orbitPitch
     this.orbitDistance = state.orbitDistance
-
-    if (state.mode === 'firstPerson') {
-      this.camera.fov = state.effectiveFovDegrees
-      this.camera.updateProjectionMatrix()
-    }
 
     this.applyPresetIfControl()
   }

@@ -135,7 +135,6 @@ export default function AvatarDialog({
       control: snap.control,
       distance: snap.distance,
       height: snap.height,
-      fov: snap.mode === 'firstPerson' ? snap.effectiveFovDegrees : snap.fov,
       orbitYaw: snap.orbitYaw,
       orbitPitch: snap.orbitPitch,
       orbitDistance: snap.orbitDistance,
