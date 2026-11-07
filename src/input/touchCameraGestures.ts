@@ -293,12 +293,23 @@ export function useTouchCameraGestures(
     }
     container.addEventListener('touchmove', onContainerTouchMove, { passive: false })
 
+    // Safari additionally fires non-standard `gesture*` events for two-finger pinches (page
+    // zoom) and some iOS versions take the gesture over even with `touchmove` prevented;
+    // cancelling them keeps the pinch ours (no-ops in Chromium/Firefox).
+    const onContainerGestureEvent = (e: Event): void => {
+      e.preventDefault()
+    }
+    container.addEventListener('gesturestart', onContainerGestureEvent)
+    container.addEventListener('gesturechange', onContainerGestureEvent)
+
     return () => {
       container.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerEnd)
       window.removeEventListener('pointercancel', onPointerEnd)
       container.removeEventListener('touchmove', onContainerTouchMove)
+      container.removeEventListener('gesturestart', onContainerGestureEvent)
+      container.removeEventListener('gesturechange', onContainerGestureEvent)
     }
   }, [containerRef])
 }

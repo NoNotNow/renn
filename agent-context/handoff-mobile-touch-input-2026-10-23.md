@@ -1,6 +1,13 @@
 # Handoff — mobile touch input: camera gestures on phones (2026-10-23)
 
-**Status: round 1 shipped and deployed** (branch `claude/autonomous-car-evolution-9p6zt2`, commits `9bc90f74` → `de79ff6c`; `npm run deploy` printed `Published`). Wheel drag verified working on the user's phone; orbit/pinch on canvas **pending re-verification after the gesture-take-over fixes**. Do not regenerate the settled decisions below.
+**Status: round 2 shipped** — root cause found and fixed: it was never an input/gesture bug. At phone width the Builder's two side drawers (240 px + 300 px, full-height, `pointer-events: auto`) overlap and cover **100% of the scene canvas** — every touch landed on sidebar UI, so the camera recognizer never saw a pointerdown. Verified under real phone emulation (WebKit + Chromium, production build): 640/640 sampled canvas points hit builder chrome before the fix. The wheel strip kept working because it sits above the drawers in the HUD of the *Play* layout / a drawer-closed Builder. Fix: drawers default to collapsed below 760 px viewport (`drawersOpenByDefault` in `useBuilderFullscreenChrome.ts`); stored prefs still win. Also added an iOS `gesturestart`/`gesturechange` preventDefault belt to `touchCameraGestures.ts`. Round 1 + wheels stay as shipped below; do not regenerate the settled decisions.
+
+**Device-parity suite (production build, phone layout): `e2e/touch-camera-mobile.spec.ts` + `playwright.touch.config.ts`** — serves the real `vite build` via `vite preview` (the gh-pages artifact, which the old dev-server spec never tested) under `devices['iPhone 13']` in both engines:
+- fresh phone session must keep the canvas ≥90% touchable (regression test for the drawer default),
+- CDP multitouch two-finger drag + pinch against the production bundle (moves reach the scene container, never pointercancel, camera pixels change).
+Run: `npm run build && npx playwright test --config playwright.touch.config.ts` (CDP tests auto-skip on the WebKit project).
+
+**If the phone still shows dead canvas gestures after round 2:** first compare the build fingerprint — Builder header shows `build <sha>` (the deployed commit's short SHA). If it doesn't match the deployed `main`/branch tip, Safari is serving a stale gh-pages bundle: fully close the tab and reload (gh-pages caches `index.html` ~10 min; iOS Safari can hold it much longer in resurrected tabs). The wheel strip works in every iteration, so it proves nothing about bundle freshness — round 1's `touch-action` bug (dead canvas + working wheel) is exactly what a stale round-1 bundle shows.
 
 ## Settled decisions (grilling session — do not reopen)
 
@@ -37,8 +44,9 @@ Reproduces real phone input: CDP `Input.dispatchTouchEvent` (synthetic `dispatch
 - Wheel feel: `deflectionRadius` in `touchDriveInput.ts` (0.32 × strip width), dead zone 0.05.
 - Gesture classification: `DECIDE_TRAVEL_PX` (6) and `STATIC_ANCHOR_TRAVEL_PX` (30) in `touchCameraGestures.ts`; latched once per gesture, decision frame emits the cumulative delta.
 
-## Next agent: if orbit/pinch is still dead on device with `de79ff6c`
+## Next agent: if orbit/pinch is still dead on device
 
 1. First rule out the cached bundle (ask the user to hard-refresh; compare a fingerprint, e.g. console.log a build marker added temporarily).
 2. Instrument live counters around `pointerIsClaimed`, the sink skip, and travel thresholds in `touchCameraGestures.ts`; check whether a `pointermove` stream arrives at all and whether `pointercancel` fires.
 3. Do NOT touch the desktop trackpad/wheel paths (`WheelClassifier`, `wheelZoom`, `rawMouseDrag`) — they are settled and desktop-verified.
+4. Round-2 addition: verify the touch actually reaches the canvas — `document.elementFromPoint(x, y)` at the finger position. In the Builder at phone width, drawers cover the canvas by default (see `e2e/touch-camera-mobile.spec.ts`'s `canvasHitFraction`); on `/play` the canvas is always full-bleed.

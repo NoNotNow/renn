@@ -41,6 +41,22 @@ export interface BuilderFullscreenChrome {
 }
 
 /**
+ * Drawers open by default on desktop. At phone widths the two full-height drawers (240 px +
+ * 300 px) overlap each other and cover the scene canvas completely — every touch lands on
+ * sidebar UI, so drive/camera gestures on the canvas are dead (and the drawers hide the
+ * wheel strip too). Below this viewport width they therefore start collapsed; the tab
+ * handles at the screen edges reopen them, and a stored localStorage preference wins either way.
+ */
+const DRAWER_OPEN_VIEWPORT_MIN_WIDTH_PX = 760
+
+/** Drawer default for the current session: open only when both drawers fit alongside a usable scene. */
+export function drawersOpenByDefault(
+  viewportWidth: number = typeof window === 'undefined' ? Infinity : window.innerWidth,
+): boolean {
+  return viewportWidth >= DRAWER_OPEN_VIEWPORT_MIN_WIDTH_PX
+}
+
+/**
  * Owns the Builder's fullscreen + drawer chrome state:
  * - left/right drawer open flags (localStorage-persisted)
  * - fullscreen entry/exit (collapses both drawers on enter, restores on exit)
@@ -55,8 +71,8 @@ export function useBuilderFullscreenChrome(): BuilderFullscreenChrome {
   const builderFullscreenActiveRef = useRef(false)
   const pointerOverFsSidebarsRef = useRef(false)
 
-  const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', true)
-  const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', true)
+  const [leftDrawerOpen, setLeftDrawerOpen] = useLocalStorageState('leftDrawerOpen', drawersOpenByDefault())
+  const [rightDrawerOpen, setRightDrawerOpen] = useLocalStorageState('rightDrawerOpen', drawersOpenByDefault())
   const leftDrawerOpenRef = useRef(leftDrawerOpen)
   const rightDrawerOpenRef = useRef(rightDrawerOpen)
   useEffect(() => {

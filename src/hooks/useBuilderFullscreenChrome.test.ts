@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useBuilderFullscreenChrome } from '@/hooks/useBuilderFullscreenChrome'
+import { useBuilderFullscreenChrome, drawersOpenByDefault } from '@/hooks/useBuilderFullscreenChrome'
 import * as fullscreenApi from '@/utils/fullscreenApi'
 
 function clearDrawerKeys() {
@@ -33,6 +33,26 @@ describe('useBuilderFullscreenChrome', () => {
     const { result } = renderHook(() => useBuilderFullscreenChrome())
     expect(result.current.leftDrawerOpen).toBe(false)
     expect(result.current.rightDrawerOpen).toBe(false)
+  })
+
+  it('drawersOpenByDefault: open only when the viewport fits both drawers plus a usable scene', () => {
+    expect(drawersOpenByDefault(390)).toBe(false)
+    expect(drawersOpenByDefault(560)).toBe(false)
+    expect(drawersOpenByDefault(759)).toBe(false)
+    expect(drawersOpenByDefault(760)).toBe(true)
+    expect(drawersOpenByDefault(1280)).toBe(true)
+  })
+
+  it('fresh phone-width session starts with both drawers collapsed', () => {
+    const prevWidth = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: 390 })
+    try {
+      const { result } = renderHook(() => useBuilderFullscreenChrome())
+      expect(result.current.leftDrawerOpen).toBe(false)
+      expect(result.current.rightDrawerOpen).toBe(false)
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, writable: true, value: prevWidth })
+    }
   })
 
   it('collapses drawers on fullscreen enter and restores on exit', () => {
